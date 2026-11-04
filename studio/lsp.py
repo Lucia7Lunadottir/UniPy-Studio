@@ -15,7 +15,7 @@ import signal
 import time
 from urllib.parse import quote, unquote, urlparse
 
-from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, pyqtSignal
+from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
 
 from . import unity_api
 from .intellisense import Item
@@ -200,6 +200,7 @@ class LanguageServer(QObject):
         self._diag_parts = {}           # uri → {группа: [ошибки]}
         self._diag_pending = {}         # (uri, группа) → id запроса
         self._warmed = False
+        self.last_activity = time.monotonic()     # последняя правка или запрос — для перезапуска в простое
 
     # ---- то, что задают подклассы
     def command(self):
@@ -271,7 +272,11 @@ class LanguageServer(QObject):
             self._set_state("failed")
             self.log.emit("Ошибка initialize: %s" % error.get("message"))
             return
-        self.pull_supported = bool((result or {}).get("capabilities", {}).get("diagnosticProvider"))
+        caps = (result or {}).get("capabilities", {})
+        self.pull_supported = bool(caps.get("diagnosticProvider"))
+        sync = caps.get("textDocumentSync")
+        # 2 = Incremental: сервер принимает только изменённый кусок текста (как шлют VS Code и Visual Studio)
+        self.incremental_sync = (sync == 2) or (isinstance(sync, dict) and sync.get("change") == 2)
         self.conn.notify("initialized", {})
         self._set_state("loading")
         for uri, (ver, text) in list(self._docs.items()):
@@ -399,9 +404,13 @@ class LanguageServer(QObject):
         if old == text:
             return
         self._docs[uri] = (ver + 1, text)
+        self.last_activity = time.monotonic()
         if self.state in ("loading", "ready"):
+            # Только изменённый кусок: иначе на каждую клавишу сервер заново строит текст и разбор
+            # всего файла (лишний мусор и работа; так шлют VS Code и Visual Studio).
+            change = text_change(old, text) if getattr(self, "incremental_sync", False) else {"text": text}
             self.conn.notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": ver + 1},
-                                                        "contentChanges": [{"text": text}]})
+                                                        "contentChanges": [change]})
 
     def _did_open(self, uri, text, ver):
         self.conn.notify("textDocument/didOpen", {"textDocument": {
@@ -448,6 +457,7 @@ class LanguageServer(QObject):
 
     # ---- запросы (формат как у JediWorker.submit)
     def submit(self, kind, req, editor, code, line, col, path, extra=None):
+        self.last_activity = time.monotonic()
         self.sync(path, code)
         key = (editor, kind)
         old = self._pending.pop(key, None)
@@ -600,6 +610,30 @@ def split_lines(text):
     """Строки с «\\n» на конце. Только «\\n», как в LSP и Qt (splitlines() режет ещё по \\x0c, \\u2028…)."""
     parts = text.split("\n")
     return [p + "\n" for p in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
+
+
+def _lsp_position(text, index):
+    """Индекс в строке Python → позиция LSP (строка с 0, столбец в UTF-16)."""
+    line_start = text.rfind("\n", 0, index) + 1
+    return {"line": text.count("\n", 0, index), "character": _utf16_len(text[line_start:index])}
+
+
+def _utf16_len(s):
+    return len(s) if s.isascii() else len(s.encode("utf-16-le")) // 2
+
+
+def text_change(old, new):
+    """Одна правка LSP «было → стало»: общее начало и общий конец не отправляются."""
+    n = min(len(old), len(new))
+    start = 0
+    while start < n and old[start] == new[start]:
+        start += 1
+    end_old, end_new = len(old), len(new)
+    while end_old > start and end_new > start and old[end_old - 1] == new[end_new - 1]:
+        end_old -= 1
+        end_new -= 1
+    return {"range": {"start": _lsp_position(old, start), "end": _lsp_position(old, end_old)},
+            "text": new[start:end_new]}
 
 
 def text_offset(text, line, utf16_col):
@@ -803,13 +837,48 @@ class LanguageService(QObject):
     diagnostics = pyqtSignal(str, object)
     status = pyqtSignal(str)
     log = pyqtSignal(str)
+    restarted = pyqtSignal(str)     # анализатор перезапущен (причина) — открытые файлы надо отдать новому
 
     language_name = ""
+    CHECK_EVERY_MS = 30_000
+    IDLE_BEFORE_RESTART = 120       # секунд без правок и запросов в этом проекте
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.servers = {}           # корень проекта → сервер
         self._metadata_owner = {}   # исходник класса из сборки → сервер, который его выдал
+        self.restart_mb = 0         # 0 — не перезапускать сам
+        self._memory_timer = QTimer(self, interval=self.CHECK_EVERY_MS, timeout=self._check_memory)
+        self._memory_timer.start()
+
+    # ---- память: анализатор, набравший лишнего, перезапускается, когда вы не печатаете
+    def memory_mb(self, srv):
+        return process_tree_rss_mb(int(srv.conn.proc.processId())) if srv.conn.running() else 0
+
+    def _check_memory(self):
+        if not self.restart_mb:
+            return
+        for root, srv in list(self.servers.items()):
+            if not srv.ready or time.monotonic() - srv.last_activity < self.IDLE_BEFORE_RESTART:
+                continue
+            mb = self.memory_mb(srv)
+            if mb > self.restart_mb:
+                self.restart(root, "занимал %d МБ при пороге %d МБ" % (mb, self.restart_mb))
+
+    def restart(self, root=None, reason="по запросу"):
+        """Остановить сервер(ы); новый запустится сам при следующей синхронизации открытого файла."""
+        roots = [root] if root else list(self.servers)
+        for r in roots:
+            srv = self.servers.pop(r, None)
+            if srv is None:
+                continue
+            for path, owner in list(self._metadata_owner.items()):
+                if owner is srv:
+                    del self._metadata_owner[path]
+            srv.stop()
+            srv.deleteLater()
+        if roots:
+            self.restarted.emit(reason)
 
     # ---- то, что задают подклассы
     @property
@@ -1122,6 +1191,28 @@ class PythonService(LanguageService):
 
     def make_server(self, root):
         return PyrightServer(root, self.exe, self.python_path, self)
+
+
+def process_tree_rss_mb(pid):
+    """Память процесса и всех его потомков (МБ) — Linux /proc."""
+    total, todo, seen = 0, [pid], set()
+    while todo:
+        p = todo.pop()
+        if p in seen:
+            continue
+        seen.add(p)
+        try:
+            with open("/proc/%d/status" % p) as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        total += int(line.split()[1])
+                        break
+            for task in os.listdir("/proc/%d/task" % p):
+                with open("/proc/%d/task/%s/children" % (p, task)) as f:
+                    todo.extend(int(x) for x in f.read().split())
+        except (OSError, ValueError):
+            pass
+    return total // 1024
 
 
 def find_pyright():

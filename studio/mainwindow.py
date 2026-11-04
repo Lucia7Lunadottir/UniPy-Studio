@@ -182,6 +182,8 @@ class MainWindow(QMainWindow):
             svc.finished.connect(self._worker_result)
             svc.diagnostics.connect(self._lsp_diagnostics)
             svc.status.connect(lambda text, k=key: self._lsp_status(text, k))
+            svc.restarted.connect(lambda reason, k=key: self._lsp_restarted(k, reason))
+            svc.restart_mb = int(self.settings.value("analyzers/restart_mb", 1024))
 
         self._build_central()
         self._build_docks()
@@ -411,6 +413,10 @@ class MainWindow(QMainWindow):
         m.addAction("Терминал", lambda: self.show_dock(self.d_terminal))
         m.addAction("Конструктор PyQt", lambda: self.show_dock(self.d_designer))
         m.addAction("Папка с версиями Unity…", self._pick_unity_root)
+        m.addSeparator()
+        m.addAction("Перезапустить анализаторы кода", self.restart_analyzers)
+        self.restart_menu = m.addMenu("Перезапуск анализатора при памяти выше")
+        self.restart_menu.aboutToShow.connect(self._fill_restart_menu)
         m = mb.addMenu("Справка")
         m.addAction(self.a_keys)
         m.addAction(self.a_updates)
@@ -948,6 +954,38 @@ class MainWindow(QMainWindow):
     def service_for(self, language):
         """Анализатор для языка (languages.Language) или None — для редактора."""
         return self.services_by_key.get(language.service) if language.service else None
+
+    # ------------------------------------------------------------ перезапуск анализаторов
+    RESTART_THRESHOLDS = ((0, "Не перезапускать"), (800, "800 МБ"), (1024, "1 ГБ"), (1536, "1,5 ГБ"), (2048, "2 ГБ"))
+
+    def restart_analyzers(self):
+        for svc in self.language_services:
+            svc.restart(reason="по команде из меню")
+
+    def _fill_restart_menu(self):
+        m = self.restart_menu
+        m.clear()
+        current = int(self.settings.value("analyzers/restart_mb", 1024))
+        for mb, label in self.RESTART_THRESHOLDS:
+            a = m.addAction(label, lambda v=mb: self._set_restart_mb(v))
+            a.setCheckable(True)
+            a.setChecked(mb == current)
+
+    def _set_restart_mb(self, mb):
+        self.settings.setValue("analyzers/restart_mb", mb)
+        for svc in self.language_services:
+            svc.restart_mb = mb
+        self.status("Перезапуск анализатора: " + dict(self.RESTART_THRESHOLDS)[mb] +
+                    (" (когда вы не печатаете 2 минуты)" if mb else ""))
+
+    def _lsp_restarted(self, key, reason):
+        name = {"csharp": "C#", "python": "Python"}.get(key, key)
+        self.status("%s: анализатор перезапущен — %s" % (name, reason), 10000)
+        self.output.write("%s: анализатор перезапущен — %s" % (name, reason), "Сборка", C["dim"])
+        for ed in self.editors():
+            if ed.language.service == key:
+                ed.lsp_diagnostics = None
+                ed.run_diagnostics()        # отдаёт текст новому серверу (он запустится сам)
 
     def _lsp_status(self, text, key):
         if not text:

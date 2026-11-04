@@ -1,7 +1,7 @@
 # Maintainer: lucial <bordiyan20035@gmail.com>
 pkgname=unipy-studio
 pkgver=0.1.0
-pkgrel=8
+pkgrel=9
 pkgdesc="Редактор кода в духе Visual Studio для Unity (C#) и Python/PyQt6"
 arch=('any')
 url="https://github.com/Lucia7Lunadottir"
