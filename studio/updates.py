@@ -276,6 +276,8 @@ class UpdatesDialog(QDialog):
         lay.addWidget(self.result)
         self.log_view = QPlainTextEdit(readOnly=True)
         self.log_view.setObjectName("plainField")
+        self.log_view.setMaximumBlockCount(2000)
+        self.log_view.setUndoRedoEnabled(False)
         lay.addWidget(self.log_view, 1)
         row = QHBoxLayout()
         self.status = QLabel("")

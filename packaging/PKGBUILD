@@ -1,7 +1,7 @@
 # Maintainer: lucial <bordiyan20035@gmail.com>
 pkgname=unipy-studio
 pkgver=0.1.0
-pkgrel=3
+pkgrel=7
 pkgdesc="Редактор кода в духе Visual Studio для Unity (C#) и Python/PyQt6"
 arch=('any')
 url="https://github.com/Lucia7Lunadottir"
@@ -17,6 +17,7 @@ package() {
     local _lib="$pkgdir/usr/share/$pkgname"
     cd "$startdir/.."
 
+    find unity/com.unipy.ide -type f -exec install -Dm644 {} "$_lib/{}" \;
     install -Dm644 main.py "$_lib/main.py"
     find studio -type f -name '*.py' ! -path '*/__pycache__/*' -exec install -Dm644 {} "$_lib/{}" \;
 

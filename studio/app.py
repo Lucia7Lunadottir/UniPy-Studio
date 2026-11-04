@@ -88,12 +88,32 @@ def run(args):
     app.setDesktopFileName("unipy-studio")     # Wayland: окно ↔ ярлык unipy-studio.desktop (значок на панели)
     app.setOrganizationName("UniPyStudio")
     app.setApplicationDisplayName(APP_NAME)
+    from .launch import resolve_request, apply_request
+    try:
+        request = resolve_request(args)
+    except ValueError as exc:
+        sys.stderr.write(str(exc) + "\n")
+        return 2
+    # One process per explicit project; repeated Unity opens preserve unsaved tabs.
+    from .instance import ProjectInstance
+    instance = ProjectInstance(request["root"]) if request["root"] and not args.screenshot else None
+    try:
+        if instance and instance.forward(request):
+            return 0
+    except RuntimeError as exc:
+        sys.stderr.write(str(exc) + "\n")
+        return 1
     theme.apply(app)
     win = MainWindow(screenshot=args.screenshot)
     if not args.screenshot:
         win.restore_layout()
     win.show()
-    win.start(args.path)
+    if request["root"]:
+        apply_request(win, request)
+    else:
+        win.start(args.path)
+    if instance:
+        instance.listen(lambda message: apply_request(win, message))
     runner = ScreenshotRunner(app, win, args.screenshot) if args.screenshot else None  # noqa
     code = app.exec()
     win.jedi.stop()

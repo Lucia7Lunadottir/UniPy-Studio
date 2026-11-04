@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import time
 from urllib.parse import quote, unquote, urlparse
 
@@ -61,6 +62,12 @@ class JsonRpcConnection(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.proc = QProcess(self)
+        self._process_group = None
+        self._isolated = hasattr(QProcess, "UnixProcessParameters") and hasattr(os, "killpg")
+        if self._isolated:
+            parameters = QProcess.UnixProcessParameters()
+            parameters.flags = QProcess.UnixProcessFlag.CreateNewSession
+            self.proc.setUnixProcessParameters(parameters)
         self.proc.readyReadStandardOutput.connect(self._read)
         self.proc.readyReadStandardError.connect(
             lambda: self.stderr.emit(bytes(self.proc.readAllStandardError()).decode("utf-8", "replace")))
@@ -77,7 +84,15 @@ class JsonRpcConnection(QObject):
         self.proc.setProcessEnvironment(env)
         self.proc.setWorkingDirectory(cwd)
         self.proc.start(program, args)
-        return self.proc.waitForStarted(5000)
+        started = self.proc.waitForStarted(5000)
+        if started and self._isolated:
+            pid = int(self.proc.processId())
+            try:
+                if os.getpgid(pid) == pid:
+                    self._process_group = pid
+            except ProcessLookupError:
+                pass
+        return started
 
     def running(self):
         return self.proc.state() != QProcess.ProcessState.NotRunning
@@ -85,13 +100,14 @@ class JsonRpcConnection(QObject):
     def request(self, method, params, callback=None):
         rid = self._next_id
         self._next_id += 1
-        self._callbacks[rid] = callback
+        if callback is not None:
+            self._callbacks[rid] = callback
         self._send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
         return rid
 
     def cancel(self, rid):
         if rid in self._callbacks:
-            self._callbacks[rid] = None     # ответ придёт, но его некому отдавать
+            self._callbacks.pop(rid, None)  # Late replies are ignored by _dispatch.
             self.notify("$/cancelRequest", {"id": rid})
 
     def notify(self, method, params):
@@ -143,6 +159,16 @@ class JsonRpcConnection(QObject):
             if not self.proc.waitForFinished(1500):
                 self.proc.kill()
                 self.proc.waitForFinished(500)
+        # The dotnet-tool launcher may exit before its language-server/build hosts.
+        # Only kill the private session we created, never processes by name.
+        if self._process_group is not None:
+            try:
+                os.killpg(self._process_group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            self._process_group = None
+        self._callbacks.clear()
+        self._buf = b""
 
 
 # ====================================================================== сервер
@@ -255,6 +281,17 @@ class LanguageServer(QObject):
 
     def stop(self):
         self.conn.stop()
+        self._docs.clear()
+        self._pending.clear()
+        self._diag_pending.clear()
+        self._diag_parts.clear()
+        self._progress.clear()
+        # Release signal closures before deferred QObject deletion.
+        for obj in (self.conn.proc, self.conn, self):
+            try:
+                obj.disconnect()
+            except TypeError:
+                pass
 
     def _on_exit(self, code):
         if self.state != "failed":
@@ -697,6 +734,23 @@ class RoslynServer(CSharpServer):
         # единственный .sln в корне сервер находит и загружает сам
         return self.exe, ["--stdio", "--autoLoadProjects", "--telemetryLevel", "off", "--logLevel", "Warning"]
 
+    def environment(self):
+        # Only our analyzer inherits these; do not change the user's SDK globally.
+        return {
+            "MSBUILDDISABLENODEREUSE": "1",
+            "DOTNET_CLI_USE_MSBUILD_SERVER": "0",
+            "DOTNET_gcServer": os.environ.get("DOTNET_gcServer", "0"),
+        }
+
+    def configuration(self, section):
+        # Roslyn requests individual option names in workspace/configuration.
+        # Match VS Code's open-file diagnostic scope, keeping solution navigation.
+        scopes = {
+            "csharp|background_analysis.dotnet_analyzer_diagnostics_scope": "openFiles",
+            "csharp|background_analysis.dotnet_compiler_diagnostics_scope": "openFiles",
+        }
+        return scopes.get(section)
+
     def is_loaded_notification(self, method):
         return method == "workspace/projectInitializationComplete"
 
@@ -805,6 +859,7 @@ class LanguageService(QObject):
     def stop(self):
         for srv in self.servers.values():
             srv.stop()
+            srv.deleteLater()
         self.servers.clear()
         self._metadata_owner.clear()
 

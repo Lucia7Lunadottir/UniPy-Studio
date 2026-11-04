@@ -1,4 +1,5 @@
 """Панели: обозреватель решений, структура, вывод, ошибки, терминал, Unity, конструктор PyQt."""
+from collections import deque
 import ast
 import html
 import os
@@ -17,6 +18,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTr
 
 from . import theme, unity_api, templates, languages
 from .theme import C
+from .log_limits import LOG_CHARS, LOG_BLOCKS, configure_log, trim_log, clip_log
 
 HIDDEN_DIRS = {"Library", "Temp", "Logs", "obj", "bin", "__pycache__", ".git", ".venv", "venv",
                ".idea", ".vs", ".vscode", "UserSettings", "Build", "Builds", "node_modules",
@@ -467,20 +469,23 @@ class OutputPanel(QWidget):
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
         self.view.setFont(font)
-        self.view.setMaximumBlockCount(20000)
+        configure_log(self.view)
         self.view.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.view.viewport().installEventFilter(self)
         lay.addWidget(self.view, 1)
-        self.lines = []   # (источник, текст, цвет)
+        self.lines = deque()   # (источник, текст, цвет)
+        self._line_chars = 0
 
     def write(self, text, source="Запуск", color=None):
         color = theme.role_of(color) or color      # роль, а не цвет: строка перекрасится при смене темы
-        for line in text.rstrip("\n").split("\n"):
+        for line in clip_log(text).rstrip("\n").split("\n"):
             self.lines.append((source, line, color))
+            self._line_chars += len(line) + 1
+            while self.lines and (len(self.lines) > LOG_BLOCKS or self._line_chars > LOG_CHARS):
+                self._line_chars -= len(self.lines.popleft()[1]) + 1
             if self.source.currentText() in ("Все", source):
                 self._append(line, color)
-        if len(self.lines) > 20000:
-            self.lines = self.lines[-15000:]
+        trim_log(self.view)
 
     def _append(self, line, color):
         cur = self.view.textCursor()
@@ -499,7 +504,8 @@ class OutputPanel(QWidget):
                 self._append(line, color)
 
     def clear(self):
-        self.lines = []
+        self.lines.clear()
+        self._line_chars = 0
         self.view.clear()
 
     def eventFilter(self, obj, ev):
@@ -677,6 +683,7 @@ class TerminalPanel(QWidget):
         lay.setSpacing(0)
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
+        configure_log(self.view)
         self.view.setFont(font)
         lay.addWidget(self.view, 1)
         row = QHBoxLayout()
@@ -726,7 +733,8 @@ class TerminalPanel(QWidget):
         fmt = QTextCharFormat()
         if color and color != C["text"]:     # обычный текст — цветом темы виджета
             fmt.setForeground(QColor(color))
-        cur.insertText(text, fmt)
+        cur.insertText(clip_log(text), fmt)
+        trim_log(self.view)
         self.view.verticalScrollBar().setValue(self.view.verticalScrollBar().maximum())
 
     def run(self):
@@ -734,6 +742,7 @@ class TerminalPanel(QWidget):
         if not cmd:
             return
         self.history.append(cmd)
+        self.history = self.history[-500:]
         self.hpos = len(self.history)
         self.input.clear()
         self._write("%s %s\n" % (self.prompt.text(), cmd), C["ok"])
@@ -752,6 +761,8 @@ class TerminalPanel(QWidget):
         if self.proc and self.proc.state() != QProcess.ProcessState.NotRunning:
             self._write("Предыдущая команда ещё выполняется.\n", C["warning"])
             return
+        if self.proc is not None:
+            self.proc.deleteLater()
         self.proc = QProcess(self)
         self.proc.setWorkingDirectory(self.cwd)
         self.proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)

@@ -362,11 +362,11 @@ class CodeEditor(QPlainTextEdit):
         return []
 
     # ------------------------------------------------------------ проверка ошибок
-    def run_diagnostics(self):
+    def run_diagnostics(self, *, sync_server=True):
         text = self.toPlainText()
         diags = []
         svc = self.services.service_for(self.language)
-        if svc is not None:
+        if sync_server and svc is not None:
             svc.sync(self.path, text)
         if self.lang == "python":
             try:
@@ -461,7 +461,8 @@ class CodeEditor(QPlainTextEdit):
 
     def set_lsp_diagnostics(self, diags):
         self.lsp_diagnostics = diags
-        self.run_diagnostics()
+        # Applying an LSP reply must not request another LSP diagnostic round.
+        self.run_diagnostics(sync_server=False)
 
     # ------------------------------------------------------------ ввод
     def keyPressEvent(self, e):

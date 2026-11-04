@@ -9,11 +9,19 @@ import os
 import sys
 
 
-def main():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="UniPy Studio")
     parser.add_argument("path", nargs="?", help="папка решения или файл")
     parser.add_argument("--screenshot", metavar="FILE.png", help="нарисовать ~120 кадров, сохранить картинку окна и выйти")
-    args = parser.parse_args()
+    parser.add_argument("--project", help="корень проекта Unity или файл решения")
+    parser.add_argument("--file", help="файл для открытия внутри проекта")
+    parser.add_argument("--line", type=int, default=1, help="строка, начиная с 1")
+    parser.add_argument("--column", type=int, default=1, help="столбец, начиная с 1")
+    return parser.parse_args(argv)
+
+
+def main():
+    args = parse_args()
     if args.screenshot and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

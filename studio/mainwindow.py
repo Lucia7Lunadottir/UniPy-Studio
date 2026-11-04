@@ -1280,6 +1280,8 @@ class MainWindow(QMainWindow):
         self.output.write("------ Запуск: %s ------" % os.path.relpath(path, self.root or os.path.dirname(path)), "Запуск", C["link"])
         self.output.write("%s %s" % (interp, path), "Запуск", C["dim"])
         self.show_dock(self.d_output)
+        if self.proc is not None:
+            self.proc.deleteLater()
         self.proc = QProcess(self)
         self.proc.setWorkingDirectory(os.path.dirname(path))
         env = QProcessEnvironment.systemEnvironment()
@@ -1299,7 +1301,7 @@ class MainWindow(QMainWindow):
 
     def _read_err(self):
         text = bytes(self.proc.readAllStandardError()).decode("utf-8", "replace")
-        self.run_stderr += text
+        self.run_stderr = (self.run_stderr + text)[-256_000:]
         self.output.write(text, "Запуск", C["error"])
 
     def _run_finished(self, code, _status):
