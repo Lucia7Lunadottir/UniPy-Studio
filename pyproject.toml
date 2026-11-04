@@ -1,0 +1,13 @@
+[project]
+name = "unipy-studio"
+version = "0.1.0"
+description = "Редактор кода для Unity (C#) и Python/PyQt с подсказками кода"
+requires-python = ">=3.9"
+dependencies = ["PyQt6>=6.5", "jedi>=0.19"]
+
+[project.scripts]
+unipy-studio = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+packages = ["studio"]

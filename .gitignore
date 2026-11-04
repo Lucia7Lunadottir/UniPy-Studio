@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+
+# сборка пакета (makepkg в packaging/)
+packaging/src/
+packaging/pkg/
+*.pkg.tar.zst
+
+# старый снимок версии из Craft Anything
+shots/now.png

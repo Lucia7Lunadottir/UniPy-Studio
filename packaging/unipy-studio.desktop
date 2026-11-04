@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=UniPy Studio
+GenericName=IDE for Unity and Python
+GenericName[ru]=Среда разработки для Unity и Python
+Comment=Code editor in the spirit of Visual Studio for Unity (C#) and Python/PyQt
+Comment[ru]=Редактор кода в духе Visual Studio для Unity (C#) и Python/PyQt
+Exec=unipy-studio %f
+Icon=unipy-studio
+Terminal=false
+Categories=Development;IDE;
+Keywords=Unity;C#;Python;PyQt;IDE;Visual Studio;
+StartupWMClass=unipy-studio

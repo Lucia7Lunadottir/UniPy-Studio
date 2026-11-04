@@ -1,0 +1,31 @@
+# Maintainer: lucial <bordiyan20035@gmail.com>
+pkgname=unipy-studio
+pkgver=0.1.0
+pkgrel=2
+pkgdesc="Редактор кода в духе Visual Studio для Unity (C#) и Python/PyQt6"
+arch=('any')
+url="https://github.com/Lucia7Lunadottir"
+license=('custom')
+depends=('python' 'python-pyqt6' 'python-jedi')
+optdepends=('equestria-qt-kit>=1.2: темы персонажей Equestria OS (без него — свои темы UniPy, тёмная и светлая)'
+            'dotnet-sdk: анализатор C# Roslyn (ставится из «Справка → Обновления анализаторов»)'
+            'npm: анализатор Python pyright (ставится из «Справка → Обновления анализаторов»)')
+
+# Исходники — папка проекта на уровень выше. PKGBUILD лежит в packaging/, чтобы рабочие папки
+# makepkg (src/, pkg/; makepkg -c их удаляет) не смешивались с файлами проекта.
+package() {
+    local _lib="$pkgdir/usr/share/$pkgname"
+    cd "$startdir/.."
+
+    install -Dm644 main.py "$_lib/main.py"
+    find studio -type f -name '*.py' ! -path '*/__pycache__/*' -exec install -Dm644 {} "$_lib/{}" \;
+
+    install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname" << 'LAUNCHER'
+#!/bin/bash
+exec python3 /usr/share/unipy-studio/main.py "$@"
+LAUNCHER
+
+    install -Dm644 packaging/$pkgname.desktop "$pkgdir/usr/share/applications/$pkgname.desktop"
+    install -Dm644 packaging/$pkgname.png "$pkgdir/usr/share/icons/hicolor/64x64/apps/$pkgname.png"
+    install -Dm644 packaging/$pkgname.png "$pkgdir/usr/share/pixmaps/$pkgname.png"
+}
