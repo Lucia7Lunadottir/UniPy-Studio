@@ -46,6 +46,9 @@ Both analyzers are official Microsoft packages (NuGet / npm). The editor finds t
 ./start.sh "/path/to/Unity project" # open a folder or a file right away
 ```
 
+**Unity integration:** in Unity, Window → Package Manager → + → Install package from git URL… →
+`https://github.com/Lucia7Lunadottir/UniPy-Studio.git?path=/unity/com.unipy.ide`, then pick **UniPy Studio** in Preferences → External Tools.
+
 For a Unity project, Unity must have generated the `.sln` / `.csproj` files
 (the Visual Studio or Rider package in Packages — present in new projects by default).
 
@@ -82,10 +85,18 @@ sudo pacman -U "$(makepkg --packagelist)"
 
 1. Соберите и установите свежий пакет UniPy Studio командами из раздела
    **Arch Linux package** выше.
-2. В Unity откройте **Window → Package Manager → + → Install package from disk…**
-   (в старых версиях — **Add package from disk…**).
-3. Выберите `/usr/share/unipy-studio/unity/com.unipy.ide/package.json`.
-   Для запуска из исходников пакет находится в `unity/com.unipy.ide/package.json`.
+2. В Unity откройте **Window → Package Manager → + → Install package from git URL…**
+   и вставьте ссылку:
+
+   ```
+   https://github.com/Lucia7Lunadottir/UniPy-Studio.git?path=/unity/com.unipy.ide
+   ```
+
+   Unity скачает пакет сама (нужен установленный `git`). Чтобы закрепить версию,
+   добавьте в конец `#` и тег выпуска из репозитория (когда теги появятся).
+3. Без интернета — **+ → Install package from disk…** (в старых версиях
+   **Add package from disk…**) и файл `/usr/share/unipy-studio/unity/com.unipy.ide/package.json`
+   (из исходников — `unity/com.unipy.ide/package.json`).
 4. Дождитесь установки зависимости **Visual Studio Editor** и окончания компиляции.
    Саму Visual Studio устанавливать не нужно.
 5. Откройте **Edit → Preferences → External Tools → External Script Editor**

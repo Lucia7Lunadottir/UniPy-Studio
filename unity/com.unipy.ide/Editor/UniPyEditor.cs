@@ -63,7 +63,10 @@ namespace UniPy.UnityIntegration
             if (!File.Exists(path)) return false;
             try
             {
-                SyncAll();
+                // Like Visual Studio: generate the solution only when it's missing. Unity keeps
+                // it up to date through SyncIfNeeded; regenerating everything on each double click
+                // was slow and made the analyzer reload every project.
+                if (!File.Exists(Generator.SolutionFile())) SyncAll();
                 var root = Directory.GetParent(Application.dataPath).FullName;
                 var args = "--project " + CodeEditor.QuoteForProcessStart(root);
                 if (!string.IsNullOrEmpty(filePath))

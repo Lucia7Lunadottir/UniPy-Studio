@@ -474,7 +474,7 @@ class MainWindow(QMainWindow):
         self.err_label = QLabel("✖ 0  ⚠ 0")
         self.err_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.err_label.mousePressEvent = lambda e: self.show_dock(self.d_errors)
-        self.jedi_label = QLabel("IntelliSense: загрузка…" if self.jedi.available else "IntelliSense: по словам")
+        self.jedi_label = QLabel("IntelliSense: готово" if self.jedi.available else "IntelliSense: по словам")
         self.pos_label = QLabel("Стр 1   Стлб 1")
         self.indent_label = QLabel("Пробелы: 4")
         self.enc_label = QLabel("UTF-8")

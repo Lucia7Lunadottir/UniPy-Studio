@@ -505,12 +505,22 @@ class LanguageServer(QObject):
         items = []
         for _rank, _s, it in scored[:300]:
             kind = LSP_KIND.get(it.get("kind"), "word")
-            detail = it.get("detail") or KIND_LABEL.get(kind, "")
+            # откуда подсказка: пространство имён (UnityEngine.UI) — как справа в списке Visual Studio
+            source = (it.get("labelDetails") or {}).get("description")
+            detail = source or it.get("detail") or KIND_LABEL.get(kind, "")
             doc = it.get("documentation") or ""
             if isinstance(doc, dict):
                 doc = doc.get("value", "")
-            items.append(Item(it.get("label", ""), kind, detail, html.escape(doc[:600])))
+            items.append(Item(it.get("label", ""), kind, detail, html.escape(doc[:600]), data=it))
         return self.extra_completions(line_text, prefix) + items
+
+    def resolve_completion(self, raw, done):
+        """Подробности выбранной подсказки: документация с полным именем и правки,
+        которые нужны при выборе (например, «using UnityEngine.UI;»). done(элемент)."""
+        if self.state not in ("loading", "ready"):
+            done(raw)
+            return
+        self.conn.request("completionItem/resolve", raw, lambda r, e: done(raw if e or not r else r))
 
     @staticmethod
     def _signatures(result):
@@ -740,16 +750,31 @@ class RoslynServer(CSharpServer):
             "MSBUILDDISABLENODEREUSE": "1",
             "DOTNET_CLI_USE_MSBUILD_SERVER": "0",
             "DOTNET_gcServer": os.environ.get("DOTNET_gcServer", "0"),
+            # Замер на The Mirror (9 проектов): без этих двух — 10 процессов при загрузке
+            # (MSBuild по процессу на ядро, ~1,2 ГБ в пике) и память, растущая за 600 МБ;
+            # с ними — 3 процесса, рост останавливается на ~560 МБ, подсказки так же быстрые.
+            "DOTNET_PROCESSOR_COUNT": os.environ.get("DOTNET_PROCESSOR_COUNT", "2"),
+            "DOTNET_GCConserveMemory": os.environ.get("DOTNET_GCConserveMemory", "7"),
         }
 
     def configuration(self, section):
         # Roslyn requests individual option names in workspace/configuration.
         # Match VS Code's open-file diagnostic scope, keeping solution navigation.
-        scopes = {
+        options = {
             "csharp|background_analysis.dotnet_analyzer_diagnostics_scope": "openFiles",
             "csharp|background_analysis.dotnet_compiler_diagnostics_scope": "openFiles",
+            # подсказки из ещё не подключённых пространств имён, «using» добавляется при выборе
+            "csharp|completion.dotnet_show_completion_items_from_unimported_namespaces": True,
         }
-        return scopes.get(section)
+        if section == "projects.dotnet_enable_automatic_restore" and self.is_unity_project:
+            # У Unity в .csproj нет пакетов NuGet (библиотеки — готовые DLL): восстановление
+            # пакетов бесполезно и запускает по процессу MSBuild на ядро (6–8 процессов по ~90 МБ).
+            return False
+        return options.get(section)
+
+    @property
+    def is_unity_project(self):
+        return os.path.isfile(os.path.join(self.root, "ProjectSettings", "ProjectVersion.txt"))
 
     def is_loaded_notification(self, method):
         return method == "workspace/projectInitializationComplete"

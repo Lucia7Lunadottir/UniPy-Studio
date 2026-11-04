@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (QPlainTextEdit, QWidget, QTextEdit, QCompleter, QLa
 
 from .highlighter import Highlighter, PygmentsHighlighter
 from . import languages
+from .lsp import markdown_to_html as lsp_markdown_to_html
 from .intellisense import CSharpProvider, signature_html, hover_html, word_items
 from . import theme
 from .theme import C, kind_icon
@@ -20,6 +21,7 @@ CSHARP = CSharpProvider()
 DEFAULT_HINT_PT = 11    # размер подсказок (список, параметры, справка); свой масштаб, отдельно от кода
 ROLE_DETAIL = Qt.ItemDataRole.UserRole + 1
 ROLE_DOC = Qt.ItemDataRole.UserRole + 2
+ROLE_ITEM = Qt.ItemDataRole.UserRole + 3     # сам элемент подсказки (Item)
 
 
 ENCODING_NAME = {"utf-8": "UTF-8", "utf-8-sig": "UTF-8 с BOM", "utf-16": "UTF-16",
@@ -765,6 +767,7 @@ class CodeEditor(QPlainTextEdit):
             row = QStandardItem(kind_icon(it.kind), it.name)
             row.setData(it.detail, ROLE_DETAIL)
             row.setData(it.doc, ROLE_DOC)
+            row.setData(it, ROLE_ITEM)
             self.model.appendRow(row)
         self.completer.setCompletionPrefix(prefix)
         if self.completer.completionCount() == 0:
@@ -787,22 +790,70 @@ class CodeEditor(QPlainTextEdit):
         doc = idx.data(ROLE_DOC) if idx.isValid() else ""
         detail = idx.data(ROLE_DETAIL) if idx.isValid() else ""
         if doc or (detail and len(detail) > 40):
-            self.doc_tip.setText("<b>%s</b><br><span style='color:%s'>%s</span>" % (
+            self._show_doc_tip("<b>%s</b><br><span style='color:%s'>%s</span>" % (
                 detail or name, C["tip_doc"], doc or ""))
-            self.doc_tip.adjustSize()
-            g = popup.geometry()
-            self.doc_tip.move(popup.mapToGlobal(QPoint(g.width() + 2, 0)))
-            self.doc_tip.show()
         else:
             self.doc_tip.hide()
+        # у языкового сервера — полное имя и документация (class UnityEngine.UI.Image …)
+        item = idx.data(ROLE_ITEM) if idx.isValid() else None
+        srv = self._lsp_server()
+        if srv is not None and item is not None and item.data:
+            self._resolve_req = getattr(self, "_resolve_req", 0) + 1
+            req = self._resolve_req
+            srv.resolve_completion(item.data, lambda r, req=req: self._show_resolved(r, req))
+
+    def _show_doc_tip(self, html_):
+        popup = self.completer.popup()
+        self.doc_tip.setText(html_)
+        self.doc_tip.adjustSize()
+        g = popup.geometry()
+        self.doc_tip.move(popup.mapToGlobal(QPoint(g.width() + 2, 0)))
+        self.doc_tip.show()
+
+    def _show_resolved(self, raw, req):
+        if req != getattr(self, "_resolve_req", 0) or not self.completer.popup().isVisible():
+            return          # пока сервер отвечал, выбрали другую подсказку или закрыли список
+        doc = raw.get("documentation") or ""
+        if isinstance(doc, dict):
+            doc = doc.get("value", "")
+        html_ = lsp_markdown_to_html(doc) if doc else ""
+        source = (raw.get("labelDetails") or {}).get("description")
+        if source and "using " not in html_:
+            html_ += "<br><span style='color:%s'>using %s;</span>" % (C["hint"], source)
+        if html_:
+            self._show_doc_tip(html_)
 
     def insert_completion(self, name):
+        idx = self.completer.popup().currentIndex()
+        item = idx.data(ROLE_ITEM) if idx.isValid() else None
         c = self.textCursor()
         prefix = self.word_before_cursor()
         c.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.KeepAnchor, len(prefix))
         c.insertText(name)
         self.setTextCursor(c)
         self.doc_tip.hide()
+        self._add_completion_imports(item)
+
+    def _add_completion_imports(self, item):
+        """Подсказка из неподключённого пространства имён: дописать «using …;» (C#) или
+        импорт (Python) — правки берутся у сервера; одно Ctrl+Z отменяет и слово, и импорт."""
+        if item is None or not item.data:
+            return
+        revision = self.document().revision()
+
+        def apply(raw):
+            edits = raw.get("additionalTextEdits") or []
+            if not edits or self.document().revision() != revision:
+                return      # ничего не нужно, или текст уже успели изменить — не портим его
+            self.apply_edits([(e["range"]["start"]["line"], e["range"]["start"]["character"],
+                               e["range"]["end"]["line"], e["range"]["end"]["character"], e.get("newText", ""))
+                              for e in edits], join_undo=True)
+        if item.data.get("additionalTextEdits"):
+            apply(item.data)
+            return
+        srv = self._lsp_server()
+        if srv is not None:
+            srv.resolve_completion(item.data, apply)
 
     def request_signatures(self, force=False):
         srv = self._lsp_server()
@@ -887,7 +938,7 @@ class CodeEditor(QPlainTextEdit):
         self._new_name = new_name
         self._symbol_request("rename", "Переименование в «%s»…" % new_name, {"new_name": new_name})
 
-    def apply_edits(self, edits):
+    def apply_edits(self, edits, join_undo=False):
         """Правки LSP (стр, стлб, стр2, стлб2, текст; с 0, столбцы в UTF-16 — как позиции Qt) одним шагом отмены."""
         doc = self.document()
 
@@ -897,7 +948,10 @@ class CodeEditor(QPlainTextEdit):
                 return doc.characterCount() - 1
             return block.position() + min(col, block.length() - 1)
         c = QTextCursor(doc)
-        c.beginEditBlock()
+        if join_undo:
+            c.joinPreviousEditBlock()   # тот же шаг отмены, что и предыдущая правка
+        else:
+            c.beginEditBlock()
         for a, b, l2, c2, text in sorted(edits, key=lambda e: (e[0], e[1]), reverse=True):
             c.setPosition(pos(a, b))
             c.setPosition(pos(l2, c2), QTextCursor.MoveMode.KeepAnchor)

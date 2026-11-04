@@ -17,10 +17,11 @@ except Exception:  # jedi не установлен — останутся по�
 
 
 class Item:
-    __slots__ = ("name", "kind", "detail", "doc")
+    __slots__ = ("name", "kind", "detail", "doc", "data")
 
-    def __init__(self, name, kind, detail="", doc=""):
+    def __init__(self, name, kind, detail="", doc="", data=None):
         self.name, self.kind, self.detail, self.doc = name, kind, detail, doc
+        self.data = data        # исходный элемент языкового сервера (для completionItem/resolve)
 
 
 KIND_RU = {
@@ -45,8 +46,11 @@ class JediWorker(QObject):
         self._project = None
         self.available = jedi is not None
         self._stopped = False
-        self._thread = None
-        if self.available:
+        self._thread = None     # поток (и загрузка модулей PyQt6, ~100 МБ) — только при первом запросе
+
+    def _ensure_started(self):
+        """Запуск по первому запросу: при работе только с C# (Unity) jedi не тратит память."""
+        if self._thread is None and self.available and not self._stopped:
             self._thread = threading.Thread(target=self._loop, daemon=True)
             self._thread.start()
 
@@ -67,6 +71,7 @@ class JediWorker(QObject):
     def submit(self, kind, **kw):
         if not self.available:
             return
+        self._ensure_started()
         with self._cv:
             self._pending[kind] = kw
             self._cv.notify()

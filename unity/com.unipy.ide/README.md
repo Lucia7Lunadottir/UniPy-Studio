@@ -3,9 +3,11 @@
 Linux / Unity 2021.3+ (including Unity 6).
 
 1. Install the UniPy Studio OS package.
-2. In each Unity project: Window → Package Manager → + → Install package from disk…
-   (older versions: Add package from disk…). Select this directory's `package.json`.
-   With the Arch package it is `/usr/share/unipy-studio/unity/com.unipy.ide/package.json`.
+2. In each Unity project: Window → Package Manager → + → Install package from git URL… and paste
+   `https://github.com/Lucia7Lunadottir/UniPy-Studio.git?path=/unity/com.unipy.ide`
+   (needs `git`; append `#<release tag>` to pin a version). Offline: + → Install package from disk…
+   (older versions: Add package from disk…) and this directory's `package.json` — with the Arch
+   package it is `/usr/share/unipy-studio/unity/com.unipy.ide/package.json`.
 3. Wait for compilation, then choose **UniPy Studio** in Preferences → External Tools → External Script Editor.
 
 The editor is discovered from `/usr/bin`, `/usr/local/bin` and PATH. No Browse is
