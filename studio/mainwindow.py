@@ -13,7 +13,8 @@ from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QDockWidget, QWidget, QVBo
                              QSizePolicy, QPushButton)
 
 from . import theme, templates, intellisense, lsp, updates
-from .editor import CodeEditor, lang_for, LANG_NAME, check_csharp, decode_source
+from .editor import CodeEditor, lang_for, check_csharp, decode_source
+from . import languages
 from .panels import (SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, TerminalPanel, UnityPanel,
                      PyQtDesigner, NewFileDialog, BusyBar, ReferencesPanel, find_unity_projects, HIDDEN_DIRS)
 from .theme import C
@@ -172,13 +173,15 @@ class MainWindow(QMainWindow):
 
         if theme.CONTROLLER is not None:
             theme.CONTROLLER.changed.connect(self._on_theme_changed)
-        self.csharp = lsp.CSharpService(self)
-        self.python_ls = lsp.PythonService(lambda: self.interp.currentData() or sys.executable, self)
-        self.language_services = (self.csharp, self.python_ls)
-        for svc in self.language_services:
+        # анализаторы кода — по реестру языков (languages.SERVICE_FACTORIES)
+        self.services_by_key = {key: make(self) for key, make in languages.SERVICE_FACTORIES.items()}
+        self.csharp = self.services_by_key["csharp"]
+        self.python_ls = self.services_by_key["python"]
+        self.language_services = tuple(self.services_by_key.values())
+        for key, svc in self.services_by_key.items():
             svc.finished.connect(self._worker_result)
             svc.diagnostics.connect(self._lsp_diagnostics)
-            svc.status.connect(self._lsp_status)
+            svc.status.connect(lambda text, k=key: self._lsp_status(text, k))
 
         self._build_central()
         self._build_docks()
@@ -858,7 +861,7 @@ class MainWindow(QMainWindow):
         if ed:
             c = ed.textCursor()
             self._cursor_moved(c.blockNumber() + 1, c.positionInBlock() + 1)
-            self.lang_label.setText(LANG_NAME.get(ed.lang, ""))
+            self.lang_label.setText(ed.language.name)
             self.enc_label.setText(ed.encoding_label())
             self.explorer.select_path(ed.path)
             self.errors.current = ed.path
@@ -942,7 +945,11 @@ class MainWindow(QMainWindow):
             if ed.path == path:
                 ed.set_lsp_diagnostics(diags)
 
-    def _lsp_status(self, text):
+    def service_for(self, language):
+        """Анализатор для языка (languages.Language) или None — для редактора."""
+        return self.services_by_key.get(language.service) if language.service else None
+
+    def _lsp_status(self, text, key):
         if not text:
             return
         self.status(text)
@@ -950,9 +957,8 @@ class MainWindow(QMainWindow):
         self.jedi_label.setText("%s: %s" % (lang, "загрузка…" if "загрузка" in text else
                                             "готово" if "загружено" in text else "остановлен"))
         if "загружено" in text:
-            want = {"C#": "csharp", "Python": "python"}.get(lang)
             for ed in self.editors():
-                if ed.lang == want:
+                if ed.language.service == key:
                     ed.run_diagnostics()
 
     def _cursor_moved(self, line, col):
@@ -1209,7 +1215,7 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------ обновления анализаторов
     def _service_for_language(self, language):
-        return {"csharp": self.csharp, "python": self.python_ls}[language]
+        return self.services_by_key[language]
 
     def _before_analyzer_update(self, language):
         self._service_for_language(language).stop()       # файлы анализатора не должны быть заняты
@@ -1219,7 +1225,7 @@ class MainWindow(QMainWindow):
         svc.stop()
         svc.rediscover()
         for ed in self.editors():
-            if ed.lang == language:
+            if ed.language.service == language:
                 ed.lsp_diagnostics = None
                 ed.run_diagnostics()        # заодно запускает анализатор снова
 

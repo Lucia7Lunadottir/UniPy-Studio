@@ -1,5 +1,6 @@
-"""Подсветка кода: Python, C# (Unity), XML/.ui, JSON."""
+"""Подсветка кода: своя для Python, C# (Unity), XML/.ui, JSON, Markdown; остальное — через Pygments."""
 import re
+from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
 
 from .theme import C
@@ -218,3 +219,100 @@ class Highlighter(QSyntaxHighlighter):
         self.setFormat(s, e - s, fmt)
         for k in range(s, min(e, len(mask))):
             mask[k] = False
+
+
+# ====================================================================== Pygments: остальные языки
+class PygmentsHighlighter(QSyntaxHighlighter):
+    """Подсветка любого языка, который знает Pygments (HLSL/шейдеры Unity, C++, JS, Rust…).
+
+    Pygments разбирает текст целиком (многострочные комментарии и строки), поэтому документ
+    разбирается заново не на каждую букву, а через RELEX_MS после последней правки."""
+    RELEX_MS = 120
+    RELEX_MS_BIG = 600              # для больших файлов — реже, чтобы не тормозить набор
+    BIG = 200_000
+
+    # тип токена Pygments → роль темы (ищется по цепочке родителей: Keyword.Type → Keyword)
+    ROLES = {
+        "Keyword.Type": "type", "Keyword.Constant": "keyword", "Keyword": "keyword",
+        "Name.Class": "type", "Name.Namespace": "type", "Name.Builtin.Pseudo": "keyword",
+        "Name.Builtin": "type", "Name.Function": "function", "Name.Decorator": "decorator",
+        "Name.Tag": "tag", "Name.Attribute": "attr", "Name.Variable": "param", "Name.Constant": "number",
+        "Name.Label": "control", "String": "string", "Comment.Preproc": "preproc",
+        "Comment.PreprocFile": "string", "Comment": "comment", "Number": "number", "Operator.Word": "keyword",
+        "Generic.Heading": "keyword", "Generic.Subheading": "keyword", "Generic.Deleted": "error",
+        "Generic.Inserted": "ok",
+    }
+
+    def __init__(self, document, lexer):
+        super().__init__(document)
+        self.lexer = lexer
+        self._spans = {}            # номер строки → [(начало UTF-16, длина, роль)]
+        self._formats = {}
+        self._timer = QTimer(singleShot=True, timeout=self._relex)
+        document.contentsChange.connect(self._changed)
+        self._build()
+        self._relex()
+
+    def _build(self):
+        self._formats = {role: _fmt(C[role], italic=(role == "comment")) for role in set(self.ROLES.values())}
+
+    def rebuild(self):
+        self._build()
+        self.rehighlight()
+
+    def _changed(self, _pos, removed, added):
+        if removed or added:        # смена одних только цветов (rehighlight) текст не меняет
+            self._timer.start(self.RELEX_MS_BIG if self.document().characterCount() > self.BIG else self.RELEX_MS)
+
+    def _role(self, ttype):
+        while ttype is not None:
+            role = self.ROLES.get(str(ttype)[6:])      # "Token.Keyword.Type" → "Keyword.Type"
+            if role:
+                return role
+            ttype = ttype.parent
+        return None
+
+    def _relex(self):
+        text = self.document().toPlainText()
+        starts, pos = [], 0
+        lines = text.split("\n")
+        for line in lines:
+            starts.append(pos)
+            pos += len(line) + 1
+        spans = {}
+        line_no = 0
+        try:
+            tokens = list(self.lexer.get_tokens_unprocessed(text))
+        except Exception:   # noqa: BLE001 — сбой лексера на недописанном коде не должен ронять редактор
+            tokens = []
+        for start, ttype, value in tokens:
+            role = self._role(ttype)
+            if not role or not value:
+                continue
+            # токен может занимать несколько строк (многострочный комментарий) — режем по строкам
+            while line_no + 1 < len(starts) and starts[line_no + 1] <= start:
+                line_no += 1
+            ln, off, rest = line_no, start - starts[line_no], value
+            while rest:
+                line = lines[ln] if ln < len(lines) else ""
+                piece = rest[:max(0, len(line) - off)]
+                if piece:
+                    u_off = _utf16_len(line[:off])
+                    spans.setdefault(ln, []).append((u_off, _utf16_len(piece), role))
+                rest = rest[len(piece):]
+                if rest.startswith("\n"):
+                    rest = rest[1:]
+                    ln, off = ln + 1, 0
+                elif rest:
+                    break
+        self._spans = spans
+        self.rehighlight()
+
+    def highlightBlock(self, text):
+        for start, length, role in self._spans.get(self.currentBlock().blockNumber(), ()):
+            self.setFormat(start, length, self._formats[role])
+
+
+def _utf16_len(s):
+    """Позиции в Qt считаются в UTF-16: эмодзи и т.п. занимают две позиции."""
+    return len(s) if s.isascii() or all(ord(ch) < 0x10000 for ch in s) else len(s.encode("utf-16-le")) // 2

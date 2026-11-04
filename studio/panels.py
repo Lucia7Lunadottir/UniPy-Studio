@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTr
                              QSpinBox, QSlider, QProgressBar, QTextEdit, QGridLayout, QScrollArea,
                              QAbstractItemView, QSizePolicy)
 
-from . import theme, unity_api, templates
+from . import theme, unity_api, templates, languages
 from .theme import C
 
 HIDDEN_DIRS = {"Library", "Temp", "Logs", "obj", "bin", "__pycache__", ".git", ".venv", "venv",
@@ -27,6 +27,7 @@ CODE_EXT = {".cs", ".asmdef", ".asmref", ".rsp", ".shader", ".hlsl", ".cginc", "
             ".html", ".css", ".json", ".xml", ".toml", ".cfg", ".ini", ".yml", ".yaml", ".md", ".txt", ".sh",
             ".sln", ".slnx", ".csproj", ".props", ".targets", ".desktop"}
 CODE_NAMES = {"PKGBUILD", "Makefile", "CMakeLists.txt", "Dockerfile", "requirements.txt", ".gitignore"}
+CODE_EXT |= languages.all_extensions()      # всё, что знает реестр языков, — тоже код
 CODE_HIDDEN_DIRS = {"ProjectSettings", "UserSettings"}      # Unity: настройки редактора, не код
 ROLE_PATH = Qt.ItemDataRole.UserRole
 ROLE_LINE = Qt.ItemDataRole.UserRole + 1

@@ -1,12 +1,12 @@
 # Maintainer: lucial <bordiyan20035@gmail.com>
 pkgname=unipy-studio
 pkgver=0.1.0
-pkgrel=2
+pkgrel=3
 pkgdesc="Редактор кода в духе Visual Studio для Unity (C#) и Python/PyQt6"
 arch=('any')
 url="https://github.com/Lucia7Lunadottir"
 license=('custom')
-depends=('python' 'python-pyqt6' 'python-jedi')
+depends=('python' 'python-pyqt6' 'python-jedi' 'python-pygments')
 optdepends=('equestria-qt-kit>=1.2: темы персонажей Equestria OS (без него — свои темы UniPy, тёмная и светлая)'
             'dotnet-sdk: анализатор C# Roslyn (ставится из «Справка → Обновления анализаторов»)'
             'npm: анализатор Python pyright (ставится из «Справка → Обновления анализаторов»)')

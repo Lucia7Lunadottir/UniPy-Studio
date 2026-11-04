@@ -9,18 +9,12 @@ from PyQt6.QtGui import (QColor, QCursor, QFont, QPainter, QTextFormat, QTextCur
 from PyQt6.QtWidgets import (QPlainTextEdit, QWidget, QTextEdit, QCompleter, QLabel,
                              QStyledItemDelegate, QToolTip, QStyle, QApplication, QMessageBox)
 
-from .highlighter import Highlighter
+from .highlighter import Highlighter, PygmentsHighlighter
+from . import languages
 from .intellisense import CSharpProvider, signature_html, hover_html, word_items
 from . import theme
 from .theme import C, kind_icon
 
-LANG_BY_EXT = {
-    ".py": "python", ".pyw": "python", ".pyi": "python", ".cs": "csharp", ".ui": "xml",
-    ".xml": "xml", ".uxml": "xml", ".qrc": "xml", ".json": "json", ".asmdef": "json",
-    ".md": "markdown",
-}
-LANG_NAME = {"python": "Python", "csharp": "C#", "xml": "XML", "json": "JSON",
-             "markdown": "Markdown", "plain": "Текст"}
 
 CSHARP = CSharpProvider()
 DEFAULT_HINT_PT = 11    # размер подсказок (список, параметры, справка); свой масштаб, отдельно от кода
@@ -48,7 +42,7 @@ def decode_source(raw):
 
 
 def lang_for(path):
-    return LANG_BY_EXT.get(os.path.splitext(path)[1].lower(), "plain")
+    return languages.for_path(path).id
 
 
 class LineNumberArea(QWidget):
@@ -147,7 +141,8 @@ class CodeEditor(QPlainTextEdit):
         super().__init__()
         self.path = path
         self.services = services
-        self.lang = lang_for(path)
+        self.language = languages.for_path(path)      # всё о языке файла — в реестре languages.py
+        self.lang = self.language.id
         self.diagnostics = []          # (строка, столбец, сообщение, "error"/"warning")
         self.lsp_diagnostics = None    # ошибки от языкового сервера (Roslyn); None — сервера нет
         self.encoding = "utf-8"
@@ -160,7 +155,7 @@ class CodeEditor(QPlainTextEdit):
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setCursorWidth(2)
         self._apply_palette()
-        self.highlighter = Highlighter(self.document(), self.lang)
+        self.highlighter = self._make_highlighter()
         self.gutter = LineNumberArea(self)
         self.blockCountChanged.connect(self._update_gutter_width)
         self.updateRequest.connect(self._update_gutter)
@@ -370,8 +365,10 @@ class CodeEditor(QPlainTextEdit):
     def run_diagnostics(self):
         text = self.toPlainText()
         diags = []
+        svc = self.services.service_for(self.language)
+        if svc is not None:
+            svc.sync(self.path, text)
         if self.lang == "python":
-            self.services.python_ls.sync(self.path, text)
             try:
                 tree = ast.parse(text, filename=self.path)
                 diags.extend(python_warnings(tree, text))
@@ -383,7 +380,6 @@ class CodeEditor(QPlainTextEdit):
             if self.lsp_diagnostics is not None:
                 diags = sorted(set(diags) | set(self.lsp_diagnostics))
         elif self.lang == "csharp":
-            self.services.csharp.sync(self.path, text)
             diags.extend(self.lsp_diagnostics if self.lsp_diagnostics is not None else check_csharp(text))
         elif self.lang == "json":
             import json
@@ -391,6 +387,8 @@ class CodeEditor(QPlainTextEdit):
                 json.loads(text) if text.strip() else None
             except json.JSONDecodeError as e:
                 diags.append((e.lineno, e.colno, "Ошибка JSON: %s" % e.msg, "error"))
+        elif self.lsp_diagnostics is not None:      # языки, у которых есть только анализатор
+            diags = list(self.lsp_diagnostics)
         if diags != self.diagnostics:
             self.diagnostics = diags
             self.update_selections()
@@ -405,6 +403,15 @@ class CodeEditor(QPlainTextEdit):
         self.setTabStopDistance(QFontMetrics(font).horizontalAdvance(" ") * 4)
         if hasattr(self, "gutter"):
             self._update_gutter_width()
+
+    def _make_highlighter(self):
+        """Своя подсветка для основных языков, Pygments — для остальных (если он знает язык)."""
+        if self.language.builtin_highlighter:
+            return Highlighter(self.document(), self.lang)
+        lexer = self.language.make_lexer(self.path)
+        if lexer is not None:
+            return PygmentsHighlighter(self.document(), lexer)
+        return Highlighter(self.document(), "plain")
 
     # ------------------------------------------------------------ тема
     def _apply_palette(self):
@@ -504,7 +511,7 @@ class CodeEditor(QPlainTextEdit):
             pass
         else:
             super().keyPressEvent(e)
-            if text == "}" and self.lang in ("csharp", "json"):
+            if text == "}" and self.language.braces:
                 self._dedent_brace()
 
         # что делать с подсказками после нажатия
@@ -540,12 +547,12 @@ class CodeEditor(QPlainTextEdit):
         indent = re.match(r"[ \t]*", line).group(0)
         stripped = before.rstrip()
         extra = ""
-        if self.lang == "python" and stripped.endswith(":"):
+        if self.language.colon_blocks and stripped.endswith(":"):
             extra = "    "
         elif stripped.endswith(("{", "[", "(")):
             extra = "    "
         c.beginEditBlock()
-        if extra and after.strip()[:1] in ("}", "]", ")") and self.lang != "python":
+        if extra and after.strip()[:1] in ("}", "]", ")") and not self.language.colon_blocks:
             c.insertText("\n" + indent + extra + "\n" + indent)
             c.movePosition(QTextCursor.MoveOperation.Up)
             c.movePosition(QTextCursor.MoveOperation.EndOfLine)
@@ -654,7 +661,7 @@ class CodeEditor(QPlainTextEdit):
                 self.setTextCursor(c)
 
     def toggle_comment(self):
-        mark = {"python": "#", "csharp": "//", "json": "//"}.get(self.lang, "#")
+        mark = self.language.line_comment or "#"
         c = self.textCursor()
         start = self.document().findBlock(c.selectionStart()).blockNumber()
         end = self.document().findBlock(max(c.selectionStart(), c.selectionEnd() - (1 if c.hasSelection() else 0))).blockNumber()
@@ -715,13 +722,10 @@ class CodeEditor(QPlainTextEdit):
                 self.show_completions(word_items(self.toPlainText(), prefix))
 
     def _lsp_server(self):
-        """Языковой сервер (Roslyn для C#, pyright для Python), если он готов; иначе — запасные
-        подсказки: справочник Unity для C#, jedi для Python."""
-        if self.lang == "csharp":
-            return self.services.csharp.ready_for(self.path)
-        if self.lang == "python":
-            return self.services.python_ls.ready_for(self.path)
-        return None
+        """Языковой сервер этого языка (см. languages.py), если он готов; иначе — запасные
+        подсказки: справочник Unity для C#, jedi для Python, слова из файла для остальных."""
+        svc = self.services.service_for(self.language)
+        return svc.ready_for(self.path) if svc is not None else None
 
     def on_worker_result(self, res):
         kind, data = res["kind"], res["data"]
