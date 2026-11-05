@@ -15,6 +15,7 @@ from .lsp import markdown_to_html as lsp_markdown_to_html
 from .intellisense import CSharpProvider, signature_html, hover_html, word_items
 from . import theme
 from .theme import C, kind_icon
+from .i18n import tr
 
 
 CSHARP = CSharpProvider()
@@ -211,8 +212,8 @@ class CodeEditor(QPlainTextEdit):
         except UnicodeEncodeError as e:
             bad = text[e.start:e.end]
             r = QMessageBox.question(
-                self, "Кодировка", "Символ «%s» нельзя сохранить в кодировке %s.\n"
-                "Сохранить файл в Юникоде (UTF-8 с BOM)?" % (bad, ENCODING_NAME.get(self.encoding, self.encoding)),
+                self, tr("Кодировка"), tr("Символ «%s» нельзя сохранить в кодировке %s.\n"
+                "Сохранить файл в Юникоде (UTF-8 с BOM)?") % (bad, tr(ENCODING_NAME.get(self.encoding, self.encoding))),
                 QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel)
             if r != QMessageBox.StandardButton.Save:
                 return False
@@ -225,7 +226,7 @@ class CodeEditor(QPlainTextEdit):
         return True
 
     def encoding_label(self):
-        return ENCODING_NAME.get(self.encoding, self.encoding.upper()) + ("  CRLF" if self.newline == "\r\n" else "")
+        return tr(ENCODING_NAME.get(self.encoding, self.encoding.upper())) + ("  CRLF" if self.newline == "\r\n" else "")
 
     # ------------------------------------------------------------ поле номеров строк
     def gutter_width(self):
@@ -376,7 +377,7 @@ class CodeEditor(QPlainTextEdit):
                 diags.extend(python_warnings(tree, text))
             except SyntaxError as e:
                 if self.lsp_diagnostics is None:        # pyright сам сообщает о синтаксисе
-                    diags.append((e.lineno or 1, e.offset or 1, "Синтаксическая ошибка: %s" % e.msg, "error"))
+                    diags.append((e.lineno or 1, e.offset or 1, tr("Синтаксическая ошибка: %s") % e.msg, "error"))
             except Exception:
                 pass
             if self.lsp_diagnostics is not None:
@@ -388,7 +389,7 @@ class CodeEditor(QPlainTextEdit):
             try:
                 json.loads(text) if text.strip() else None
             except json.JSONDecodeError as e:
-                diags.append((e.lineno, e.colno, "Ошибка JSON: %s" % e.msg, "error"))
+                diags.append((e.lineno, e.colno, tr("Ошибка JSON: %s") % e.msg, "error"))
         elif self.lsp_diagnostics is not None:      # языки, у которых есть только анализатор
             diags = list(self.lsp_diagnostics)
         if diags != self.diagnostics:
@@ -745,13 +746,13 @@ class CodeEditor(QPlainTextEdit):
             self.references_found.emit(getattr(self, "_last_symbol", ""), data or [])
         elif kind == "rename":
             self.busy_changed.emit("")
-            self.rename_ready.emit(getattr(self, "_new_name", ""), data or {"error": "анализатор не ответил"})
+            self.rename_ready.emit(getattr(self, "_new_name", ""), data or {"error": tr("анализатор не ответил")})
         elif kind == "definition":
             self.busy_changed.emit("")
             if data:
                 self.goto_requested.emit(data["path"], data["line"])
             else:
-                self.services.status("Определение не найдено")
+                self.services.status(tr("Определение не найдено"))
 
     def show_completions(self, items):
         popup = self.completer.popup()
@@ -876,7 +877,7 @@ class CodeEditor(QPlainTextEdit):
             return
         lines = [signature_html(n, params, idx) for n, params, idx in sigs[:4]]
         if len(sigs) > 1:
-            lines.append("<span style='color:%s'>вариантов: %d</span>" % (C["hint"], len(sigs)))
+            lines.append(tr("<span style='color:%s'>вариантов: %d</span>") % (C["hint"], len(sigs)))
         self.calltip.setText("<br>".join(lines))
         self.calltip.adjustSize()
         cr = self.cursorRect()
@@ -889,7 +890,7 @@ class CodeEditor(QPlainTextEdit):
         if srv or (self.lang == "python" and self.services.jedi.available):
             word = self._word_at(self.textCursor())
             # переход в класс из сборки (декомпиляция) может занять несколько секунд — показываем, что идёт работа
-            self.busy_changed.emit("Переход к определению «%s»…" % word if word else "Переход к определению…")
+            self.busy_changed.emit(tr("Переход к определению «%s»…") % word if word else tr("Переход к определению…"))
         if srv:
             line, col = self._line_col()
             srv.submit("definition", req=0, editor=id(self), code=self.toPlainText(),
@@ -906,7 +907,7 @@ class CodeEditor(QPlainTextEdit):
                 line = self.toPlainText().count("\n", 0, m.start()) + 1
                 self.go_to_line(line)
             else:
-                self.services.status("Определение «%s» не найдено в файле" % word)
+                self.services.status(tr("Определение «%s» не найдено в файле") % word)
 
     # ------------------------------------------------------------ ссылки и переименование
     def _symbol_request(self, kind, busy_text, extra=None):
@@ -920,7 +921,7 @@ class CodeEditor(QPlainTextEdit):
             self.services.jedi.submit(kind, req=0, editor=id(self), code=self.toPlainText(),
                                       line=line, col=col, path=self.path, extra=extra or {})
         else:
-            self.services.status("Для этого файла нет анализатора кода (решение ещё загружается?)")
+            self.services.status(tr("Для этого файла нет анализатора кода (решение ещё загружается?)"))
             return False
         self.busy_changed.emit(busy_text)
         return True
@@ -932,11 +933,11 @@ class CodeEditor(QPlainTextEdit):
         word = self.symbol_under_cursor()
         if word:
             self._last_symbol = word
-            self._symbol_request("references", "Поиск ссылок на «%s»…" % word)
+            self._symbol_request("references", tr("Поиск ссылок на «%s»…") % word)
 
     def rename_symbol(self, new_name):
         self._new_name = new_name
-        self._symbol_request("rename", "Переименование в «%s»…" % new_name, {"new_name": new_name})
+        self._symbol_request("rename", tr("Переименование в «%s»…") % new_name, {"new_name": new_name})
 
     def apply_edits(self, edits, join_undo=False):
         """Правки LSP (стр, стлб, стр2, стлб2, текст; с 0, столбцы в UTF-16 — как позиции Qt) одним шагом отмены."""
@@ -1078,7 +1079,7 @@ def python_warnings(tree, text):
     all_names = set(re.findall(r"__all__\s*=\s*\[([^\]]*)\]", text))
     for name, line in imported.items():
         if name not in used and name not in "".join(all_names):
-            out.append((line, 1, "Импорт «%s» не используется" % name, "warning"))
+            out.append((line, 1, tr("Импорт «%s» не используется") % name, "warning"))
     return out
 
 
@@ -1111,7 +1112,7 @@ def check_csharp(text):
             while j < n and text[j] != ch and (verbatim or text[j] != "\n"):
                 j += 2 if (text[j] == "\\" and not verbatim) else 1
             if j >= n or text[j] == "\n":
-                out.append((line, start_col, "Строка не закрыта кавычкой", "error"))
+                out.append((line, start_col, tr("Строка не закрыта кавычкой"), "error"))
             col += j - i + 1
             i = j + 1
             continue
@@ -1121,7 +1122,7 @@ def check_csharp(text):
             if stack and stack[-1][0] == pairs[ch]:
                 stack.pop()
             else:
-                out.append((line, col, "Лишняя закрывающая скобка «%s»" % ch, "error"))
+                out.append((line, col, tr("Лишняя закрывающая скобка «%s»") % ch, "error"))
         if ch == "\n":
             line += 1
             col = 1
@@ -1129,12 +1130,12 @@ def check_csharp(text):
             col += 1
         i += 1
     for ch, l, c in stack[-3:]:
-        out.append((l, c, "Скобка «%s» не закрыта" % ch, "error"))
+        out.append((l, c, tr("Скобка «%s» не закрыта") % ch, "error"))
     # простое предупреждение: забытая точка с запятой
     for no, ln in enumerate(text.splitlines(), 1):
         s = ln.strip()
         if re.match(r"^(?:[\w.<>\[\]]+\s+)?[\w.\[\]]+\s*(?:[+\-*/]?=)\s*[^;{}]*[\w)\]\"']$", s) and \
                 not s.startswith(("if", "for", "while", "else", "//", "[", "#", "case", "using", "namespace")) \
                 and "=>" not in s and not s.endswith(","):
-            out.append((no, len(ln) - len(ln.lstrip()) + 1, "Возможно, пропущена «;» в конце строки", "warning"))
+            out.append((no, len(ln) - len(ln.lstrip()) + 1, tr("Возможно, пропущена «;» в конце строки"), "warning"))
     return out

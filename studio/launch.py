@@ -1,5 +1,6 @@
 """Resolve editor launch requests without depending on Qt."""
 from pathlib import Path
+from .i18n import tr
 
 
 def resolve_request(args):
@@ -11,7 +12,7 @@ def resolve_request(args):
         if project.is_file():
             project = project.parent
         if not project.is_dir():
-            raise ValueError("Проект не найден: " + str(project))
+            raise ValueError(tr("Проект не найден: ") + str(project))
         root = str(project)
     elif target:
         path = Path(target).resolve()

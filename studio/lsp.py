@@ -20,6 +20,7 @@ from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSig
 from . import unity_api
 from .intellisense import Item
 from .theme import C
+from .i18n import tr
 
 METADATA_DIR = os.path.join(os.path.expanduser("~"), ".cache", "unipy-studio", "metadata")
 
@@ -242,7 +243,7 @@ class LanguageServer(QObject):
         program, args = self.command()
         if not self.conn.start(program, args, self.root, self.environment()):
             self._set_state("failed")
-            self.log.emit("Не удалось запустить %s" % program)
+            self.log.emit(tr("Не удалось запустить %s") % program)
             return
         caps = {
             "textDocument": {
@@ -270,7 +271,7 @@ class LanguageServer(QObject):
     def _initialized(self, result, error):
         if error:
             self._set_state("failed")
-            self.log.emit("Ошибка initialize: %s" % error.get("message"))
+            self.log.emit(tr("Ошибка initialize: %s") % error.get("message"))
             return
         caps = (result or {}).get("capabilities", {})
         self.pull_supported = bool(caps.get("diagnosticProvider"))
@@ -300,7 +301,7 @@ class LanguageServer(QObject):
 
     def _on_exit(self, code):
         if self.state != "failed":
-            self.log.emit("Сервер завершился (код %s)" % code)
+            self.log.emit(tr("Сервер завершился (код %s)") % code)
         self._set_state("failed")
 
     def _set_state(self, state):
@@ -517,7 +518,7 @@ class LanguageServer(QObject):
             kind = LSP_KIND.get(it.get("kind"), "word")
             # откуда подсказка: пространство имён (UnityEngine.UI) — как справа в списке Visual Studio
             source = (it.get("labelDetails") or {}).get("description")
-            detail = source or it.get("detail") or KIND_LABEL.get(kind, "")
+            detail = source or it.get("detail") or tr(KIND_LABEL.get(kind, ""))
             doc = it.get("documentation") or ""
             if isinstance(doc, dict):
                 doc = doc.get("value", "")
@@ -754,7 +755,7 @@ class CSharpServer(LanguageServer):
             folder = os.path.join(METADATA_DIR, asm)
             os.makedirs(folder, exist_ok=True)
             path = os.path.join(folder, sym + ".cs")
-            header = "// Только для чтения: восстановлено из сборки %s\n" % (result.get("assemblyName") or "")
+            header = tr("// Только для чтения: восстановлено из сборки %s\n") % (result.get("assemblyName") or "")
             with open(path, "w", encoding="utf-8") as f:
                 f.write(header + result["source"])
             done(path, line + 1)
@@ -766,7 +767,7 @@ class CSharpServer(LanguageServer):
         if not prefix or "." in line_text[-len(prefix) - 1:] or re.search(r"\w\s*\.\s*\w*$", line_text):
             return []
         low = prefix.lower()
-        return [Item(name, "event", sig, doc) for name, sig, doc in unity_api.MESSAGES
+        return [Item(name, "event", sig, tr(doc)) for name, sig, doc in unity_api.MESSAGES
                 if name.lower().startswith(low)]
 
 
@@ -835,7 +836,7 @@ class LanguageService(QObject):
     """Набор серверов одного языка по корням проектов; редактор спрашивает его так же, как JediWorker."""
     finished = pyqtSignal(object)
     diagnostics = pyqtSignal(str, object)
-    status = pyqtSignal(str)
+    status = pyqtSignal(str, str)     # текст, состояние: loading / ready / failed
     log = pyqtSignal(str)
     restarted = pyqtSignal(str)     # анализатор перезапущен (причина) — открытые файлы надо отдать новому
 
@@ -863,10 +864,12 @@ class LanguageService(QObject):
                 continue
             mb = self.memory_mb(srv)
             if mb > self.restart_mb:
-                self.restart(root, "занимал %d МБ при пороге %d МБ" % (mb, self.restart_mb))
+                self.restart(root, tr("занимал %d МБ при пороге %d МБ") % (mb, self.restart_mb))
 
-    def restart(self, root=None, reason="по запросу"):
+    def restart(self, root=None, reason=None):
         """Остановить сервер(ы); новый запустится сам при следующей синхронизации открытого файла."""
+        if reason is None:
+            reason = tr("по запросу")
         roots = [root] if root else list(self.servers)
         for r in roots:
             srv = self.servers.pop(r, None)
@@ -931,9 +934,10 @@ class LanguageService(QObject):
 
     def _state(self, srv, state):
         name = self.display_name(srv)
-        self.status.emit({"loading": "%s: загрузка %s…" % (self.language_name, name),
-                          "ready": "%s: %s загружено" % (self.language_name, name),
-                          "failed": "%s: анализатор для %s остановлен" % (self.language_name, name)}.get(state, ""))
+        text = {"loading": tr("%s: загрузка %s…") % (self.language_name, name),
+                "ready": tr("%s: %s загружено") % (self.language_name, name),
+                "failed": tr("%s: анализатор для %s остановлен") % (self.language_name, name)}.get(state, "")
+        self.status.emit(text, state)
 
     def ready_for(self, path):
         srv = self.server_for(path)

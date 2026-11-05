@@ -7,6 +7,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from . import unity_api
 from .theme import C
+from .i18n import tr
 
 try:
     import jedi
@@ -80,9 +81,9 @@ class JediWorker(QObject):
         try:
             jedi.settings.case_insensitive_completion = True
             jedi.preload_module("PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui", "sys", "os")
-            msg = "jedi %s — модули PyQt6 загружены" % JEDI_VERSION
+            msg = tr("jedi %s — модули PyQt6 загружены") % JEDI_VERSION
         except Exception as e:  # noqa
-            msg = "jedi %s (PyQt6 не загружен: %s)" % (JEDI_VERSION, e)
+            msg = tr("jedi %s (PyQt6 не загружен: %s)") % (JEDI_VERSION, e)
         with self._cv:
             if self._stopped:
                 return
@@ -114,7 +115,7 @@ class JediWorker(QObject):
     def _complete(script, line, col, **_):
         items = []
         for c in script.complete(line, col)[:400]:
-            detail = KIND_RU.get(c.type, c.type)
+            detail = tr(KIND_RU.get(c.type, c.type))
             mod = c.module_name or ""
             if mod and mod not in ("builtins", "__main__") and c.type != "keyword":
                 detail = "%s · %s" % (detail, mod.replace("PyQt6.", ""))
@@ -146,7 +147,7 @@ class JediWorker(QObject):
             doc = n.docstring(raw=True)
         except Exception:
             pass
-        return {"title": head, "type": KIND_RU.get(n.type, n.type), "sigs": sigs, "doc": doc[:900]}
+        return {"title": head, "type": tr(KIND_RU.get(n.type, n.type)), "sigs": sigs, "doc": doc[:900]}
 
     @staticmethod
     def _references(script, line, col, **_):
@@ -312,7 +313,7 @@ class CSharpProvider:
                 if m.name in seen or not m.name.lower().startswith(low):
                     continue
                 seen.add(m.name)
-                items.append(Item(m.name, m.kind, m.sig, m.doc))
+                items.append(Item(m.name, m.kind, m.sig, tr(m.doc)))
             return items
         # без точки: ключевые слова, классы Unity, члены MonoBehaviour, сообщения, локальные имена
         attr_ctx = re.search(r"\[\s*\w*$", line) is not None
@@ -325,22 +326,22 @@ class CSharpProvider:
 
         if attr_ctx:
             for name, doc in unity_api.ATTRIBUTES:
-                add(name, "class", "атрибут", doc)
+                add(name, "class", tr("атрибут"), tr(doc))
             return items
         own, base = self._own_class(text)
         for name, typ in sorted(self._locals(text).items()):
             add(name, "variable", typ)
         for m in unity_api.members_of(base or "MonoBehaviour"):
-            add(m.name, m.kind, m.sig, m.doc)
+            add(m.name, m.kind, m.sig, tr(m.doc))
         for name, sig, doc in unity_api.MESSAGES:
-            add(name, "event", sig, doc)
+            add(name, "event", sig, tr(doc))
         for cls, info in sorted(unity_api.CLASSES.items()):
-            add(cls, "class", "класс Unity", info["doc"])
+            add(cls, "class", tr("класс Unity"), tr(info["doc"]))
         for kw in unity_api.CS_KEYWORDS:
-            add(kw, "keyword", "ключевое слово")
+            add(kw, "keyword", tr("ключевое слово"))
         for w in sorted(set(_IDENT.findall(text))):
             if w != prefix:
-                add(w, "word", "из этого файла")
+                add(w, "word", tr("из этого файла"))
         items.sort(key=lambda it: (not it.name.startswith(prefix), it.kind == "word", it.name.lower()))
         return items
 
@@ -410,11 +411,11 @@ class CSharpProvider:
             return ""
         if word in unity_api.CLASSES:
             return "<b>class %s</b><br><span style='color:%s'>%s</span>" % (
-                word, C["tip_doc"], html.escape(unity_api.CLASSES[word]["doc"]))
+                word, C["tip_doc"], html.escape(tr(unity_api.CLASSES[word]["doc"])))
         for msg, sig, doc in unity_api.MESSAGES:
             if msg == word:
-                return ("<b>%s</b> <span style='color:" + C["hint"] + "'>(сообщение Unity)</span><br>%s") % (
-                    html.escape(sig), html.escape(doc))
+                return ("<b>%s</b> <span style='color:" + C["hint"] + tr("'>(сообщение Unity)</span><br>%s")) % (
+                    html.escape(sig), html.escape(tr(doc)))
         # член через точку: найдём выражение перед словом
         line_start = text.rfind("\n", 0, pos) + 1
         line = text[line_start:pos]
@@ -428,10 +429,10 @@ class CSharpProvider:
             lines = ["<code style='color:" + C["function"] + "'>%s</code>" % html.escape(
                 ("static " if m.static else "") + m.sig) for m in mems[:4]]
             return ("%s<br><span style='color:" + C["tip_doc"] + "'>%s.%s — %s</span>") % (
-                "<br>".join(lines), mems[0].owner, word, html.escape(mems[0].doc))
+                "<br>".join(lines), mems[0].owner, word, html.escape(tr(mems[0].doc)))
         local = self._locals(text)
         if word in local:
-            return ("<b>%s</b> %s <span style='color:" + C["hint"] + "'>(переменная)</span>") % (
+            return ("<b>%s</b> %s <span style='color:" + C["hint"] + tr("'>(переменная)</span>")) % (
                 html.escape(local[word]), word)
         return ""
 
@@ -440,4 +441,4 @@ class CSharpProvider:
 def word_items(text, prefix):
     low = prefix.lower()
     words = sorted(set(re.findall(r"\b[A-Za-z_][\w-]{2,}\b", text)))
-    return [Item(w, "word", "из этого файла") for w in words if w.lower().startswith(low) and w != prefix]
+    return [Item(w, "word", tr("из этого файла")) for w in words if w.lower().startswith(low) and w != prefix]

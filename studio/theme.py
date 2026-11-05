@@ -14,6 +14,7 @@ import tempfile
 from PyQt6.QtCore import Qt, QRectF, QPointF, QObject, QSettings, pyqtSignal
 from PyQt6.QtGui import (QColor, QPalette, QPixmap, QPainter, QIcon, QFont,
                          QPolygonF, QPen, QFontDatabase)
+from .i18n import tr
 
 try:    # необязательно: без equestria-qt-kit работают только свои темы UniPy
     from equestria_kit import themes as kit_themes, qt as kit_qt
@@ -65,6 +66,7 @@ C = dict(VS_DARK, **SYNTAX_DARK)    # текущие роли; меняются 
 
 MODES = (("auto", "Как в KDE"), ("light", "Светлая"), ("dark", "Тёмная"))
 UNIPY_SOURCE = "unipy"
+SYSTEM_SOURCE = "system"
 
 
 def _mix(a, b, k):
@@ -242,14 +244,20 @@ class ThemeController(QObject):
         self.app = app
         self.settings = settings or QSettings("UniPyStudio", "UniPyStudio")
         self.mode = str(self.settings.value("theme/mode", "auto"))
-        self.source = str(self.settings.value("theme/source", "character"))
+        self.source = str(self.settings.value("theme/source", SYSTEM_SOURCE))
+        self._system_name = ""
         self.kit_name = ""
+        local_name = self.settings.value("theme/character", "", type=str)
+        if self.source == "character" and not local_name:
+            self.source = SYSTEM_SOURCE
         self.error = ""
         if KIT_AVAILABLE:
             try:
-                self.kit_name = kit_themes.registry().resolve(kit_themes.current_name())
-                kit_themes.follow(self._on_character_changed, lambda: self.kit_name)
-                self._scheme = kit_qt.SystemSchemeWatcher(lambda _dark: self.mode == "auto" and self.apply())
+                self._system_name = kit_themes.current_name()
+                self.kit_name = (kit_themes.registry().resolve(local_name)
+                                 if self.source == "character" else self._system_name)
+                kit_themes.follow(self._on_character_changed, lambda: self._system_name)
+                self._scheme = kit_qt.SystemSchemeWatcher(lambda _dark: self.source != SYSTEM_SOURCE and self.mode == "auto" and self.apply())
             except Exception as e:   # noqa: BLE001
                 self.error = "equestria-qt-kit: %s" % e
         self.apply()
@@ -260,6 +268,9 @@ class ThemeController(QObject):
         return KIT_AVAILABLE and self.source != UNIPY_SOURCE and bool(self.kit_name)
 
     def is_light(self):
+        if self.source == SYSTEM_SOURCE and self.uses_character:
+            base = kit_themes.THEMES[self.kit_name]["base"]
+            return _contrast(base, "#000000") > _contrast(base, "#ffffff")
         if self.mode in ("light", "dark"):
             return self.mode == "light"
         dark = kit_qt.system_prefers_dark() if KIT_AVAILABLE else _kde_prefers_dark()
@@ -269,8 +280,19 @@ class ThemeController(QObject):
         return list(kit_themes.THEMES) if KIT_AVAILABLE else []
 
     def set_mode(self, mode):
+        if self.source == SYSTEM_SOURCE and self.uses_character:
+            self.source = "character"
+            self.settings.setValue("theme/source", self.source)
+            self.settings.setValue("theme/character", self.kit_name)
         self.mode = mode
         self.settings.setValue("theme/mode", mode)
+        self.apply()
+
+    def use_system(self):
+        self.source = SYSTEM_SOURCE
+        self.settings.setValue("theme/source", self.source)
+        if KIT_AVAILABLE:
+            self._system_name = self.kit_name = kit_themes.current_name()
         self.apply()
 
     def use_unipy(self):
@@ -279,18 +301,19 @@ class ThemeController(QObject):
         self.apply()
 
     def use_character(self, name):
-        """Выбор персонажа общий для всех приложений Equestria OS (как в её переключателе)."""
+        """Выбирает палитру персонажа для UniPy Studio."""
         self.source = "character"
         self.settings.setValue("theme/source", "character")
         self.kit_name = kit_themes.registry().resolve(name)
-        kit_themes.remember(self.kit_name)
+        self.settings.setValue("theme/character", self.kit_name)
         self.apply()
 
     def _on_character_changed(self, name):
-        self.kit_name = kit_themes.registry().resolve(name)
-        if self.source != UNIPY_SOURCE:
+        self._system_name = kit_themes.registry().resolve(name)
+        if self.source == SYSTEM_SOURCE:
+            self.kit_name = self._system_name
             self.apply()
-        return self.kit_name
+        return self._system_name
 
     # ---- расчёт и применение
     def roles(self):
@@ -298,20 +321,20 @@ class ThemeController(QObject):
         if self.uses_character:
             try:
                 k = dict(kit_themes.THEMES[self.kit_name])
-                if light:
+                if light and self.source != SYSTEM_SOURCE:
                     k = kit_qt.light_variant(k)
                 k.update({kk: v for kk, v in kit_qt.derived_colors(k).items() if kk not in k})
                 return roles_from_character(k, light)
             except Exception as e:   # noqa: BLE001 — сбой в палитре персонажа: своя тема, а не поломка
-                self.error = "тема персонажа: %s" % e
-                print("[UniPy Studio] %s — включена своя тема" % self.error, file=sys.stderr)
+                self.error = tr("тема персонажа: %s") % e
+                print(tr("[UniPy Studio] %s — включена своя тема") % self.error, file=sys.stderr)
         own = dict(VS_LIGHT if light else VS_DARK)
         own.update(syntax_for(light, own["editor"]))
         return own
 
     def title(self):
-        variant = "светлая" if self.is_light() else "тёмная"
-        name = self.kit_name if self.uses_character else "UniPy (как Visual Studio)"
+        variant = tr("светлая") if self.is_light() else tr("тёмная")
+        name = self.kit_name if self.uses_character else tr("UniPy (как Visual Studio)")
         return "%s, %s" % (name, variant)
 
     def apply(self):

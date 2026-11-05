@@ -5,7 +5,7 @@ import re
 import sys
 
 from PyQt6.QtCore import Qt, QTimer, QSettings, QProcess, QProcessEnvironment, QPoint, QStandardPaths, QSize
-from PyQt6.QtGui import QAction, QKeySequence, QTextDocument, QPainter, QGuiApplication, QDesktopServices
+from PyQt6.QtGui import QAction, QActionGroup, QKeySequence, QTextDocument, QPainter, QGuiApplication, QDesktopServices
 from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QLineEdit, QToolButton, QComboBox, QFileDialog, QMessageBox,
@@ -18,6 +18,8 @@ from . import languages
 from .panels import (SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, TerminalPanel, UnityPanel,
                      PyQtDesigner, NewFileDialog, BusyBar, ReferencesPanel, find_unity_projects, HIDDEN_DIRS)
 from .theme import C
+from .i18n import (LANGUAGE_NAMES, LANGUAGE_SETTING, bind_text, change_language,
+                   plural, refresh_text, selected_language, tr)
 
 APP_NAME = "UniPy Studio"
 
@@ -31,17 +33,17 @@ class FindBar(QFrame):
         lay.setContentsMargins(8, 4, 8, 4)
         lay.setSpacing(4)
         self.find = QLineEdit()
-        self.find.setPlaceholderText("Найти")
+        bind_text(self.find, "Найти", "setPlaceholderText")
         self.find.setMinimumWidth(220)
         self.find.textChanged.connect(self.update_matches)
         self.find.returnPressed.connect(lambda: self.step(True))
-        self.case = QCheckBox("Аа")
-        self.case.setToolTip("С учётом регистра")
+        self.case = bind_text(QCheckBox(), "Аа")
+        bind_text(self.case, "С учётом регистра", "setToolTip")
         self.case.toggled.connect(self.update_matches)
         self.count = QLabel("")
         self.count.setObjectName("hint")
         self.replace = QLineEdit()
-        self.replace.setPlaceholderText("Заменить на")
+        bind_text(self.replace, "Заменить на", "setPlaceholderText")
         self.replace.setMinimumWidth(180)
         lay.addWidget(self.find)
         lay.addWidget(self.case)
@@ -49,15 +51,15 @@ class FindBar(QFrame):
                                 ("↓", "Следующее (F3)", lambda: self.step(True))):
             b = QToolButton()
             b.setText(text)
-            b.setToolTip(tip)
+            bind_text(b, tip, "setToolTip")
             b.clicked.connect(slot)
             lay.addWidget(b)
         lay.addWidget(self.count)
         lay.addSpacing(10)
         lay.addWidget(self.replace)
-        self.rep_one = QPushButton("Заменить")
+        self.rep_one = bind_text(QPushButton(), "Заменить")
         self.rep_one.clicked.connect(self.replace_one)
-        self.rep_all = QPushButton("Заменить все")
+        self.rep_all = bind_text(QPushButton(), "Заменить все")
         self.rep_all.clicked.connect(self.replace_all)
         lay.addWidget(self.rep_one)
         lay.addWidget(self.rep_all)
@@ -104,7 +106,7 @@ class FindBar(QFrame):
         if text:
             hay = ed.toPlainText()
             n = hay.count(text) if self.case.isChecked() else hay.lower().count(text.lower())
-            self.count.setText("%d совпад." % n if n else "Нет результатов")
+            self.count.setText(tr("%d совпад.") % n if n else tr("Нет результатов"))
         else:
             self.count.setText("")
 
@@ -145,7 +147,7 @@ class FindBar(QFrame):
             c = ed.textCursor()
             c.select(c.SelectionType.Document)
             c.insertText(new)
-        self.win.status("Заменено: %d" % n)
+        self.win.status(tr("Заменено: %d") % n)
         self.update_matches()
 
 
@@ -168,8 +170,8 @@ class MainWindow(QMainWindow):
 
         self.jedi = intellisense.JediWorker()
         self.jedi.finished.connect(self._worker_result)
-        self.jedi.ready.connect(lambda msg: (self.output.write("Подсказки Python/PyQt: " + msg, "Сборка", C["dim"]),
-                                             self.jedi_label.setText("IntelliSense: готово")))
+        self.jedi.ready.connect(lambda msg: (self.output.write(tr("Подсказки Python/PyQt: ") + msg, "Сборка", C["dim"]),
+                                             self.jedi_label.setText(tr("IntelliSense: готово"))))
 
         if theme.CONTROLLER is not None:
             theme.CONTROLLER.changed.connect(self._on_theme_changed)
@@ -181,7 +183,7 @@ class MainWindow(QMainWindow):
         for key, svc in self.services_by_key.items():
             svc.finished.connect(self._worker_result)
             svc.diagnostics.connect(self._lsp_diagnostics)
-            svc.status.connect(lambda text, k=key: self._lsp_status(text, k))
+            svc.status.connect(lambda text, state, k=key: self._lsp_status(text, state, k))
             svc.restarted.connect(lambda reason, k=key: self._lsp_restarted(k, reason))
             svc.restart_mb = int(self.settings.value("analyzers/restart_mb", 1024))
 
@@ -210,7 +212,7 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self._tab_changed)
         self.findbar = FindBar(self)
         lay.addWidget(self.tabs, 1)
-        self.empty = QLabel("Откройте файл в обозревателе решений\n\n"
+        self.empty = bind_text(QLabel(), "Откройте файл в обозревателе решений\n\n"
                             "Ctrl+N — новый файл     Ctrl+P — перейти к файлу     F5 — запуск")
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         theme.style(self.empty, "color:@dim@; background:@editor@; font-size:12pt;")
@@ -220,7 +222,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
     def _dock(self, title, widget, area, name):
-        d = QDockWidget(title, self)
+        d = bind_text(QDockWidget(self), title, "setWindowTitle")
         d.setObjectName(name)
         d.setWidget(widget)
         d.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable |
@@ -231,14 +233,14 @@ class MainWindow(QMainWindow):
         bl = QHBoxLayout(bar)
         bl.setContentsMargins(8, 3, 3, 3)
         bl.setSpacing(2)
-        lbl = QLabel(title)
+        lbl = bind_text(QLabel(), title)
         lbl.setObjectName("dockTitleText")
         bl.addWidget(lbl, 1)
         close = QToolButton()
         close.setIcon(theme.tool_icon("clear"))
         close.setProperty("tool_icon", "clear")
         close.setIconSize(QSize(12, 12))
-        close.setToolTip("Скрыть панель")
+        bind_text(close, "Скрыть панель", "setToolTip")
         close.clicked.connect(d.hide)
         bl.addWidget(close)
         d.setTitleBarWidget(bar)
@@ -295,14 +297,14 @@ class MainWindow(QMainWindow):
         self.resizeDocks([self.d_explorer, self.d_outline], [440, 200], Qt.Orientation.Vertical)
 
     def _act(self, text, slot, shortcut=None, icon=None, tip=None):
-        a = QAction(text, self)
+        a = bind_text(QAction(self), text)
         if shortcut:
             a.setShortcut(QKeySequence(shortcut))
         if icon:
             a.setIcon(theme.tool_icon(icon))
             a.setProperty("tool_icon", icon)        # значок перерисуется при смене темы
         if tip:
-            a.setToolTip(tip)
+            bind_text(a, tip, "setToolTip")
         a.triggered.connect(lambda *_: slot())
         self.addAction(a)
         return a
@@ -365,17 +367,17 @@ class MainWindow(QMainWindow):
 
     def _build_menus(self):
         mb = self.menuBar()
-        m = mb.addMenu("Файл")
+        m = bind_text(mb.addMenu(""), "Файл", "setTitle")
         for a in (self.a_new, self.a_open_solution, self.a_open, self.a_open_file, self.a_sample):
             m.addAction(a)
-        self.recent_menu = m.addMenu("Недавние папки")
+        self.recent_menu = bind_text(m.addMenu(""), "Недавние папки", "setTitle")
         self.recent_menu.aboutToShow.connect(self._fill_recent)
         m.addSeparator()
         for a in (self.a_save, self.a_save_all, self.a_close):
             m.addAction(a)
         m.addSeparator()
         m.addAction(self.a_quit)
-        m = mb.addMenu("Правка")
+        m = bind_text(mb.addMenu(""), "Правка", "setTitle")
         for a in (self.a_undo, self.a_redo, None, self.a_cut, self.a_copy, self.a_paste, None,
                   self.a_find, self.a_replace, self.a_goto, None, self.a_comment, self.a_dup):
             m.addSeparator() if a is None else m.addAction(a)
@@ -383,7 +385,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_complete, self.a_params, self.a_definition, self.a_refs):
             sub.addAction(a)
         m.addAction(self.a_rename)
-        m = mb.addMenu("Вид")
+        m = bind_text(mb.addMenu(""), "Вид", "setTitle")
         for d in (self.d_explorer, self.d_outline, self.d_unity, self.d_designer, self.d_output,
                   self.d_errors, self.d_references, self.d_terminal):
             m.addAction(d.toggleViewAction())
@@ -397,33 +399,77 @@ class MainWindow(QMainWindow):
         m.addAction(self.a_hint_in)
         m.addAction(self.a_hint_out)
         m.addSeparator()
-        self.theme_menu = m.addMenu("Тема")
+        self.theme_menu = bind_text(m.addMenu(""), "Тема", "setTitle")
         self.theme_menu.aboutToShow.connect(self._fill_theme_menu)
-        m = mb.addMenu("Проект")
+        self._build_language_menu(bind_text(m.addMenu(""), "Язык", "setTitle"))
+        m = bind_text(mb.addMenu(""), "Проект", "setTitle")
         for a in (self.a_new, self.a_unity_script, self.a_pyqt_window, None, self.a_designer_ui, self.a_pip,
                   None, self.a_unity, self.a_hub):
             m.addSeparator() if a is None else m.addAction(a)
-        m = mb.addMenu("Сборка")
+        m = bind_text(mb.addMenu(""), "Сборка", "setTitle")
         m.addAction(self.a_build)
         m.addAction(self.a_build_file)
-        m = mb.addMenu("Отладка")
+        m = bind_text(mb.addMenu(""), "Отладка", "setTitle")
         for a in (self.a_run, self.a_run2, self.a_stop):
             m.addAction(a)
-        m = mb.addMenu("Средства")
-        m.addAction("Терминал", lambda: self.show_dock(self.d_terminal))
-        m.addAction("Конструктор PyQt", lambda: self.show_dock(self.d_designer))
-        m.addAction("Папка с версиями Unity…", self._pick_unity_root)
+        m = bind_text(mb.addMenu(""), "Средства", "setTitle")
+        bind_text(m.addAction("", lambda: self.show_dock(self.d_terminal)), "Терминал")
+        bind_text(m.addAction("", lambda: self.show_dock(self.d_designer)), "Конструктор PyQt")
+        bind_text(m.addAction("", self._pick_unity_root), "Папка с версиями Unity…")
         m.addSeparator()
-        m.addAction("Перезапустить анализаторы кода", self.restart_analyzers)
-        self.restart_menu = m.addMenu("Перезапуск анализатора при памяти выше")
+        bind_text(m.addAction("", self.restart_analyzers), "Перезапустить анализаторы кода")
+        self.restart_menu = bind_text(m.addMenu(""), "Перезапуск анализатора при памяти выше", "setTitle")
         self.restart_menu.aboutToShow.connect(self._fill_restart_menu)
-        m = mb.addMenu("Справка")
+        m = bind_text(mb.addMenu(""), "Справка", "setTitle")
         m.addAction(self.a_keys)
         m.addAction(self.a_updates)
         m.addAction(self.a_about)
 
+    def _build_language_menu(self, menu):
+        group = QActionGroup(menu)
+        selected = selected_language()
+        choices = [("", "Как в системе"), *LANGUAGE_NAMES.items()]
+        for code, label in choices:
+            action = bind_text(menu.addAction(""), label) if not code else menu.addAction(label)
+            action.setCheckable(True)
+            action.setData(code)
+            group.addAction(action)
+            action.setChecked(code == selected)
+        group.triggered.connect(self._change_language)
+
+    def _change_language(self, action):
+        code = action.data()
+        if code == selected_language():
+            return
+        self.settings.setValue(LANGUAGE_SETTING, code)
+        self.settings.sync()
+        change_language(code, QApplication.instance())
+        refresh_text(self)
+        self.findbar.update_matches()
+        self.explorer.retranslate()
+        self.outline.retranslate()
+        self.output.retranslate()
+        self.references.retranslate()
+        self.errors.retranslate()
+        self.unity.retranslate()
+        self.designer.retranslate()
+        if self.startup.count():
+            self.startup.setItemText(0, tr("Текущий файл"))
+        self._refresh_analyzer_label()
+        self.status(tr("Выполняется…") if self._running() else tr("Готово"), 0)
+        ed = self.editor()
+        if ed:
+            cursor = ed.textCursor()
+            self._cursor_moved(cursor.blockNumber() + 1, cursor.positionInBlock() + 1)
+            self.enc_label.setText(ed.encoding_label())
+            ed.completer.popup().hide()
+            ed.doc_tip.hide()
+            ed.calltip.hide()
+        else:
+            self.pos_label.setText(tr("Стр 1   Стлб 1"))
+
     def _build_toolbar(self):
-        tb = QToolBar("Стандартная")
+        tb = bind_text(QToolBar(), "Стандартная", "setWindowTitle")
         tb.setObjectName("main_toolbar")
         tb.setMovable(False)
         tb.setIconSize(QSize(16, 16))
@@ -431,15 +477,15 @@ class MainWindow(QMainWindow):
         for a in (self.a_back, self.a_fwd, None, self.a_new, self.a_open_solution, self.a_save, self.a_save_all):
             tb.addSeparator() if a is None else tb.addAction(a)
         tb.addSeparator()
-        lbl = QLabel("Запуск:")
+        lbl = bind_text(QLabel(), "Запуск:")
         tb.addWidget(lbl)
         self.startup = QComboBox()
         self.startup.setMinimumWidth(200)
-        self.startup.setToolTip("Какой файл запускать по F5")
+        bind_text(self.startup, "Какой файл запускать по F5", "setToolTip")
         tb.addWidget(self.startup)
         self.interp = QComboBox()
         self.interp.setMinimumWidth(150)
-        self.interp.setToolTip("Интерпретатор Python")
+        bind_text(self.interp, "Интерпретатор Python", "setToolTip")
         tb.addWidget(self.interp)
         self.interp.currentIndexChanged.connect(lambda *_: self.python_ls.configuration_changed())
         run_btn = QToolButton()
@@ -459,7 +505,7 @@ class MainWindow(QMainWindow):
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         tb.addWidget(spacer)
         self.quick = QLineEdit()
-        self.quick.setPlaceholderText("Перейти к файлу (Ctrl+P)")
+        bind_text(self.quick, "Перейти к файлу (Ctrl+P)", "setPlaceholderText")
         self.quick.setFixedWidth(260)
         self.quick.addAction(theme.tool_icon("find"), QLineEdit.ActionPosition.LeadingPosition).setProperty("tool_icon", "find")
         self.quick_completer = QCompleter([], self)
@@ -475,19 +521,21 @@ class MainWindow(QMainWindow):
     def _build_status(self):
         sb = self.statusBar()
         sb.setSizeGripEnabled(False)
-        self.status_label = QLabel("Готово")
+        self.status_label = bind_text(QLabel(), "Готово")
         sb.addWidget(self.status_label, 1)
         self.err_label = QLabel("✖ 0  ⚠ 0")
         self.err_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.err_label.mousePressEvent = lambda e: self.show_dock(self.d_errors)
-        self.jedi_label = QLabel("IntelliSense: готово" if self.jedi.available else "IntelliSense: по словам")
-        self.pos_label = QLabel("Стр 1   Стлб 1")
-        self.indent_label = QLabel("Пробелы: 4")
+        self.jedi_label = QLabel()
+        self._analyzer_status = None
+        self._refresh_analyzer_label()
+        self.pos_label = bind_text(QLabel(), "Стр 1   Стлб 1")
+        self.indent_label = bind_text(QLabel(), "Пробелы: 4")
         self.enc_label = QLabel("UTF-8")
         self.lang_label = QLabel("")
         self.busy_bar = BusyBar()
         self._busy_timeout = QTimer(self, singleShot=True, interval=30000,
-                                    timeout=lambda: self._busy("", "Сервер не ответил — определение не найдено"))
+                                    timeout=lambda: self._busy("", tr("Сервер не ответил — определение не найдено")))
         for w in (self.busy_bar, self.err_label, self.jedi_label, self.pos_label, self.indent_label,
                   self.enc_label, self.lang_label):
             sb.addPermanentWidget(w)
@@ -497,7 +545,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText(text)
         if timeout:
             QTimer.singleShot(timeout, lambda: self.status_label.text() == text and self.status_label.setText(
-                "Выполняется…" if self._running() else "Готово"))
+                tr("Выполняется…") if self._running() else tr("Готово")))
 
     def zoom(self, delta):
         self.font_size = max(7, min(32, self.font_size + delta))
@@ -505,7 +553,7 @@ class MainWindow(QMainWindow):
         self.font = theme.code_font(self.font_size)
         for ed in self.editors():
             ed.set_code_font(self.font)
-        self.status("Размер шрифта: %d" % self.font_size)
+        self.status(tr("Размер шрифта: %d") % self.font_size)
 
     # ------------------------------------------------------------ навигация (Ctrl+− / Ctrl+Shift+−)
     def _here(self):
@@ -535,7 +583,7 @@ class MainWindow(QMainWindow):
                     dst.append(here)
                 self.open_path(path, line, col)
                 return
-        self.status("Назад больше некуда" if direction < 0 else "Вперёд больше некуда")
+        self.status(tr("Назад больше некуда") if direction < 0 else tr("Вперёд больше некуда"))
 
     # ------------------------------------------------------------ ссылки и переименование
     def _line_text(self, path, line):
@@ -553,11 +601,11 @@ class MainWindow(QMainWindow):
 
     def _show_references(self, word, refs):
         if not refs:
-            self.status("Ссылки на «%s» не найдены" % word)
+            self.status(tr("Ссылки на «%s» не найдены") % word)
             return
         self.references.show_results(word, refs, self.root, self._line_text)
         self.show_dock(self.d_references)
-        self.status("Найдено ссылок: %d" % len(refs))
+        self.status(tr("Найдено ссылок: %d") % len(refs))
 
     def rename_dialog(self):
         ed = self.editor()
@@ -565,13 +613,13 @@ class MainWindow(QMainWindow):
             return
         word = ed.symbol_under_cursor()
         if not word or not re.fullmatch(r"[A-Za-z_]\w*", word):
-            self.status("Поставьте курсор на имя, которое нужно переименовать")
+            self.status(tr("Поставьте курсор на имя, которое нужно переименовать"))
             return
-        name, ok = QInputDialog.getText(self, "Переименовать", "Новое имя для «%s»:" % word, text=word)
+        name, ok = QInputDialog.getText(self, tr("Переименовать"), tr("Новое имя для «%s»:") % word, text=word)
         name = name.strip()
         if ok and name and name != word:
             if not re.fullmatch(r"[A-Za-z_]\w*", name):
-                QMessageBox.warning(self, APP_NAME, "«%s» — недопустимое имя." % name)
+                QMessageBox.warning(self, APP_NAME, tr("«%s» — недопустимое имя.") % name)
                 return
             self._rename_from = (word, ed.path)
             ed.rename_symbol(name)
@@ -580,7 +628,7 @@ class MainWindow(QMainWindow):
         """Правки переименования: открытые файлы меняются в редакторе (Ctrl+Z отменит), закрытые —
         пишутся на диск в их же кодировке и с их переводами строк."""
         if data.get("error"):
-            QMessageBox.warning(self, APP_NAME, "Переименовать не удалось: %s" % data["error"])
+            QMessageBox.warning(self, APP_NAME, tr("Переименовать не удалось: %s") % data["error"])
             return
         open_eds = {ed.path: ed for ed in self.editors()}
         edits = dict(data.get("edits") or {})
@@ -624,23 +672,23 @@ class MainWindow(QMainWindow):
                     f.write(data_out)
             changed_files += 1
             changed_places += len(items)
-            self.output.write("Переименование: %s — %d" % (os.path.relpath(path, self.root or "/"), len(items)),
+            self.output.write(tr("Переименование: %s — %d") % (os.path.relpath(path, self.root or "/"), len(items)),
                               "Сборка", C["dim"])
-        msg = "«%s» → «%s»: изменено мест %d в %d %s" % (
+        msg = tr("«%s» → «%s»: изменено мест %d в %d %s") % (
             getattr(self, "_rename_from", ("?",))[0], new_name, changed_places, changed_files,
-            "файле" if changed_files == 1 else "файлах")
+            plural(changed_files, "файле", "файлах", "файлах"))
         self.status(msg)
         problems = []
         if skipped:
-            problems.append("Не тронуты (в редакторе есть несохранённые правки):\n" +
+            problems.append(tr("Не тронуты (в редакторе есть несохранённые правки):\n") +
                             "\n".join(os.path.basename(p) for p in skipped))
         if failed:
-            problems.append("Не удалось записать:\n" + "\n".join(failed))
+            problems.append(tr("Не удалось записать:\n") + "\n".join(failed))
         old, src = getattr(self, "_rename_from", ("", ""))
         if src.endswith(".cs") and os.path.splitext(os.path.basename(src))[0] == old:
-            problems.append("Это имя совпадает с именем файла %s. Unity требует, чтобы класс MonoBehaviour "
+            problems.append(tr("Это имя совпадает с именем файла %s. Unity требует, чтобы класс MonoBehaviour "
                             "назывался как файл: переименуйте файл в Unity (тогда сохранится .meta "
-                            "и ссылки в сценах)." % os.path.basename(src))
+                            "и ссылки в сценах).") % os.path.basename(src))
         if problems:
             QMessageBox.information(self, APP_NAME, msg + "\n\n" + "\n\n".join(problems))
         self._refresh_outline()
@@ -664,11 +712,11 @@ class MainWindow(QMainWindow):
         self.settings.setValue("editor/hint_size", self.hint_size)
         for ed in self.editors():
             ed.apply_hint_size()
-        self.status("Размер подсказок: %g" % self.hint_size)
+        self.status(tr("Размер подсказок: %g") % self.hint_size)
 
     def copy_text(self, text):
         QGuiApplication.clipboard().setText(text)
-        self.status("Скопировано: " + text)
+        self.status(tr("Скопировано: ") + text)
 
     def open_external(self, path):
         QDesktopServices.openUrl(QUrl.fromLocalFile(path))
@@ -722,10 +770,10 @@ class MainWindow(QMainWindow):
             recent = [r for r in (self.settings.value("solution/recent") or []) if r != root]
             self.settings.setValue("solution/recent", [root] + recent[:8])
         self._update_title()
-        self.output.write("Решение открыто: %s" % root, "Сборка", C["dim"])
+        self.output.write(tr("Решение открыто: %s") % root, "Сборка", C["dim"])
         unity = find_unity_projects(root)
         if unity:
-            self.output.write("Найден проект Unity: %s" % ", ".join(os.path.relpath(u, root) or "." for u in unity),
+            self.output.write(tr("Найден проект Unity: %s") % ", ".join(os.path.relpath(u, root) or "." for u in unity),
                               "Unity", C["dim"])
         return True
 
@@ -736,7 +784,7 @@ class MainWindow(QMainWindow):
         current = self.startup.currentData()
         self.startup.blockSignals(True)
         self.startup.clear()
-        self.startup.addItem(theme.badge("py", "#3572A5", "#FFD43B"), "Текущий файл", "")
+        self.startup.addItem(theme.badge("py", "#3572A5", "#FFD43B"), tr("Текущий файл"), "")
         mains = []
         for p in files:
             if not p.endswith(".py"):
@@ -786,7 +834,7 @@ class MainWindow(QMainWindow):
         for r in self.settings.value("solution/recent") or []:
             self.recent_menu.addAction(r, lambda r=r: self.set_root(r))
         if self.recent_menu.isEmpty():
-            a = self.recent_menu.addAction("пусто")
+            a = self.recent_menu.addAction(tr("пусто"))
             a.setEnabled(False)
 
     def _update_title(self):
@@ -816,10 +864,10 @@ class MainWindow(QMainWindow):
                     ed.go_to_line(line, col)
                 return ed
         if not os.path.isfile(path):
-            self.status("Файл не найден: " + path)
+            self.status(tr("Файл не найден: ") + path)
             return None
         if os.path.getsize(path) > 5_000_000:
-            QMessageBox.information(self, APP_NAME, "Файл слишком большой для редактора.")
+            QMessageBox.information(self, APP_NAME, tr("Файл слишком большой для редактора."))
             return None
         with open(path, "rb") as f:
             head = f.read(4096)
@@ -885,7 +933,7 @@ class MainWindow(QMainWindow):
             return True
         ed = self.tabs.widget(i)
         if ed.document().isModified():
-            r = QMessageBox.question(self, APP_NAME, "Сохранить изменения в «%s»?" % os.path.basename(ed.path),
+            r = QMessageBox.question(self, APP_NAME, tr("Сохранить изменения в «%s»?") % os.path.basename(ed.path),
                                      QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard |
                                      QMessageBox.StandardButton.Cancel)
             if r == QMessageBox.StandardButton.Cancel:
@@ -916,14 +964,14 @@ class MainWindow(QMainWindow):
         ed = self.editor()
         if ed and ed.save():
             self.enc_label.setText(ed.encoding_label())
-            self.status("Сохранено: " + os.path.basename(ed.path))
+            self.status(tr("Сохранено: ") + os.path.basename(ed.path))
 
     def save_all(self):
         n = 0
         for ed in self.editors():
             if ed.document().isModified() and ed.save():
                 n += 1
-        self.status("Сохранено файлов: %d" % n)
+        self.status(tr("Сохранено файлов: %d") % n)
 
     def on_path_renamed(self, old, new):
         for i, ed in enumerate(self.editors()):
@@ -960,14 +1008,14 @@ class MainWindow(QMainWindow):
 
     def restart_analyzers(self):
         for svc in self.language_services:
-            svc.restart(reason="по команде из меню")
+            svc.restart(reason=tr("по команде из меню"))
 
     def _fill_restart_menu(self):
         m = self.restart_menu
         m.clear()
         current = int(self.settings.value("analyzers/restart_mb", 1024))
         for mb, label in self.RESTART_THRESHOLDS:
-            a = m.addAction(label, lambda v=mb: self._set_restart_mb(v))
+            a = m.addAction(tr(label), lambda v=mb: self._set_restart_mb(v))
             a.setCheckable(True)
             a.setChecked(mb == current)
 
@@ -975,32 +1023,41 @@ class MainWindow(QMainWindow):
         self.settings.setValue("analyzers/restart_mb", mb)
         for svc in self.language_services:
             svc.restart_mb = mb
-        self.status("Перезапуск анализатора: " + dict(self.RESTART_THRESHOLDS)[mb] +
-                    (" (когда вы не печатаете 2 минуты)" if mb else ""))
+        self.status(tr("Перезапуск анализатора: ") + tr(dict(self.RESTART_THRESHOLDS)[mb]) +
+                    (tr(" (когда вы не печатаете 2 минуты)") if mb else ""))
 
     def _lsp_restarted(self, key, reason):
         name = {"csharp": "C#", "python": "Python"}.get(key, key)
-        self.status("%s: анализатор перезапущен — %s" % (name, reason), 10000)
-        self.output.write("%s: анализатор перезапущен — %s" % (name, reason), "Сборка", C["dim"])
+        self.status(tr("%s: анализатор перезапущен — %s") % (name, reason), 10000)
+        self.output.write(tr("%s: анализатор перезапущен — %s") % (name, reason), "Сборка", C["dim"])
         for ed in self.editors():
             if ed.language.service == key:
                 ed.lsp_diagnostics = None
                 ed.run_diagnostics()        # отдаёт текст новому серверу (он запустится сам)
 
-    def _lsp_status(self, text, key):
+    def _lsp_status(self, text, state, key):
         if not text:
             return
         self.status(text)
         lang = text.split(":", 1)[0]
-        self.jedi_label.setText("%s: %s" % (lang, "загрузка…" if "загрузка" in text else
-                                            "готово" if "загружено" in text else "остановлен"))
-        if "загружено" in text:
+        self._analyzer_status = lang, state
+        self._refresh_analyzer_label()
+        if state == "ready":
             for ed in self.editors():
                 if ed.language.service == key:
                     ed.run_diagnostics()
 
+    def _refresh_analyzer_label(self):
+        if self._analyzer_status is None:
+            text = tr("IntelliSense: готово") if self.jedi.available else tr("IntelliSense: по словам")
+        else:
+            lang, state = self._analyzer_status
+            label = {"loading": "загрузка…", "ready": "готово"}.get(state, "остановлен")
+            text = "%s: %s" % (lang, tr(label))
+        self.jedi_label.setText(text)
+
     def _cursor_moved(self, line, col):
-        self.pos_label.setText("Стр %d   Стлб %d" % (line, col))
+        self.pos_label.setText(tr("Стр %d   Стлб %d") % (line, col))
 
     def _diagnostics(self, ed):
         self.errors.open_paths.add(ed.path)
@@ -1024,19 +1081,19 @@ class MainWindow(QMainWindow):
     def open_solution_dialog(self):
         """Как «Файл → Открыть → Проект или решение» в Visual Studio: выбрать .sln (у Unity он лежит в папке проекта)."""
         p, _ = QFileDialog.getOpenFileName(
-            self, "Открыть проект или решение", self.root or os.path.expanduser("~"),
-            "Решения и проекты (*.sln *.slnx *.csproj);;Все файлы (*)")
+            self, tr("Открыть проект или решение"), self.root or os.path.expanduser("~"),
+            tr("Решения и проекты (*.sln *.slnx *.csproj);;Все файлы (*)"))
         if p:
             self.set_root(os.path.dirname(os.path.abspath(p)))
 
     def open_folder_dialog(self):
-        d = QFileDialog.getExistingDirectory(self, "Открыть папку (решение)", self.root or os.path.expanduser("~"))
+        d = QFileDialog.getExistingDirectory(self, tr("Открыть папку (решение)"), self.root or os.path.expanduser("~"))
         if d:
             self.set_root(d)
 
     def open_file_dialog(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Открыть файл", self.root or os.path.expanduser("~"),
-                                           "Код (*.py *.cs *.ui *.json *.md *.txt);;Все файлы (*)")
+        p, _ = QFileDialog.getOpenFileName(self, tr("Открыть файл"), self.root or os.path.expanduser("~"),
+                                           tr("Код (*.py *.cs *.ui *.json *.md *.txt);;Все файлы (*)"))
         if p:
             self.open_path(p)
 
@@ -1044,7 +1101,7 @@ class MainWindow(QMainWindow):
         ed = self.editor()
         if not ed:
             return
-        n, ok = QInputDialog.getInt(self, "Перейти к строке", "Номер строки (1–%d):" % ed.blockCount(),
+        n, ok = QInputDialog.getInt(self, tr("Перейти к строке"), tr("Номер строки (1–%d):") % ed.blockCount(),
                                     ed.textCursor().blockNumber() + 1, 1, ed.blockCount())
         if ok:
             ed.go_to_line(n)
@@ -1103,7 +1160,7 @@ class MainWindow(QMainWindow):
             base = re.sub(r"\W", "", base) or "NewScript"
         path = os.path.join(folder, base + ext)
         if os.path.exists(path):
-            QMessageBox.warning(self, APP_NAME, "Файл уже существует:\n" + path)
+            QMessageBox.warning(self, APP_NAME, tr("Файл уже существует:\n") + path)
             self.open_path(path)
             return
         os.makedirs(folder, exist_ok=True)
@@ -1111,18 +1168,18 @@ class MainWindow(QMainWindow):
             f.write(templates.render(text, base))
         self.explorer.refresh()
         self.open_path(path)
-        self.output.write("Создан файл: %s" % os.path.relpath(path, self.root), "Сборка", C["dim"])
+        self.output.write(tr("Создан файл: %s") % os.path.relpath(path, self.root), "Сборка", C["dim"])
 
     def _create_unity_script(self, name, idx):
         if not find_unity_projects(self.root):
-            QMessageBox.information(self, APP_NAME, "В открытой папке нет проекта Unity (папки Assets и ProjectSettings).")
+            QMessageBox.information(self, APP_NAME, tr("В открытой папке нет проекта Unity (папки Assets и ProjectSettings)."))
             return
         self.create_from_template(idx, name, self._default_folder(templates.TEMPLATES[idx][3]))
 
     def _insert_unity_message(self, sig):
         ed = self.editor()
         if not ed or ed.lang != "csharp":
-            self.status("Откройте скрипт C#, чтобы вставить метод")
+            self.status(tr("Откройте скрипт C#, чтобы вставить метод"))
             return
         c = ed.textCursor()
         line = c.block().text()
@@ -1150,30 +1207,30 @@ class MainWindow(QMainWindow):
             f.write(code)
         self.explorer.refresh()
         self.open_path(path)
-        self.output.write("Конструктор PyQt создал %s — запустите его кнопкой «Запуск»" %
+        self.output.write(tr("Конструктор PyQt создал %s — запустите его кнопкой «Запуск»") %
                           os.path.relpath(path, self.root), "Сборка", C["text"])
 
     def preview_ui(self):
         ed = self.editor()
         if not ed or not ed.path.endswith(".ui"):
-            QMessageBox.information(self, APP_NAME, "Откройте файл формы .ui в редакторе.")
+            QMessageBox.information(self, APP_NAME, tr("Откройте файл формы .ui в редакторе."))
             return
         import io
         from PyQt6 import uic
         try:
             w = uic.loadUi(io.StringIO(ed.toPlainText()))
         except Exception as e:  # noqa
-            self.output.write("Не удалось открыть форму: %s" % e, "Сборка", C["error"])
+            self.output.write(tr("Не удалось открыть форму: %s") % e, "Сборка", C["error"])
             self.show_dock(self.d_output)
             return
         w.setParent(self, Qt.WindowType.Window)
         w.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         w.setStyleSheet("QWidget{background:#F0F0F0;color:#202020;} QLineEdit,QTextEdit{background:white;}")
-        w.setWindowTitle("Предпросмотр — " + (w.windowTitle() or os.path.basename(ed.path)))
+        w.setWindowTitle(tr("Предпросмотр — ") + (w.windowTitle() or os.path.basename(ed.path)))
         w.show()
 
     def _pick_unity_root(self):
-        d = QFileDialog.getExistingDirectory(self, "Папка с версиями Unity (Hub/Editor)",
+        d = QFileDialog.getExistingDirectory(self, tr("Папка с версиями Unity (Hub/Editor)"),
                                              self.unity.editors_root.text())
         if d:
             self.unity.editors_root.setText(d)
@@ -1183,33 +1240,33 @@ class MainWindow(QMainWindow):
     def install_requirements(self):
         reqs = [p for p in self.explorer.files if os.path.basename(p) == "requirements.txt"]
         if not reqs:
-            self.status("В решении нет requirements.txt")
+            self.status(tr("В решении нет requirements.txt"))
             return
         self.show_dock(self.d_terminal)
         self.terminal.set_cwd(os.path.dirname(reqs[0]))
         self.terminal.input.setText('"%s" -m pip install --user -r requirements.txt' % self.interp.currentData())
         self.terminal.input.setFocus()
-        self.status("Проверьте команду в терминале и нажмите Enter")
+        self.status(tr("Проверьте команду в терминале и нажмите Enter"))
 
     def show_keys(self):
-        QMessageBox.information(self, "Горячие клавиши", "\n".join([
-            "Ctrl+Пробел — подсказки (список членов)",
-            "Ctrl+Shift+Пробел — параметры функции",
-            "F12 или Ctrl+клик — перейти к определению",
-            "Ctrl+− / Ctrl+Shift+− — назад / вперёд (и боковые кнопки мыши)",
-            "Shift+F12 — найти все ссылки",
-            "Ctrl+R, Ctrl+R или F2 — переименовать",
-            "Наведение мыши — описание",
-            "F5 — запуск, Shift+F5 — остановить",
-            "Ctrl+Shift+B — проверить решение",
-            "Ctrl+S / Ctrl+Shift+S — сохранить / всё",
-            "Ctrl+F / Ctrl+H — найти / заменить",
-            "Ctrl+G — к строке, Ctrl+P — к файлу",
-            "Ctrl+/ — комментарий, Ctrl+D — дублировать строку",
-            "Tab / Shift+Tab — отступ",
-            "Ctrl+колёсико или Ctrl+Shift+. / Ctrl+Shift+, — размер кода",
-            "Ctrl+колёсико над списком подсказок — размер подсказок",
-            "Ctrl+Alt+= / Ctrl+Alt+− — крупнее / мельче подсказки",
+        QMessageBox.information(self, tr("Горячие клавиши"), "\n".join([
+            tr("Ctrl+Пробел — подсказки (список членов)"),
+            tr("Ctrl+Shift+Пробел — параметры функции"),
+            tr("F12 или Ctrl+клик — перейти к определению"),
+            tr("Ctrl+− / Ctrl+Shift+− — назад / вперёд (и боковые кнопки мыши)"),
+            tr("Shift+F12 — найти все ссылки"),
+            tr("Ctrl+R, Ctrl+R или F2 — переименовать"),
+            tr("Наведение мыши — описание"),
+            tr("F5 — запуск, Shift+F5 — остановить"),
+            tr("Ctrl+Shift+B — проверить решение"),
+            tr("Ctrl+S / Ctrl+Shift+S — сохранить / всё"),
+            tr("Ctrl+F / Ctrl+H — найти / заменить"),
+            tr("Ctrl+G — к строке, Ctrl+P — к файлу"),
+            tr("Ctrl+/ — комментарий, Ctrl+D — дублировать строку"),
+            tr("Tab / Shift+Tab — отступ"),
+            tr("Ctrl+колёсико или Ctrl+Shift+. / Ctrl+Shift+, — размер кода"),
+            tr("Ctrl+колёсико над списком подсказок — размер подсказок"),
+            tr("Ctrl+Alt+= / Ctrl+Alt+− — крупнее / мельче подсказки"),
         ]))
 
     # ------------------------------------------------------------ тема
@@ -1220,21 +1277,24 @@ class MainWindow(QMainWindow):
         if ctl is None:
             return
         for mode, label in theme.MODES:
-            a = m.addAction(label, lambda md=mode: ctl.set_mode(md))
+            a = m.addAction(tr(label), lambda md=mode: ctl.set_mode(md))
             a.setCheckable(True)
-            a.setChecked(ctl.mode == mode)
+            a.setChecked(ctl.mode == mode and (ctl.source != theme.SYSTEM_SOURCE or not ctl.uses_character))
         m.addSeparator()
-        own = m.addAction("UniPy (как Visual Studio)", ctl.use_unipy)
+        system = m.addAction(tr("Как в системе"), ctl.use_system)
+        system.setCheckable(True)
+        system.setChecked(ctl.source == theme.SYSTEM_SOURCE)
+        own = m.addAction(tr("UniPy (как Visual Studio)"), ctl.use_unipy)
         own.setCheckable(True)
-        own.setChecked(not ctl.uses_character)
+        own.setChecked(ctl.source == theme.UNIPY_SOURCE)
         if theme.KIT_AVAILABLE:
-            m.addSection("Тема персонажа — общая для Equestria OS")
+            m.addSeparator()
             for name in ctl.characters():
                 a = m.addAction(name, lambda n=name: ctl.use_character(n))
                 a.setCheckable(True)
-                a.setChecked(ctl.uses_character and ctl.kit_name == name)
+                a.setChecked(ctl.source == "character" and ctl.kit_name == name)
         else:
-            note = m.addAction("Темы персонажей — с пакетом equestria-qt-kit 1.2+")
+            note = m.addAction(tr("Темы персонажей — с пакетом equestria-qt-kit 1.2+"))
             note.setEnabled(False)
 
     def _on_theme_changed(self):
@@ -1249,7 +1309,7 @@ class MainWindow(QMainWindow):
         self.errors.render()
         self.explorer.refresh()
         if theme.CONTROLLER is not None:
-            self.status("Тема: " + theme.CONTROLLER.title())
+            self.status(tr("Тема: ") + theme.CONTROLLER.title())
 
     # ------------------------------------------------------------ обновления анализаторов
     def _service_for_language(self, language):
@@ -1278,9 +1338,9 @@ class MainWindow(QMainWindow):
         self._updates_dialog.raise_()
 
     def show_about(self):
-        QMessageBox.about(self, APP_NAME, "<b>%s</b><br>Редактор кода для Unity (C#) и Python/PyQt.<br><br>"
-                          "Подсказки Python: %s<br>PyQt: %s" % (
-                              APP_NAME, "jedi " + intellisense.JEDI_VERSION if intellisense.JEDI_VERSION else "по словам",
+        QMessageBox.about(self, APP_NAME, tr("<b>%s</b><br>Редактор кода для Unity (C#) и Python/PyQt.<br><br>"
+                          "Подсказки Python: %s<br>PyQt: %s") % (
+                              APP_NAME, "jedi " + intellisense.JEDI_VERSION if intellisense.JEDI_VERSION else tr("по словам"),
                               __import__("PyQt6.QtCore", fromlist=["x"]).PYQT_VERSION_STR))
 
     # ------------------------------------------------------------ запуск
@@ -1296,15 +1356,15 @@ class MainWindow(QMainWindow):
         if ed and ed.lang == "python":
             self.run_file(ed.path)
         elif ed and ed.lang == "csharp":
-            self.output.write("Скрипты C# выполняет Unity. Открываю проект в Unity…", "Unity", C["warning"])
+            self.output.write(tr("Скрипты C# выполняет Unity. Открываю проект в Unity…"), "Unity", C["warning"])
             self.show_dock(self.d_output)
             self.unity.open_in_unity()
         else:
-            self.status("Откройте файл Python или выберите файл запуска на панели")
+            self.status(tr("Откройте файл Python или выберите файл запуска на панели"))
 
     def run_file(self, path):
         if self._running():
-            if QMessageBox.question(self, APP_NAME, "Программа уже запущена. Остановить и запустить заново?") \
+            if QMessageBox.question(self, APP_NAME, tr("Программа уже запущена. Остановить и запустить заново?")) \
                     != QMessageBox.StandardButton.Yes:
                 return
             self.stop_run()
@@ -1315,7 +1375,7 @@ class MainWindow(QMainWindow):
         self.errors.clear_source("Запуск")
         interp = self.interp.currentData() or sys.executable
         self.output.clear()
-        self.output.write("------ Запуск: %s ------" % os.path.relpath(path, self.root or os.path.dirname(path)), "Запуск", C["link"])
+        self.output.write(tr("------ Запуск: %s ------") % os.path.relpath(path, self.root or os.path.dirname(path)), "Запуск", C["link"])
         self.output.write("%s %s" % (interp, path), "Запуск", C["dim"])
         self.show_dock(self.d_output)
         if self.proc is not None:
@@ -1329,10 +1389,10 @@ class MainWindow(QMainWindow):
         self.proc.readyReadStandardOutput.connect(self._read_out)
         self.proc.readyReadStandardError.connect(self._read_err)
         self.proc.finished.connect(self._run_finished)
-        self.proc.errorOccurred.connect(lambda err: self.output.write("Не удалось запустить: %s" % self.proc.errorString(), "Запуск", C["error"]))
+        self.proc.errorOccurred.connect(lambda err: self.output.write(tr("Не удалось запустить: %s") % self.proc.errorString(), "Запуск", C["error"]))
         self.proc.start(interp, ["-u", path])
         self.a_stop.setEnabled(True)
-        self.status_label.setText("Выполняется…")
+        self.status_label.setText(tr("Выполняется…"))
 
     def _read_out(self):
         self.output.write(bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace"), "Запуск")
@@ -1344,8 +1404,8 @@ class MainWindow(QMainWindow):
 
     def _run_finished(self, code, _status):
         self.a_stop.setEnabled(False)
-        self.output.write("Программа завершилась с кодом %d" % code, "Запуск", C["dim"] if code == 0 else C["warning"])
-        self.status("Готово" if code == 0 else "Программа завершилась с ошибкой (код %d)" % code, 0)
+        self.output.write(tr("Программа завершилась с кодом %d") % code, "Запуск", C["dim"] if code == 0 else C["warning"])
+        self.status(tr("Готово") if code == 0 else tr("Программа завершилась с ошибкой (код %d)") % code, 0)
         if self.run_stderr and "Traceback" in self.run_stderr:
             frames = re.findall(r'File "(.+?)", line (\d+)', self.run_stderr)
             last = self.run_stderr.strip().splitlines()[-1]
@@ -1358,7 +1418,7 @@ class MainWindow(QMainWindow):
     def stop_run(self):
         if self._running():
             self.proc.kill()
-            self.output.write("Остановлено пользователем", "Запуск", C["warning"])
+            self.output.write(tr("Остановлено пользователем"), "Запуск", C["warning"])
 
     # ------------------------------------------------------------ проверка (сборка)
     def _check_file(self, path):
@@ -1374,7 +1434,7 @@ class MainWindow(QMainWindow):
             try:
                 compile(text, path, "exec")
             except SyntaxError as e:
-                return [(e.lineno or 1, e.offset or 1, "Синтаксическая ошибка: %s" % e.msg, "error")]
+                return [(e.lineno or 1, e.offset or 1, tr("Синтаксическая ошибка: %s") % e.msg, "error")]
             return []
         if path.endswith(".cs"):
             return check_csharp(text)
@@ -1385,7 +1445,7 @@ class MainWindow(QMainWindow):
             return
         self.errors.clear_source("Сборка")
         self.output.clear()
-        self.output.write("------ Проверка начата: решение «%s» ------" % os.path.basename(self.root), "Сборка", C["link"])
+        self.output.write(tr("------ Проверка начата: решение «%s» ------") % os.path.basename(self.root), "Сборка", C["link"])
         per_project = {}
         for p in self.explorer.files:
             if not p.endswith((".py", ".cs")):
@@ -1400,26 +1460,26 @@ class MainWindow(QMainWindow):
                 self.errors.set_group("Сборка", p, diags)
                 for line, col, msg, sev in diags:
                     self.output.write("%s(%d,%d): %s: %s" % (os.path.relpath(p, self.root), line, col,
-                                                           "ошибка" if sev == "error" else "предупреждение", msg),
+                                                           tr("ошибка") if sev == "error" else tr("предупреждение"), msg),
                                       "Сборка", C["error"] if sev == "error" else C["warning"])
         ok = bad = 0
         for proj, (n, e, w) in sorted(per_project.items()):
-            self.output.write("%s: проверено файлов %d — ошибок %d, предупреждений %d" % (proj, n, e, w), "Сборка")
+            self.output.write(tr("%s: проверено файлов %d — ошибок %d, предупреждений %d") % (proj, n, e, w), "Сборка")
             if e:
                 bad += 1
             else:
                 ok += 1
-        self.output.write("========== Проверка: успешно %d, с ошибками %d ==========" % (ok, bad), "Сборка",
+        self.output.write(tr("========== Проверка: успешно %d, с ошибками %d ==========") % (ok, bad), "Сборка",
                           C["ok"] if not bad else C["error"])
         self.show_dock(self.d_output)
-        self.status("Проверка завершена: успешно %d, с ошибками %d" % (ok, bad))
+        self.status(tr("Проверка завершена: успешно %d, с ошибками %d") % (ok, bad))
 
     def build_current(self):
         ed = self.editor()
         if ed:
             ed.run_diagnostics()
             e = sum(1 for d in ed.diagnostics if d[3] == "error")
-            self.status("%s: ошибок %d" % (os.path.basename(ed.path), e))
+            self.status(tr("%s: ошибок %d") % (os.path.basename(ed.path), e))
             self.show_dock(self.d_errors)
 
     # ------------------------------------------------------------ выход
@@ -1429,7 +1489,7 @@ class MainWindow(QMainWindow):
             return
         for ed in self.editors():
             if ed.document().isModified():
-                r = QMessageBox.question(self, APP_NAME, "Есть несохранённые файлы. Сохранить перед выходом?",
+                r = QMessageBox.question(self, APP_NAME, tr("Есть несохранённые файлы. Сохранить перед выходом?"),
                                          QMessageBox.StandardButton.SaveAll | QMessageBox.StandardButton.Discard |
                                          QMessageBox.StandardButton.Cancel)
                 if r == QMessageBox.StandardButton.Cancel:

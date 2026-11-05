@@ -8,15 +8,17 @@ import argparse
 import os
 import sys
 
+from studio.i18n import tr
+
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="UniPy Studio")
-    parser.add_argument("path", nargs="?", help="папка решения или файл")
-    parser.add_argument("--screenshot", metavar="FILE.png", help="нарисовать ~120 кадров, сохранить картинку окна и выйти")
-    parser.add_argument("--project", help="корень проекта Unity или файл решения")
-    parser.add_argument("--file", help="файл для открытия внутри проекта")
-    parser.add_argument("--line", type=int, default=1, help="строка, начиная с 1")
-    parser.add_argument("--column", type=int, default=1, help="столбец, начиная с 1")
+    parser.add_argument("path", nargs="?", help=tr("папка решения или файл"))
+    parser.add_argument("--screenshot", metavar="FILE.png", help=tr("нарисовать ~120 кадров, сохранить картинку окна и выйти"))
+    parser.add_argument("--project", help=tr("корень проекта Unity или файл решения"))
+    parser.add_argument("--file", help=tr("файл для открытия внутри проекта"))
+    parser.add_argument("--line", type=int, default=1, help=tr("строка, начиная с 1"))
+    parser.add_argument("--column", type=int, default=1, help=tr("столбец, начиная с 1"))
     return parser.parse_args(argv)
 
 
@@ -28,7 +30,7 @@ def main():
     try:
         from studio.app import run
     except ImportError as e:
-        sys.stderr.write("Нужен PyQt6: pip install PyQt6 jedi\n(%s)\n" % e)
+        sys.stderr.write(tr("Нужен PyQt6: pip install PyQt6 jedi\n(%s)\n") % e)
         return 1
     return run(args)
 

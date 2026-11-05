@@ -1,12 +1,12 @@
 # Maintainer: lucial <bordiyan20035@gmail.com>
 pkgname=unipy-studio
-pkgver=0.1.0
-pkgrel=9
+pkgver=0.2.0
+pkgrel=1
 pkgdesc="Редактор кода в духе Visual Studio для Unity (C#) и Python/PyQt6"
 arch=('any')
 url="https://github.com/Lucia7Lunadottir"
 license=('custom')
-depends=('python' 'python-pyqt6' 'python-jedi' 'python-pygments')
+depends=('python' 'python-pyqt6' 'python-jedi' 'python-pygments' 'qt6-translations')
 optdepends=('equestria-qt-kit>=1.2: темы персонажей Equestria OS (без него — свои темы UniPy, тёмная и светлая)'
             'dotnet-sdk: анализатор C# Roslyn (ставится из «Справка → Обновления анализаторов»)'
             'npm: анализатор Python pyright (ставится из «Справка → Обновления анализаторов»)')
@@ -20,6 +20,8 @@ package() {
     find unity/com.unipy.ide -type f -exec install -Dm644 {} "$_lib/{}" \;
     install -Dm644 main.py "$_lib/main.py"
     find studio -type f -name '*.py' ! -path '*/__pycache__/*' -exec install -Dm644 {} "$_lib/{}" \;
+
+    install -Dm644 -t "$_lib/studio/locales" studio/locales/*.json
 
     install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname" << 'LAUNCHER'
 #!/bin/bash

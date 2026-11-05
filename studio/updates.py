@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWi
 
 from . import lsp
 from .theme import C
+from .i18n import tr
 
 NET_TIMEOUT = 20
 
@@ -42,7 +43,7 @@ def lsp_self_test(cmd, timeout=90):
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                 cwd=workdir, env=dict(os.environ, DOTNET_CLI_TELEMETRY_OPTOUT="1"))
     except OSError as e:
-        return False, "не запускается: %s" % e
+        return False, tr("не запускается: %s") % e
 
     def send(msg):
         body = json.dumps(msg).encode("utf-8")
@@ -57,7 +58,7 @@ def lsp_self_test(cmd, timeout=90):
         buf, deadline = b"", time.monotonic() + timeout
         while time.monotonic() < deadline:
             if proc.poll() is not None:
-                return False, "завершился с кодом %s сразу после запуска" % proc.returncode
+                return False, tr("завершился с кодом %s сразу после запуска") % proc.returncode
             if not sel.select(timeout=0.5):
                 continue
             chunk = os.read(proc.stdout.fileno(), 65536)
@@ -73,11 +74,11 @@ def lsp_self_test(cmd, timeout=90):
                 msg = json.loads(body.decode("utf-8"))
                 if msg.get("id") == 1 and "method" not in msg:
                     if "error" in msg:
-                        return False, "ошибка initialize: %s" % msg["error"].get("message")
-                    return True, "отвечает"
-        return False, "не ответил за %d с" % timeout
+                        return False, tr("ошибка initialize: %s") % msg["error"].get("message")
+                    return True, tr("отвечает")
+        return False, tr("не ответил за %d с") % timeout
     except (OSError, ValueError) as e:
-        return False, "сбой связи: %s" % e
+        return False, tr("сбой связи: %s") % e
     finally:
         try:
             send({"jsonrpc": "2.0", "id": 2, "method": "shutdown"})
@@ -113,7 +114,7 @@ class AnalyzerTool:
     def self_test(self):
         cmd = self.server_command()
         if not cmd:
-            return False, "не найден после установки"
+            return False, tr("не найден после установки")
         return lsp_self_test(cmd)
 
 
@@ -205,29 +206,29 @@ class UpdateWorker(QObject):
         tool = TOOLS[index]
         try:
             old = tool.installed_version()
-            self.log.emit("%s: %s → %s" % (tool.title, old or "не установлен", version))
+            self.log.emit("%s: %s → %s" % (tr(tool.title), old or tr("не установлен"), version))
             code, out = run(tool.install_command(version), 900)
-            self.log.emit(out[-1500:] if out else "(без вывода)")
+            self.log.emit(out[-1500:] if out else tr("(без вывода)"))
             if code != 0:
                 ok, msg = tool.self_test()
-                self.finished.emit(index, False, "Установка не удалась (код %d). Работает прежняя версия %s: %s." % (
+                self.finished.emit(index, False, tr("Установка не удалась (код %d). Работает прежняя версия %s: %s.") % (
                     code, old or "—", msg))
                 return
-            self.log.emit("Проверяю новую версию…")
+            self.log.emit(tr("Проверяю новую версию…"))
             ok, msg = tool.self_test()
             if ok:
-                self.finished.emit(index, True, "Версия %s установлена и проверена: %s." % (version, msg))
+                self.finished.emit(index, True, tr("Версия %s установлена и проверена: %s.") % (version, msg))
                 return
-            self.log.emit("Новая версия не прошла проверку: %s" % msg)
+            self.log.emit(tr("Новая версия не прошла проверку: %s") % msg)
             if not old:
-                self.finished.emit(index, False, "Установленная версия не работает: %s." % msg)
+                self.finished.emit(index, False, tr("Установленная версия не работает: %s.") % msg)
                 return
-            self.log.emit("Возвращаю прежнюю версию %s…" % old)
+            self.log.emit(tr("Возвращаю прежнюю версию %s…") % old)
             code, out = run(tool.install_command(old), 900)
-            self.log.emit(out[-1500:] if out else "(без вывода)")
+            self.log.emit(out[-1500:] if out else tr("(без вывода)"))
             ok2, msg2 = tool.self_test()
-            self.finished.emit(index, False, "Новая версия не работала (%s). Возвращена %s: %s." % (
-                msg, old, msg2 if ok2 else "ВНИМАНИЕ, и она не отвечает — " + msg2))
+            self.finished.emit(index, False, tr("Новая версия не работала (%s). Возвращена %s: %s.") % (
+                msg, old, msg2 if ok2 else tr("ВНИМАНИЕ, и она не отвечает — ") + msg2))
         finally:
             self.busy = False
 
@@ -241,15 +242,15 @@ class UpdatesDialog(QDialog):
         self.before_update = before_update      # функция(язык): остановить анализатор на время обновления
         self.after_update = after_update        # функция(язык): запустить снова
         self.latest = {}
-        self.setWindowTitle("Обновления анализаторов")
+        self.setWindowTitle(tr("Обновления анализаторов"))
         self.resize(720, 420)
         lay = QVBoxLayout(self)
-        note = QLabel("Ничего не обновляется само. После обновления новая версия проверяется; "
-                      "если она не работает, автоматически возвращается прежняя.")
+        note = QLabel(tr("Ничего не обновляется само. После обновления новая версия проверяется; "
+                      "если она не работает, автоматически возвращается прежняя."))
         note.setWordWrap(True)
         lay.addWidget(note)
         self.table = QTableWidget(len(TOOLS), 4)
-        self.table.setHorizontalHeaderLabels(["Анализатор", "Установлено", "Последняя", ""])
+        self.table.setHorizontalHeaderLabels([tr("Анализатор"), tr("Установлено"), tr("Последняя"), ""])
         self.table.verticalHeader().hide()
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
@@ -259,12 +260,12 @@ class UpdatesDialog(QDialog):
             h.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.buttons = []
         for i, tool in enumerate(TOOLS):
-            it = QTableWidgetItem(tool.title)
+            it = QTableWidgetItem(tr(tool.title))
             it.setToolTip(tool.source)
             self.table.setItem(i, 0, it)
             for col in (1, 2):
                 self.table.setItem(i, col, QTableWidgetItem("…"))
-            b = QPushButton("Обновить")
+            b = QPushButton(tr("Обновить"))
             b.setEnabled(False)
             b.clicked.connect(lambda _c=False, n=i: self._update(n))
             self.table.setCellWidget(i, 3, b)
@@ -282,10 +283,10 @@ class UpdatesDialog(QDialog):
         row = QHBoxLayout()
         self.status = QLabel("")
         row.addWidget(self.status, 1)
-        self.recheck = QPushButton("Проверить снова")
+        self.recheck = QPushButton(tr("Проверить снова"))
         self.recheck.clicked.connect(self.check)
         row.addWidget(self.recheck)
-        self.close_btn = QPushButton("Закрыть")
+        self.close_btn = QPushButton(tr("Закрыть"))
         self.close_btn.clicked.connect(self.reject)
         row.addWidget(self.close_btn)
         lay.addLayout(row)
@@ -300,21 +301,21 @@ class UpdatesDialog(QDialog):
             self.table.item(i, 1).setText("…")
             self.table.item(i, 2).setText("…")
             self.buttons[i].setEnabled(False)
-        self.status.setText("Проверяю версии…")
+        self.status.setText(tr("Проверяю версии…"))
         self.worker.check()
 
     def _on_versions(self, i, installed, latest, err):
         self.latest[i] = latest
-        self.table.item(i, 1).setText(installed or "не установлен")
-        self.table.item(i, 2).setText(latest or "нет связи")
+        self.table.item(i, 1).setText(installed or tr("не установлен"))
+        self.table.item(i, 2).setText(latest or tr("нет связи"))
         if err:
             self.table.item(i, 2).setToolTip(err)
         b = self.buttons[i]
         if latest and installed == latest:
-            b.setText("Актуально")
+            b.setText(tr("Актуально"))
             b.setEnabled(False)
         else:
-            b.setText("Установить" if not installed else "Обновить")
+            b.setText(tr("Установить") if not installed else tr("Обновить"))
             b.setEnabled(bool(latest) and not self.worker.busy)
         self.status.setText("")
 
@@ -324,7 +325,7 @@ class UpdatesDialog(QDialog):
             return
         for b in self.buttons + [self.recheck, self.close_btn]:
             b.setEnabled(False)
-        self.status.setText("Обновление… окно закроется только после проверки")
+        self.status.setText(tr("Обновление… окно закроется только после проверки"))
         self.before_update(TOOLS[i].language)
         self.worker.update(i, version)
 

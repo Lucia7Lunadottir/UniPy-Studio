@@ -9,6 +9,7 @@
 """
 import os
 from dataclasses import dataclass
+from .i18n import tr
 
 try:    # необязательно: без Pygments языки без своей подсветки показываются простым текстом
     from pygments.lexers import get_lexer_by_name, get_lexer_for_filename
@@ -67,7 +68,7 @@ LANGUAGES = (
     Language("yaml", "YAML", (".yml", ".yaml"), "#"),
     Language("ini", "INI", (".ini", ".cfg", ".desktop"), "#"),
 )
-PLAIN = Language("plain", "Текст")
+PLAIN = Language("plain", tr("Текст"))
 
 BY_ID = {lang.id: lang for lang in LANGUAGES}
 BY_EXT = {ext: lang for lang in LANGUAGES for ext in lang.extensions}

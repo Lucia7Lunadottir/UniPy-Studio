@@ -4,6 +4,7 @@ import json
 import os
 from PyQt6.QtCore import QObject, QLockFile, QStandardPaths
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
+from .i18n import tr
 
 
 class ProjectInstance(QObject):
@@ -30,11 +31,11 @@ class ProjectInstance(QObject):
                 socket.waitForBytesWritten(1000)
                 if socket.waitForReadyRead(3000) and bytes(socket.readAll()) == b"OK\n":
                     return True
-                raise RuntimeError("UniPy Studio: нет подтверждения открытия файла")
+                raise RuntimeError(tr("UniPy Studio: нет подтверждения открытия файла"))
             socket.abort()
             from PyQt6.QtCore import QThread
             QThread.msleep(100)
-        raise RuntimeError("UniPy Studio: окно проекта не отвечает; повторите запуск")
+        raise RuntimeError(tr("UniPy Studio: окно проекта не отвечает; повторите запуск"))
 
     def listen(self, callback):
         if not self.owner:

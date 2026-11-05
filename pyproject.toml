@@ -11,3 +11,6 @@ unipy-studio = "main:main"
 [tool.setuptools]
 py-modules = ["main"]
 packages = ["studio"]
+
+[tool.setuptools.package-data]
+studio = ["locales/*.json"]

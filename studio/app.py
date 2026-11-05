@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication
 
 from . import theme
 from .mainwindow import MainWindow, APP_NAME
+from .i18n import install_qt_translation, tr
 
 
 class ScreenshotRunner:
@@ -71,8 +72,8 @@ class ScreenshotRunner:
         os.makedirs(d, exist_ok=True)
         ok = pix.save(self.path, "PNG")
         if os.environ.get("UNIPY_DEBUG"):
-            print("кадров:", self.frame, "подсказки:", ed is not None and ed.completer.popup().isVisible())
-        print(("Снимок сохранён: %s" if ok else "Не удалось сохранить снимок: %s") % self.path)
+            print(tr("кадров:"), self.frame, tr("подсказки:"), ed is not None and ed.completer.popup().isVisible())
+        print((tr("Снимок сохранён: %s") if ok else tr("Не удалось сохранить снимок: %s")) % self.path)
         self.app.exit(0 if ok else 1)
 
 
@@ -84,6 +85,7 @@ def _log_exception(kind, value, tb):
 def run(args):
     sys.excepthook = _log_exception
     app = QApplication(sys.argv[:1])
+    install_qt_translation(app)
     app.setApplicationName("UniPyStudio")
     app.setDesktopFileName("unipy-studio")     # Wayland: окно ↔ ярлык unipy-studio.desktop (значок на панели)
     app.setOrganizationName("UniPyStudio")

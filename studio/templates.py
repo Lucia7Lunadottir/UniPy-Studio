@@ -1,5 +1,10 @@
 """Шаблоны новых файлов и пример решения (Unity + PyQt)."""
+import json
 import os
+import re
+from xml.sax.saxutils import escape
+
+from .i18n import tr
 
 PYQT_WINDOW = '''import sys
 
@@ -207,12 +212,45 @@ TEMPLATES = [
 ]
 
 
+# Русские фразы внутри шаблонов: в файл попадает их перевод на язык интерфейса.
+TEMPLATE_PHRASES = (
+    "Привет из {name}!", "Привет!", "Нажми меня", "Кнопка нажата", "Имя:", "Введите текст:",
+    "Заметка", "Готово", "Пример решения", "Два проекта в одной папке:",
+    "настольное приложение на Python и PyQt6. Запуск: F5.",
+    "скрипты C# для Unity. Откройте проект кнопкой «Unity» на панели.",
+    "Подсказки кода: начните печатать или нажмите Ctrl+Пробел.",
+    "Главное окно: список задач с таймером.", "Список задач", "Новая задача…", "Добавить",
+    "Задач:", "Настройки", "Движение", "Очки:",
+    "Сцены Unity (.unity) появятся здесь после открытия проекта в Unity.",
+)
+
+
+_TEMPLATE_TEXT = re.compile("|".join(map(re.escape, TEMPLATE_PHRASES)))
+
+
+def localize(text, extension):
+    def translate(match):
+        value = tr(match[0])
+        if extension in (".py", ".cs"):
+            return json.dumps(value, ensure_ascii=False)[1:-1]
+        if extension == ".ui":
+            return escape(value)
+        return value
+
+    return _TEMPLATE_TEXT.sub(translate, text)
+
+
 def render(template, name):
     cls = "".join(p[:1].upper() + p[1:] for p in name.replace("-", "_").split("_") if p) or "NewFile"
     if not cls.isidentifier():
         cls = "NewFile"
     title = name.replace("_", " ").strip() or cls
-    return template.format(name=cls, title=title)
+    extension = next((ext for _, ext, body, _ in TEMPLATES if body == template), "")
+    if extension in (".py", ".cs"):
+        title = json.dumps(title, ensure_ascii=False)[1:-1]
+    elif extension == ".ui":
+        title = escape(title)
+    return localize(template, extension).format(name=cls, title=title)
 
 
 # ====================================================================== пример решения
@@ -291,7 +329,7 @@ class MainWindow(QMainWindow):
             self.update_status()
 
     def update_status(self):
-        self.status.setText(f"Задач: {self.tasks.count()}")
+        self.status.setText("Задач: " + str(self.tasks.count()))
 ''',
     "PyQtApp/ui/settings.ui": PYQT_UI.format(name="SettingsForm", title="Настройки"),
     "PyQtApp/requirements.txt": "PyQt6>=6.5\n",
@@ -386,5 +424,5 @@ def ensure_sample(root):
             continue
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            f.write(text)
+            f.write(localize(text, os.path.splitext(rel)[1]))
     return root

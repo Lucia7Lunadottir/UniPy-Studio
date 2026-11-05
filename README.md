@@ -184,3 +184,13 @@ python3 tests/roslyn_idle_probe.py "/path/to/Unity project" --seconds 180 --base
 Сам процесс Roslyn остаётся запущенным для подсказок и переходов; его присутствие
 в фоне само по себе не означает непрерывный опрос. Исправление покрыто тестом
 реального пути «ответ сервера → окно → редактор».
+
+## Interface language
+
+Choose a language under **View → Language** to switch immediately.
+**System Default** follows `EQUESTRIA_LANG`, then `LANGUAGE`, `LC_ALL`,
+`LC_MESSAGES` and `LANG`. With that option selected, run
+`EQUESTRIA_LANG=uk unipy-studio` to start in Ukrainian.
+
+Each language has a JSON catalog in `studio/locales/`. Keep format fields such
+as `%s` and `%d` in their original order when editing translations.
