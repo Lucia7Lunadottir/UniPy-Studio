@@ -1,7 +1,7 @@
 """Подсветка кода: своя для Python, C# (Unity), XML/.ui, JSON, Markdown; остальное — через Pygments."""
 import re
 from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
+from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont, QTextBlockUserData
 
 from .theme import C
 from . import unity_api
@@ -37,9 +37,15 @@ CS_KEYWORDS = ("public private protected internal static readonly const void cla
                "dynamic").split()
 
 
+class AttributeState(QTextBlockUserData):
+    def __init__(self, depth=0):
+        super().__init__()
+        self.depth = depth
+
+
 class Highlighter(QSyntaxHighlighter):
     # состояния многострочных конструкций
-    ST_TRIPLE_D, ST_TRIPLE_S, ST_BLOCK, ST_XML_COMMENT = 1, 2, 3, 4
+    ST_TRIPLE_D, ST_TRIPLE_S, ST_BLOCK, ST_XML_COMMENT, ST_VERBATIM = 1, 2, 3, 4, 5
 
     def __init__(self, document, lang):
         super().__init__(document)
@@ -54,6 +60,10 @@ class Highlighter(QSyntaxHighlighter):
     def _build(self):
         lang = self.lang
         self.f_string = _fmt(C["string"])
+        self.f_attribute = _fmt(C["type"])
+        self.f_attribute_param = _fmt(C["param"])
+        self.f_attribute_punctuation = _fmt(C["text"])
+        self.f_attribute_string = self.f_string
         self.f_comment = _fmt(C["comment"])
         self.f_doc = _fmt(C["comment"], italic=True)
         self.rules = []
@@ -84,7 +94,6 @@ class Highlighter(QSyntaxHighlighter):
                 (re.compile(r"\b(?:%s)\b" % unity_types), typ),
                 (re.compile(r"\b(?:%s)\b" % "|".join(CS_KEYWORDS)), kw),
                 (re.compile(r"\b(?:%s)\b" % "|".join(CS_CONTROL)), ctl),
-                (re.compile(r"^\s*\[[^\]]*\]"), _fmt(C["type"])),
                 (re.compile(r"^\s*#\s*\w+.*$"), _fmt(C["preproc"])),
                 (re.compile(r"\b\d+\.?\d*[fFdDmM]?\b"), num),
             ]
@@ -111,11 +120,18 @@ class Highlighter(QSyntaxHighlighter):
     # ------------------------------------------------------------------
     def highlightBlock(self, text):
         n = len(text)
+        self.offsets = [0]
+        for ch in text:
+            self.offsets.append(self.offsets[-1] + (2 if ord(ch) > 0xFFFF else 1))
         mask = [True] * n          # True — обычный код (не строка и не комментарий)
         self.setCurrentBlockState(0)
         i = 0
         state = self.previousBlockState()
-        if state > 0:
+        if state == self.ST_VERBATIM:
+            i = self._verbatim(text, 0, mask, continuation=True)
+            if self.currentBlockState() == self.ST_VERBATIM:
+                return
+        elif state > 0:
             end_tok, fmt = self._ml_end(state)
             j = text.find(end_tok)
             if j < 0:
@@ -146,6 +162,19 @@ class Highlighter(QSyntaxHighlighter):
                     i = self._string(text, i, ch, mask)
                     continue
             elif lang == "csharp":
+                raw = re.match(r'"{3,}', text[i:])
+                if raw:
+                    token = raw.group()
+                    end = text.find(token, i + len(token))
+                    self._paint(i, n if end < 0 else end + len(token), self.f_string, mask)
+                    if end < 0:
+                        self.setCurrentBlockState(100 + len(token))
+                        break
+                    i = end + len(token)
+                    continue
+                if ch == '"' and (text[max(0, i-1):i] == '@' or text[max(0, i-2):i] == '@$'):
+                    i = self._verbatim(text, i, mask)
+                    continue
                 if text.startswith("//", i):
                     self._paint(i, n, self.f_doc if text.startswith("///", i) else self.f_comment, mask)
                     break
@@ -179,7 +208,7 @@ class Highlighter(QSyntaxHighlighter):
                     end = self._string(text, i, ch, mask)
                     rest = text[end:].lstrip()
                     if rest.startswith(":"):
-                        self.setFormat(i, end - i, self.json_key)
+                        self._format_span(i, end, self.json_key)
                     i = end
                     continue
             i += 1
@@ -187,16 +216,39 @@ class Highlighter(QSyntaxHighlighter):
         for rx, fmt in self.rules:
             for m in rx.finditer(text):
                 s, e = m.start(), m.end()
-                if s < n and mask[s]:
-                    self.setFormat(s, e - s, fmt)
+                if all(mask[s:e]):
+                    self._format_span(s, e, fmt)
+
+        if lang == "csharp":
+            self._highlight_attributes(text, mask)
+
+    def _format_span(self, start, end, fmt):
+        self.setFormat(self.offsets[start], self.offsets[end] - self.offsets[start], fmt)
 
     def _ml_end(self, state):
+        if state >= 100:
+            return ('"' * (state - 100), self.f_string)
         return {
             self.ST_TRIPLE_D: ('"""', self.f_string),
             self.ST_TRIPLE_S: ("'''", self.f_string),
             self.ST_BLOCK: ("*/", self.f_comment),
             self.ST_XML_COMMENT: ("-->", self.f_comment),
         }[state]
+
+    def _verbatim(self, text, i, mask, continuation=False):
+        j = i if continuation else i + 1
+        while j < len(text):
+            if text[j:j+2] == '""':
+                j += 2
+            elif text[j] == '"':
+                self._paint(i, j + 1, self.f_string, mask)
+                return j + 1
+            else:
+                j += 1
+        self._paint(i, len(text), self.f_string, mask)
+        self.setCurrentBlockState(self.ST_VERBATIM)
+        return len(text)
+
 
     def _string(self, text, i, quote, mask):
         n = len(text)
@@ -216,9 +268,59 @@ class Highlighter(QSyntaxHighlighter):
     def _paint(self, s, e, fmt, mask):
         if e <= s:
             return
-        self.setFormat(s, e - s, fmt)
+        self._format_span(s, e, fmt)
         for k in range(s, min(e, len(mask))):
             mask[k] = False
+
+    def _highlight_attributes(self, text, mask):
+        code = "".join(char if allowed else " " for char, allowed in zip(text, mask))
+        previous = self.currentBlock().previous().userData()
+        continuation = isinstance(previous, AttributeState) and previous.depth > 0
+        if continuation:
+            code = "[" + code
+            text = " " + text
+            mask = [True] + mask
+            self.offsets = [0] + self.offsets
+        self.setCurrentBlockUserData(AttributeState())
+        start = re.match(r"\s*\[\s*(?=(?:\w+\s*:\s*)?[A-Za-z_]\w*(?:\s*[.(,\]]))", code)
+        if continuation:
+            start = re.match(r"\[", code)
+        while start:
+            opening = code.index("[", start.start(), start.end())
+            depth, end = 1, opening + 1
+            while end < len(code) and depth:
+                if code[end] == "[":
+                    depth += 1
+                elif code[end] == "]":
+                    depth -= 1
+                end += 1
+            if depth:
+                self.setCurrentBlockUserData(AttributeState(depth))
+            section = code[opening:end]
+            for match in re.finditer(r"[\[\](),=]", section):
+                self._format_span(opening + match.start(), opening + match.end(),
+                                  self.f_attribute_punctuation)
+            for match in re.finditer(r"\b[A-Za-z_]\w*(?=\s*=\s*(?!=))", section):
+                self._format_span(opening + match.start(), opening + match.end(),
+                                  self.f_attribute_param)
+            depth = 0
+            expect_name = not continuation
+            for token in re.finditer(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*|[():,]", section):
+                value = token.group()
+                if value == "(":
+                    depth += 1
+                elif value == ")":
+                    depth -= 1
+                elif depth == 0 and value in (":", ","):
+                    expect_name = not continuation
+                elif depth == 0 and expect_name:
+                    self._format_span(opening + token.start(), opening + token.end(), self.f_attribute)
+                    expect_name = False
+            for i in range(opening, end):
+                if not mask[i] and self.format(self.offsets[i]) == self.f_string:
+                    self._format_span(i, i + 1, self.f_attribute_string)
+            start = re.compile(r"\s*\[\s*(?=[A-Za-z_]\w*)").match(code, end)
+
 
 
 # ====================================================================== Pygments: остальные языки

@@ -119,6 +119,7 @@ def run(args):
     runner = ScreenshotRunner(app, win, args.screenshot) if args.screenshot else None  # noqa
     code = app.exec()
     win.jedi.stop()
+    win.csharp_index.stop()
     for svc in win.language_services:
         svc.stop()
     # окно удаляет сам Qt, пока QApplication жив: иначе при уничтожении приложения Qt

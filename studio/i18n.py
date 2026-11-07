@@ -1,35 +1,77 @@
-"""Перевод интерфейса на 12 языков Equestria OS.
+"""Перевод интерфейса: языки берутся из файлов studio/locales/<код>.json.
 
 Строки в коде пишутся по-русски и оборачиваются в tr():
     tr("Сохранить")                 → "Save" / "Speichern" / ...
     tr("Сохранено файлов: %d") % n  → подстановка как обычно
 
-Переводы — studio/locales/<язык>.json: {"Сохранить": "Save", ...}.
+Переводы — studio/locales/<код>.json: {"Сохранить": "Save", ...}.
 Нет перевода на нужный язык → английский → исходная русская строка.
+
+Новый язык: положить файл locales/<код>.json (например it.json, pt_BR.json) — и он сам появится
+в меню «Вид → Язык». Название в меню берётся из ключа "__name__" внутри файла:
+    {"__name__": "Italiano", "Сохранить": "Salva", ...}
+Без этого ключа название — код языка (у 12 встроенных языков названия известны заранее).
 
 Язык определяет equestria-qt-kit (EQUESTRIA_LANG, затем LANGUAGE / LC_ALL /
 LC_MESSAGES / LANG). Kit необязателен: без него — та же логика здесь.
 """
 import json
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
+
+LOCALES_DIR = Path(__file__).with_name("locales")
+
+# названия языков, которые были до автоподгрузки: для файлов без ключа "__name__"
+_BUILTIN_NAMES = {
+    "en": "English", "ru": "Русский", "de": "Deutsch", "fr": "Français",
+    "es": "Español", "pt": "Português", "pl": "Polski", "uk": "Українська",
+    "zh": "简体中文", "zh_TW": "繁體中文", "ja": "日本語", "ko": "한국어",
+}
+_NAME_KEY = re.compile(r'"__name__"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+
+def _discover():
+    """{код: название} по файлам locales/*.json. Файлы не разбираются целиком (и не копятся в памяти):
+    из каждого берётся только название."""
+    found = {}
+    try:
+        files = sorted(LOCALES_DIR.glob("*.json"))
+    except OSError:
+        files = []
+    for path in files:
+        name = ""
+        try:
+            match = _NAME_KEY.search(path.read_text(encoding="utf-8"))
+            if match:
+                name = json.loads('"%s"' % match.group(1))
+        except (OSError, ValueError):
+            pass
+        found[path.stem] = name or _BUILTIN_NAMES.get(path.stem) or path.stem
+    ordered = {code: found[code] for code in _BUILTIN_NAMES if code in found}      # привычный порядок
+    ordered.update(sorted(((c, n) for c, n in found.items() if c not in ordered), key=lambda kv: kv[1].lower()))
+    return ordered or dict(_BUILTIN_NAMES)
+
+
+LANGUAGE_NAMES = _discover()
 
 try:
     from equestria_kit.i18n import detect_language
 except ModuleNotFoundError as error:
     if error.name != "equestria_kit":
         raise
-    _LANGS = ("en", "ru", "de", "fr", "es", "pt", "pl", "uk", "zh", "zh_TW", "ja", "ko")
-    _TRADITIONAL = ("zh_tw", "zh_hk", "zh_mo", "zh_hant", "zh-tw", "zh-hk", "zh-mo", "zh-hant")
+    _TRADITIONAL = ("zh_tw", "zh_hk", "zh_mo", "zh_hant")
 
     def _normalize(locale_name):
-        # zh_TW нельзя обрезать до «zh»: получился бы упрощённый китайский
-        name = (locale_name or "").split(":")[0].split(".")[0].split("@")[0].strip().lower()
-        if name.startswith(_TRADITIONAL):
-            return "zh_TW"
-        code = name[:2]
-        return code if code in _LANGS else ""
+        """Код языка из «ru_RU.UTF-8» → код файла в locales/ или ""."""
+        name = (locale_name or "").split(":")[0].split(".")[0].split("@")[0].strip().replace("-", "_").lower()
+        by_lower = {code.lower(): code for code in LANGUAGE_NAMES}
+        if name in by_lower:                         # точное совпадение: pt_BR, zh_TW…
+            return by_lower[name]
+        if name.startswith(_TRADITIONAL):            # zh_TW нельзя обрезать до «zh»: получился бы упрощённый
+            return by_lower.get("zh_tw") or by_lower.get("zh", "")
+        return by_lower.get(name.split("_")[0], "")
 
     def detect_language():
         for env in ("EQUESTRIA_LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
@@ -39,11 +81,6 @@ except ModuleNotFoundError as error:
                     return code
         return "en"
 
-LANGUAGE_NAMES = {
-    "en": "English", "ru": "Русский", "de": "Deutsch", "fr": "Français",
-    "es": "Español", "pt": "Português", "pl": "Polski", "uk": "Українська",
-    "zh": "简体中文", "zh_TW": "繁體中文", "ja": "日本語", "ko": "한국어",
-}
 LANGUAGE_SETTING = "interface/language"
 SOURCE_LANG = "ru"
 
@@ -62,7 +99,7 @@ LANG = selected_language() or detect_language()
 
 @lru_cache(maxsize=None)
 def _load(lang):
-    path = Path(__file__).with_name("locales") / f"{lang}.json"
+    path = LOCALES_DIR / f"{lang}.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -74,8 +111,8 @@ def tr(text):
     translation = _load(LANG).get(text)
     if LANG == SOURCE_LANG:
         return translation or text
-    if not translation and LANG == "zh_TW":
-        translation = _load("zh").get(text)
+    if not translation and "_" in LANG:               # pt_BR → pt, zh_TW → zh
+        translation = _load(LANG.split("_")[0]).get(text)
     return translation or _load("en").get(text) or text
 
 

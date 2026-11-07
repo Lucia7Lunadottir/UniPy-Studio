@@ -5,14 +5,14 @@ import re
 import sys
 
 from PyQt6.QtCore import Qt, QTimer, QSettings, QProcess, QProcessEnvironment, QPoint, QStandardPaths, QSize
-from PyQt6.QtGui import QAction, QActionGroup, QKeySequence, QTextDocument, QPainter, QGuiApplication, QDesktopServices
+from PyQt6.QtGui import QAction, QActionGroup, QKeySequence, QTextDocument, QPainter, QGuiApplication, QDesktopServices, QTextCursor
 from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QLineEdit, QToolButton, QComboBox, QFileDialog, QMessageBox,
                              QInputDialog, QCompleter, QFrame, QCheckBox, QApplication, QToolBar,
-                             QSizePolicy, QPushButton)
+                             QSizePolicy, QPushButton, QDialog, QFormLayout, QSpinBox, QDialogButtonBox)
 
-from . import theme, templates, intellisense, lsp, updates
+from . import theme, templates, intellisense, lsp, updates, refactor
 from .editor import CodeEditor, lang_for, check_csharp, decode_source
 from . import languages
 from .panels import (SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, TerminalPanel, UnityPanel,
@@ -161,6 +161,7 @@ class MainWindow(QMainWindow):
         self.hint_size = float(self.settings.value("editor/hint_size", 11))
         self._nav_back = []         # история переходов: (путь, строка, столбец), как «Назад» в Visual Studio
         self._nav_fwd = []
+        self.word_wrap = self.settings.value("editor/word_wrap", False, type=bool)
         self.root = None
         self.proc = None
         self.run_path = None
@@ -187,6 +188,8 @@ class MainWindow(QMainWindow):
             svc.restarted.connect(lambda reason, k=key: self._lsp_restarted(k, reason))
             svc.restart_mb = int(self.settings.value("analyzers/restart_mb", 1024))
 
+        self.csharp_index = intellisense.CSharpIndexWorker()
+        self.csharp_index.finished.connect(self._worker_result)
         self._build_central()
         self._build_docks()
         for svc in self.language_services:
@@ -327,6 +330,12 @@ class MainWindow(QMainWindow):
         self.a_cut = A("Вырезать", ed("cut"), "Ctrl+X")
         self.a_copy = A("Копировать", ed("copy"), "Ctrl+C")
         self.a_paste = A("Вставить", ed("paste"), "Ctrl+V")
+        self.a_project_find = A("Найти в файлах…", self.project_search, "Ctrl+Shift+F")
+        self.a_project_replace = A("Заменить в файлах…", self.project_search, "Ctrl+Shift+H")
+        self.a_settings = A("Настройки…", self.show_settings, "Ctrl+,")
+        self.a_next_tab = A("Следующая вкладка", lambda: self.tabs.setCurrentIndex((self.tabs.currentIndex() + 1) % max(1, self.tabs.count())), "Ctrl+Tab")
+        self.a_prev_tab = A("Предыдущая вкладка", lambda: self.tabs.setCurrentIndex((self.tabs.currentIndex() - 1) % max(1, self.tabs.count())), "Ctrl+Shift+Tab")
+        self.a_redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
         self.a_find = A("Найти…", lambda: self.findbar.open(False), "Ctrl+F", "find")
         self.a_replace = A("Заменить…", lambda: self.findbar.open(True), "Ctrl+H")
         self.a_find_next = A("Найти далее", lambda: self.findbar.step(True), "F3")
@@ -347,6 +356,7 @@ class MainWindow(QMainWindow):
         self.a_refs = A("Найти все ссылки", ed("find_references"), "Shift+F12")
         self.a_rename = A("Переименовать…", self.rename_dialog, "Ctrl+R, Ctrl+R")
         self.a_rename.setShortcuts([QKeySequence("Ctrl+R, Ctrl+R"), QKeySequence("F2")])
+        self.a_move_type = A("Перенести тип в отдельный файл", self.move_type_to_file, "Ctrl+R, Ctrl+F")
         self.a_hint_in = A("Крупнее подсказки", lambda: self.zoom_hints(1), "Ctrl+Alt+=")
         self.a_hint_out = A("Мельче подсказки", lambda: self.zoom_hints(-1), "Ctrl+Alt+-")
         self.a_run = A("Запуск", self.run_selected, "F5", "run", "Запустить (F5)")
@@ -379,12 +389,13 @@ class MainWindow(QMainWindow):
         m.addAction(self.a_quit)
         m = bind_text(mb.addMenu(""), "Правка", "setTitle")
         for a in (self.a_undo, self.a_redo, None, self.a_cut, self.a_copy, self.a_paste, None,
-                  self.a_find, self.a_replace, self.a_goto, None, self.a_comment, self.a_dup):
+                  self.a_find, self.a_replace, self.a_project_find, self.a_project_replace, self.a_goto, None, self.a_comment, self.a_dup):
             m.addSeparator() if a is None else m.addAction(a)
         sub = m.addMenu("IntelliSense")
         for a in (self.a_complete, self.a_params, self.a_definition, self.a_refs):
             sub.addAction(a)
         m.addAction(self.a_rename)
+        m.addAction(self.a_move_type)
         m = bind_text(mb.addMenu(""), "Вид", "setTitle")
         for d in (self.d_explorer, self.d_outline, self.d_unity, self.d_designer, self.d_output,
                   self.d_errors, self.d_references, self.d_terminal):
@@ -413,6 +424,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_run, self.a_run2, self.a_stop):
             m.addAction(a)
         m = bind_text(mb.addMenu(""), "Средства", "setTitle")
+        m.addAction(self.a_settings)
         bind_text(m.addAction("", lambda: self.show_dock(self.d_terminal)), "Терминал")
         bind_text(m.addAction("", lambda: self.show_dock(self.d_designer)), "Конструктор PyQt")
         bind_text(m.addAction("", self._pick_unity_root), "Папка с версиями Unity…")
@@ -487,6 +499,7 @@ class MainWindow(QMainWindow):
         self.interp.setMinimumWidth(150)
         bind_text(self.interp, "Интерпретатор Python", "setToolTip")
         tb.addWidget(self.interp)
+        self.interp.currentIndexChanged.connect(lambda: self.jedi.set_project(self.root, self.interp.currentData()))
         self.interp.currentIndexChanged.connect(lambda *_: self.python_ls.configuration_changed())
         run_btn = QToolButton()
         run_btn.setDefaultAction(self.a_run)
@@ -819,7 +832,7 @@ class MainWindow(QMainWindow):
             if w:
                 cands.append((w, "%s (%s)" % (exe, w)))
         for p, label in cands:
-            real = os.path.realpath(p)
+            real = os.path.abspath(p)
             if real in seen:
                 continue
             seen.add(real)
@@ -871,10 +884,11 @@ class MainWindow(QMainWindow):
             return None
         with open(path, "rb") as f:
             head = f.read(4096)
-        if b"\0" in head:
+        if b"\0" in head and not head.startswith((b"\xff\xfe", b"\xfe\xff")):
             self.open_external(path)
             return None
         ed = CodeEditor(path, self, self.font)
+        ed.setLineWrapMode(ed.LineWrapMode.WidgetWidth if self.word_wrap else ed.LineWrapMode.NoWrap)
         ed.load()
         if lsp.is_metadata_path(path):
             ed.setReadOnly(True)        # исходник из сборки (UnityEngine.dll и т.п.)
@@ -973,7 +987,54 @@ class MainWindow(QMainWindow):
                 n += 1
         self.status(tr("Сохранено файлов: %d") % n)
 
+    def move_type_to_file(self):
+        """Тип под курсором → в новый файл <Имя>.cs рядом (как «Move type to …cs» в Visual Studio)."""
+        ed = self.editor()
+        if not ed or ed.lang != "csharp" or ed.isReadOnly():
+            self.status(tr("Откройте свой файл C#, чтобы перенести тип"))
+            return
+        text = ed.toPlainText()
+        try:
+            pos = len(text.encode("utf-16-le")[:ed.textCursor().position() * 2].decode("utf-16-le", "ignore"))
+            plan = refactor.move_type_plan(text, pos)
+        except refactor.RefactorError as exc:
+            self.status(str(exc), 12000)
+            return
+        target = os.path.join(os.path.dirname(ed.path), plan["file_name"])
+        if os.path.exists(target):
+            QMessageBox.information(self, APP_NAME, tr("Файл %s уже существует — тип не перенесён.") % plan["file_name"])
+            return
+        data = plan["new_text"].replace("\n", ed.newline)
+        try:
+            raw = data.encode(ed.encoding)
+        except UnicodeEncodeError:
+            raw = data.encode("utf-8-sig")
+        try:
+            with open(target, "wb") as f:
+                f.write(raw)
+        except OSError as exc:
+            QMessageBox.warning(self, APP_NAME, tr("Не удалось создать файл: ") + str(exc))
+            return
+        a, b = (len(text[:i].encode("utf-16-le")) // 2 for i in plan["remove"])   # позиции Qt — в UTF-16
+        c = ed.textCursor()
+        c.beginEditBlock()
+        c.setPosition(a)
+        c.setPosition(b, QTextCursor.MoveMode.KeepAnchor)
+        c.removeSelectedText()
+        c.endEditBlock()
+        ed.save()       # иначе до сохранения тип лежал бы в двух файлах сразу и Unity показал бы ошибку
+        self._tell_analyzers([(target, 1)])
+        self.open_path(target)
+        self.status(tr("Тип %s перенесён в %s") % (plan["name"], plan["file_name"]), 10000)
+
+    def _tell_analyzers(self, changes):
+        for svc in self.language_services:
+            notify = getattr(svc, "files_changed", None)
+            if notify:
+                notify(changes)
+
     def on_path_renamed(self, old, new):
+        self._tell_analyzers([(old, 3), (new, 1)])
         for i, ed in enumerate(self.editors()):
             if ed.path == old or ed.path.startswith(old + os.sep):
                 ed.path = new + ed.path[len(old):]
@@ -981,6 +1042,7 @@ class MainWindow(QMainWindow):
                 self.tabs.setTabToolTip(i, ed.path)
 
     def on_path_deleted(self, path):
+        self._tell_analyzers([(path, 3)])
         for i in reversed(range(self.tabs.count())):
             ed = self.tabs.widget(i)
             if ed.path == path or ed.path.startswith(path + os.sep):
@@ -1249,25 +1311,29 @@ class MainWindow(QMainWindow):
         self.status(tr("Проверьте команду в терминале и нажмите Enter"))
 
     def show_keys(self):
-        QMessageBox.information(self, tr("Горячие клавиши"), "\n".join([
-            tr("Ctrl+Пробел — подсказки (список членов)"),
-            tr("Ctrl+Shift+Пробел — параметры функции"),
-            tr("F12 или Ctrl+клик — перейти к определению"),
-            tr("Ctrl+− / Ctrl+Shift+− — назад / вперёд (и боковые кнопки мыши)"),
-            tr("Shift+F12 — найти все ссылки"),
-            tr("Ctrl+R, Ctrl+R или F2 — переименовать"),
-            tr("Наведение мыши — описание"),
-            tr("F5 — запуск, Shift+F5 — остановить"),
-            tr("Ctrl+Shift+B — проверить решение"),
-            tr("Ctrl+S / Ctrl+Shift+S — сохранить / всё"),
-            tr("Ctrl+F / Ctrl+H — найти / заменить"),
-            tr("Ctrl+G — к строке, Ctrl+P — к файлу"),
-            tr("Ctrl+/ — комментарий, Ctrl+D — дублировать строку"),
-            tr("Tab / Shift+Tab — отступ"),
-            tr("Ctrl+колёсико или Ctrl+Shift+. / Ctrl+Shift+, — размер кода"),
-            tr("Ctrl+колёсико над списком подсказок — размер подсказок"),
-            tr("Ctrl+Alt+= / Ctrl+Alt+− — крупнее / мельче подсказки"),
-        ]))
+        from html import escape
+        rows = []
+        for action in self.actions():
+            shortcuts = ", ".join(k.toString() for k in action.shortcuts())
+            if shortcuts:
+                rows.append("<tr><td><b>%s</b></td><td>%s</td></tr>" % (escape(shortcuts), escape(action.text())))
+        rows.extend("<tr><td><b>%s</b></td><td>%s</td></tr>" % pair for pair in (
+            ("Tab / Enter", "Принять подсказку; метод вставляется со скобками"),
+            ("Tab / Shift+Tab", "Увеличить / уменьшить отступ"),
+            ("Escape", "Закрыть подсказки"), ("Ctrl+A", "Выделить всё"),
+            ("Ctrl+Home / Ctrl+End", "Начало / конец документа"),
+            ("Ctrl+← / Ctrl+→", "Перемещение по словам"),
+            ("Shift + стрелки", "Выделение текста"), ("Ctrl+клик", "Перейти к определению")))
+        from PyQt6.QtWidgets import QTextBrowser
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Горячие клавиши")
+        dialog.resize(760, 650)
+        layout = QVBoxLayout(dialog)
+        view = QTextBrowser()
+        view.setHtml("<table cellpadding='5'>" + "".join(rows) + "</table>")
+        layout.addWidget(view)
+        dialog.exec()
+
 
     # ------------------------------------------------------------ тема
     def _fill_theme_menu(self):
@@ -1484,6 +1550,12 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------ выход
     def closeEvent(self, e):
+        search = getattr(self, "search_dialog", None)
+        if search and search.worker and search.worker.isRunning():
+            search.worker.requestInterruption()
+            self.status("Остановка поиска… Повторите закрытие после завершения.")
+            e.ignore()
+            return
         if self.screenshot_mode:
             e.accept()
             return
@@ -1513,3 +1585,44 @@ class MainWindow(QMainWindow):
             self.restoreGeometry(g)
         if s:
             self.restoreState(s)
+
+    def project_search(self):
+        from .search import ProjectSearch
+        if not hasattr(self, "search_dialog"):
+            self.search_dialog = ProjectSearch(self)
+        ed = self.editor()
+        if ed and ed.textCursor().hasSelection():
+            self.search_dialog.query.setPlainText(ed.textCursor().selectedText().replace("\u2029", "\n"))
+        self.search_dialog.show()
+        self.search_dialog.raise_()
+        self.search_dialog.query.setFocus()
+
+    def show_settings(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Настройки редактора")
+        form = QFormLayout(dialog)
+        font = QSpinBox()
+        font.setRange(7, 32)
+        font.setValue(self.font_size)
+        hints = QSpinBox()
+        hints.setRange(7, 24)
+        hints.setValue(round(self.hint_size))
+        wrap = QCheckBox("Переносить длинные строки")
+        wrap.setChecked(self.word_wrap)
+        form.addRow("Размер шрифта кода", font)
+        form.addRow("Размер подсказок", hints)
+        form.addRow(wrap)
+        form.addRow(QLabel("Интерпретатор Python выбирается на панели запуска.\nF1 — полный список доступных горячих клавиш."))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.zoom(font.value() - self.font_size)
+            self.zoom_hints(hints.value() - self.hint_size)
+            self.word_wrap = wrap.isChecked()
+            self.settings.setValue("editor/word_wrap", self.word_wrap)
+            for ed in self.editors():
+                ed.setLineWrapMode(ed.LineWrapMode.WidgetWidth if self.word_wrap else ed.LineWrapMode.NoWrap)
+
+

@@ -419,6 +419,14 @@ class LanguageServer(QObject):
         if self.ready:
             self._warm_up()
 
+    def files_changed(self, changes):
+        """Файлы изменились на диске: [(путь, 1 создан / 2 изменён / 3 удалён)].
+        Без этого Roslyn не узнаёт, что Unity пересоздал .csproj (добавили или удалили скрипт)."""
+        if changes and self.state in ("loading", "ready"):
+            self.last_activity = time.monotonic()
+            self.conn.notify("workspace/didChangeWatchedFiles", {"changes": [
+                {"uri": path_to_uri(p), "type": t} for p, t in changes]})
+
     def pull_diagnostics(self, path):
         """Запросить ошибки у сервера (у Roslyn они не присылаются сами, а отдаются по группам)."""
         if self.state not in ("loading", "ready"):
@@ -800,6 +808,10 @@ class RoslynServer(CSharpServer):
             "csharp|background_analysis.dotnet_compiler_diagnostics_scope": "openFiles",
             # подсказки из ещё не подключённых пространств имён, «using» добавляется при выборе
             "csharp|completion.dotnet_show_completion_items_from_unimported_namespaces": True,
+            "navigation.dotnet_navigate_to_decompiled_sources": True,
+            "navigation.dotnet_navigate_to_source_link_and_embedded_sources": True,
+            "csharp|navigation.dotnet_navigate_to_decompiled_sources": True,
+            "csharp|navigation.dotnet_navigate_to_source_link_and_embedded_sources": True,
         }
         if section == "projects.dotnet_enable_automatic_restore" and self.is_unity_project:
             # У Unity в .csproj нет пакетов NuGet (библиотеки — готовые DLL): восстановление
@@ -880,6 +892,7 @@ class LanguageService(QObject):
                     del self._metadata_owner[path]
             srv.stop()
             srv.deleteLater()
+            getattr(self, "_project_files", {}).pop(r, None)
         if roots:
             self.restarted.emit(reason)
 
@@ -971,10 +984,47 @@ class LanguageService(QObject):
 class CSharpService(LanguageService):
     """C#: сервер на каждое решение (.sln)."""
     language_name = "C#"
+    WATCH_EVERY_MS = 2000       # как часто смотреть, не пересоздал ли Unity .sln/.csproj
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.server_class, self.exe = find_csharp_server()
+        self._project_files = {}    # корень → {путь: mtime_ns}
+        self._watch_timer = QTimer(self, interval=self.WATCH_EVERY_MS, timeout=self._watch_projects)
+        self._watch_timer.start()
+
+    @staticmethod
+    def _scan_project_files(root):
+        found = {}
+        for pattern in ("*.sln", "*.slnx", "*.csproj"):
+            for path in glob.glob(os.path.join(glob.escape(root), pattern)):
+                try:
+                    found[path] = os.stat(path).st_mtime_ns
+                except OSError:
+                    pass
+        return found
+
+    def _watch_projects(self):
+        """Unity пересоздаёт .csproj при добавлении/удалении скриптов — сообщаем об этом Roslyn."""
+        for root, srv in list(self.servers.items()):
+            if srv.state not in ("loading", "ready"):
+                continue
+            now = self._scan_project_files(root)
+            before = self._project_files.get(root)
+            self._project_files[root] = now
+            if before is None:
+                continue        # первый снимок: сервер сам прочитал эти файлы при запуске
+            changes = [(p, 1) for p in now if p not in before]
+            changes += [(p, 2) for p, m in now.items() if p in before and before[p] != m]
+            changes += [(p, 3) for p in before if p not in now]
+            srv.files_changed(changes)
+
+    def files_changed(self, changes):
+        """Файлы кода создали/удалили/переименовали из самой программы."""
+        for path, kind in changes:
+            srv = self.server_for(path, start=False)
+            if srv is not None:
+                srv.files_changed([(path, kind)])
 
     def rediscover(self):
         self.server_class, self.exe = find_csharp_server()

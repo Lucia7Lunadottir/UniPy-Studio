@@ -152,6 +152,7 @@ class CodeEditor(QPlainTextEdit):
         self.newline = "\n"
         self._link = None              # слово под мышью при зажатом Ctrl — подчёркнуто, как ссылка в VS
         self.find_text = ""
+        self._completion_items = {}
         self._req = 0
         self._sig_req = 0
         self.set_code_font(font)
@@ -456,6 +457,11 @@ class CodeEditor(QPlainTextEdit):
         return "<div style='font-size:%gpt'>%s</div>" % (self.hint_pt(), html_)
 
     def eventFilter(self, obj, e):
+        if e.type() == QEvent.Type.Hide and obj is self.completer.popup():
+            self.doc_tip.hide()
+        if e.type() == QEvent.Type.KeyPress and obj is self.completer.popup():
+            if self._completion_key(e):
+                return True
         # Ctrl+колесо над списком подсказок меняет размер подсказок, а не кода
         if e.type() == QEvent.Type.Wheel and e.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.services.zoom_hints(1 if e.angleDelta().y() > 0 else -1)
@@ -473,9 +479,7 @@ class CodeEditor(QPlainTextEdit):
         if key == Qt.Key.Key_Control:
             self._update_link(self.viewport().mapFromGlobal(QCursor.pos()), True)
         popup = self.completer.popup()
-        if popup.isVisible() and key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Tab,
-                                         Qt.Key.Key_Escape, Qt.Key.Key_Backtab):
-            e.ignore()
+        if popup.isVisible() and self._completion_key(e):
             return
         ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
         if ctrl and mods & Qt.KeyboardModifier.ShiftModifier and key == Qt.Key.Key_Space:
@@ -485,6 +489,7 @@ class CodeEditor(QPlainTextEdit):
             self.request_completion(force=True)
             return
         if key == Qt.Key.Key_Escape:
+            self._req += 1
             self.calltip.hide()
             self.doc_tip.hide()
             super().keyPressEvent(e)
@@ -532,6 +537,7 @@ class CodeEditor(QPlainTextEdit):
                     popup.hide()
         elif text:
             popup.hide()
+            self.doc_tip.hide()
         if text in ("(", ","):
             self.request_signatures(force=True)
         elif text == ")":
@@ -687,6 +693,14 @@ class CodeEditor(QPlainTextEdit):
                 cur.insertText(mark + " ")
         cur.endEditBlock()
 
+    def contextMenuEvent(self, e):
+        menu = self.createStandardContextMenu()
+        if self.lang == "csharp" and not self.isReadOnly():
+            menu.addSeparator()
+            menu.addAction(self.services.a_move_type)
+        menu.exec(e.globalPos())
+        menu.deleteLater()
+
     def duplicate_line(self):
         c = self.textCursor()
         text = c.block().text()
@@ -709,6 +723,8 @@ class CodeEditor(QPlainTextEdit):
 
     def request_completion(self, force=False):
         self._req += 1
+        self._completion_notice("Поиск подсказок…")
+        self._completion_location = (self.document().revision(), self.textCursor().position())
         srv = self._lsp_server()
         if srv:
             line, col = self._line_col()
@@ -719,11 +735,16 @@ class CodeEditor(QPlainTextEdit):
             self.services.jedi.submit("complete", req=self._req, editor=id(self),
                                       code=self.toPlainText(), line=line, col=col, path=self.path)
         elif self.lang == "csharp":
-            self.show_completions(CSHARP.complete(self.toPlainText(), self.textCursor().position()))
+            self._request_index()
         else:
             prefix = self.word_before_cursor()
             if prefix or force:
                 self.show_completions(word_items(self.toPlainText(), prefix))
+
+    def _source_offset(self):
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.Start, QTextCursor.MoveMode.KeepAnchor)
+        return len(cursor.selectedText())
 
     def _lsp_server(self):
         """Языковой сервер этого языка (см. languages.py), если он готов; иначе — запасные
@@ -734,6 +755,11 @@ class CodeEditor(QPlainTextEdit):
     def on_worker_result(self, res):
         kind, data = res["kind"], res["data"]
         if kind == "complete" and res["req"] == self._req:
+            if self._completion_location != (self.document().revision(), self.textCursor().position()):
+                return
+            if self.lang == "csharp" and not res.get("indexed"):
+                self._request_index(data)
+                return
             self.show_completions(data or [])
         elif kind == "signatures" and res["req"] == self._sig_req:
             self.show_calltip(data or [])
@@ -748,11 +774,20 @@ class CodeEditor(QPlainTextEdit):
             self.busy_changed.emit("")
             self.rename_ready.emit(getattr(self, "_new_name", ""), data or {"error": tr("анализатор не ответил")})
         elif kind == "definition":
+            if not data and self.lang == "csharp" and not res.get("indexed"):
+                self._request_source_definition()
+                return
             self.busy_changed.emit("")
             if data:
                 self.goto_requested.emit(data["path"], data["line"])
             else:
                 self.services.status(tr("Определение не найдено"))
+
+    def _completion_notice(self, message):
+        self.doc_tip.setText("<b>IntelliSense</b><br>" + message)
+        self.doc_tip.adjustSize()
+        self.doc_tip.move(self.viewport().mapToGlobal(self.cursorRect().bottomLeft()))
+        self.doc_tip.show()
 
     def show_completions(self, items):
         popup = self.completer.popup()
@@ -760,8 +795,10 @@ class CodeEditor(QPlainTextEdit):
         if not prefix.startswith("_"):
             items = [it for it in items if not it.name.startswith("_")] + \
                     [it for it in items if it.name.startswith("_") and prefix]
-        if not items or (len(items) == 1 and items[0].name == prefix):
+        self._completion_items = {it.name: it for it in items}
+        if not items:
             popup.hide()
+            self._completion_notice("Подсказок нет · Ctrl+Space — повторить")
             return
         self.model.clear()
         for it in items[:300]:
@@ -773,9 +810,10 @@ class CodeEditor(QPlainTextEdit):
         self.completer.setCompletionPrefix(prefix)
         if self.completer.completionCount() == 0:
             popup.hide()
+            self._completion_notice("Подсказок нет · Ctrl+Space — повторить")
             return
-        popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
         self.show_completions_geometry()
+        popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
 
     def show_completions_geometry(self):
         prefix = self.word_before_cursor()
@@ -825,15 +863,40 @@ class CodeEditor(QPlainTextEdit):
             self._show_doc_tip(html_)
 
     def insert_completion(self, name):
-        idx = self.completer.popup().currentIndex()
-        item = idx.data(ROLE_ITEM) if idx.isValid() else None
         c = self.textCursor()
         prefix = self.word_before_cursor()
-        c.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.KeepAnchor, len(prefix))
-        c.insertText(name)
+        before = self._text_before_cursor(c)
+        after = c.block().text()[len(before):]
+        suffix = re.match(r"\w*", after).group()
+        position = c.position()
+        c.setPosition(position - len(prefix.encode("utf-16-le")) // 2)
+        c.setPosition(position + len(suffix.encode("utf-16-le")) // 2,
+                      QTextCursor.MoveMode.KeepAnchor)
+        item = self._completion_items.get(name)
+        insertion = name
+        move_back = 0
+        if item and item.kind in ("method", "function") and not after[len(suffix):].lstrip().startswith("("):
+            insertion += "()"
+            move_back = 1
+        elif item and item.kind == "event" and self.lang == "csharp":
+            signature = item.detail
+            if "(" in signature:
+                if re.search(r"\bvoid\s+" + re.escape(prefix) + r"$", before):
+                    signature = re.sub(r"^void\s+", "", signature)
+                indent = re.match(r"[ \t]*", before).group()
+                insertion = signature + "\n" + indent + "{\n" + indent + "    \n" + indent + "}"
+                move_back = len(indent) + 2
+        c.beginEditBlock()
+        c.insertText(insertion)
+        if move_back:
+            c.movePosition(QTextCursor.MoveOperation.Left, n=move_back)
+        c.endEditBlock()
         self.setTextCursor(c)
         self.doc_tip.hide()
         self._add_completion_imports(item)
+        if item and item.kind in ("method", "function"):
+            self.request_signatures(True)
+
 
     def _add_completion_imports(self, item):
         """Подсказка из неподключённого пространства имён: дописать «using …;» (C#) или
@@ -885,6 +948,11 @@ class CodeEditor(QPlainTextEdit):
         self.calltip.move(pos.x() - 10, pos.y() - self.calltip.height() - 4)
         self.calltip.show()
 
+    def _request_source_definition(self):
+        self.busy_changed.emit("Поиск определения в исходниках проекта и пакетов…")
+        self.services.csharp_index.submit(kind="definition", req=0, editor=id(self),
+            code=self.toPlainText(), pos=self._source_offset(), path=self.path)
+
     def go_to_definition(self):
         srv = self._lsp_server()
         if srv or (self.lang == "python" and self.services.jedi.available):
@@ -899,6 +967,8 @@ class CodeEditor(QPlainTextEdit):
             line, col = self._line_col()
             self.services.jedi.submit("definition", req=0, editor=id(self),
                                       code=self.toPlainText(), line=line, col=col, path=self.path)
+        elif self.lang == "csharp":
+            self._request_source_definition()
         else:
             word = self._word_at(self.textCursor())
             m = re.search(r"\b(?:class|void|[A-Z]\w*|int|float|bool|string)\s+%s\b" % re.escape(word),
@@ -1059,6 +1129,40 @@ class CodeEditor(QPlainTextEdit):
             self.services.zoom(1 if e.angleDelta().y() > 0 else -1)
             return
         super().wheelEvent(e)
+
+    def _completion_key(self, event):
+        key = event.key()
+        if key in (Qt.Key.Key_Escape, Qt.Key.Key_Backtab):
+            self._req += 1
+            self.completer.popup().hide()
+            self.doc_tip.hide()
+            return True
+        if key in (Qt.Key.Key_Tab, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            index = self.completer.popup().currentIndex()
+            if index.isValid():
+                self.insert_completion(index.data())
+                self.completer.popup().hide()
+                event.accept()
+                return True
+        return False
+
+    def focusNextPrevChild(self, next):
+        # Tab belongs to the editor, including while the completion popup is open.
+        return False
+
+    @staticmethod
+    def _text_before_cursor(cursor):
+        start = QTextCursor(cursor)
+        start.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.KeepAnchor)
+        return start.selectedText()
+
+    def _request_index(self, base=None):
+        self.services.csharp_index.submit(req=self._req, editor=id(self), code=self.toPlainText(),
+                                          pos=self._source_offset(), path=self.path, base=base)
+
+
+
+
 
 
 # ====================================================================== проверки
