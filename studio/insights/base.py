@@ -58,6 +58,7 @@ class InsightController(QObject):
         self.insights = [cls(self) for cls in insight_classes]
         self._by_kind = {k: ins for ins in self.insights for k in ins.kinds}
         self._dirty = True
+        self._assist = None             # pyright_assist.PyrightAssist — для Python, создаётся по требованию
         self._edit_timer = QTimer(self, singleShot=True, interval=self.EDIT_DELAY_MS, timeout=self.refresh)
         # слоты — методы, не lambda: метод PyQt отключает сам, когда объект удалён, а lambda вызвал бы
         # уже разобранный сборщиком мусора контроллер (падение процесса)
@@ -87,6 +88,32 @@ class InsightController(QObject):
         svc = ed.services.service_for(ed.language)
         srv = svc.ready_for(ed.path) if svc is not None else None
         return srv if srv is not None and srv.supports(capability) else None
+
+    def python_source(self):
+        """Чем отвечать на вопросы о Python: ("pyright", сервер) — pyright готов, спрашиваем его (jedi не нужен);
+        ("wait", None) — pyright запущен и грузится: ждём, на готовность контроллер спросит снова;
+        ("jedi", jedi) — pyright нет; (None, None) — нечем."""
+        ed = self.editor
+        svc = ed.services.service_for(ed.language)
+        if svc is not None and getattr(svc, "available", False):
+            srv = svc.ready_for(ed.path)
+            if srv is not None and srv.supports("hoverProvider"):
+                return "pyright", srv
+            if svc.server_for(ed.path, start=False) is not None:
+                return "wait", None
+        jedi = self.jedi()
+        return ("jedi", jedi) if jedi is not None else (None, None)
+
+    def assist(self):
+        if self._assist is None:
+            from .pyright_assist import PyrightAssist
+            self._assist = PyrightAssist(self)
+        return self._assist
+
+    def answer(self, kind):
+        """Функция для источника, который отвечает не через окно (pyright-помощник): data → on_result."""
+        revision = self.revision()
+        return lambda data: self.on_result({"kind": kind, "req": revision, "data": data})
 
     def jedi(self):
         """jedi для Python (запасной источник: pyright подсказок в строке и семантики не даёт)."""

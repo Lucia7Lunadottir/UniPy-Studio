@@ -587,6 +587,16 @@ class LanguageServer(QObject):
         """Объявил ли сервер возможность (documentFormattingProvider, workspaceSymbolProvider…)."""
         return bool(getattr(self, "server_capabilities", {}).get(provider))
 
+    def query(self, path, text, method, params, callback):
+        """Разовый запрос по файлу (insights: hover, signatureHelp для подсказок Python). Текст сначала отдаётся
+        серверу; callback(результат | None) — None, если сервер не готов или ответил ошибкой."""
+        if self.state != "ready":
+            callback(None)
+            return
+        self.sync(path, text)
+        self.last_activity = time.monotonic()
+        self.conn.request(method, params, lambda result, error: callback(None if error else result))
+
     def _keyed_request(self, key, method, params, callback):
         """Запрос, который отменяет предыдущий такой же (новые буквы в Ctrl+T, новая правка для структуры)."""
         old = self._pending.pop(key, None)

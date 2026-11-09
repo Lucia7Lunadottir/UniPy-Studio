@@ -94,6 +94,24 @@ class LspTokens(unittest.TestCase):
                          [(0, 7, 3, "type"), (2, 4, 5, "param"), (2, 10, 1, "member")])
 
 
+class PyrightAnswers(unittest.TestCase):
+    def test_hover_and_signature_parsing(self):
+        from studio.insights.pyright_assist import hover_role, hover_type, signature_params
+        md = lambda text: {"contents": {"kind": "markdown", "value": "```python\n%s\n```\n---\nDocs" % text}}
+        self.assertEqual(hover_role(md("(class) QLabel")), "type")
+        self.assertEqual(hover_role(md("(function) def load(path: str) -> Config")), "function")
+        self.assertEqual(hover_role(md("(module) os")), "namespace")
+        self.assertIsNone(hover_role(None))
+        self.assertEqual(hover_type(md("(variable) cfg: Config"), "cfg"), "Config")
+        self.assertIsNone(hover_type(md("(variable) x: Unknown"), "x"))
+        label = "(a, /, width: int, *rest, height: int = 2, **kw) -> None"
+        params = [{"label": "a"}, {"label": "/"}, {"label": [label.index("width"), label.index(", *rest")]},
+                  {"label": "*rest"}, {"label": "height: int = 2"}, {"label": "**kw"}]
+        self.assertEqual(signature_params({"signatures": [{"label": label, "parameters": params}]}),
+                         [("a", True, False), ("width", False, False), ("rest", False, True),
+                          ("height", False, False), ("kw", False, True)])
+
+
 class Lenses(unittest.TestCase):
     def test_keys_are_stable_and_overloads_differ(self):
         text = ["class Box", "{", "    void Go(int a) {}", "    void Go(string s) {}", "    int x;"]

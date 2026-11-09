@@ -23,9 +23,13 @@ class SemanticHighlighting(Insight):
         if srv is not None:
             srv.submit("semantic_tokens", self.ctl.revision(), id(ed), code, 1, 0, ed.path)
             return
-        jedi = self.ctl.jedi()
-        if jedi is not None:
-            jedi.submit("semantic_tokens", req=self.ctl.revision(), editor=id(ed), code=code, line=1, col=0,
+        if ed.lang != "python":
+            return
+        source, provider = self.ctl.python_source()
+        if source == "pyright":
+            self.ctl.assist().semantic(provider, self.ctl.answer("semantic_tokens"))
+        elif source == "jedi":
+            provider.submit("semantic_tokens", req=self.ctl.revision(), editor=id(ed), code=code, line=1, col=0,
                         path=ed.path, extra={"code": code})
 
     def on_result(self, res):

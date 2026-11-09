@@ -7,6 +7,7 @@
 Методы-сообщения Unity (Update, Awake…) без ссылок помечаются «Сообщение Unity», как в VS Tools for Unity.
 """
 import re
+import time
 
 from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetricsF
@@ -64,6 +65,8 @@ class CodeLens(Insight):
         self.lenses = []
         self.counts = {}                # ключ → {"count", "locations"}
         self._rects = {}                # окно (id) → [(QRectF, Lens)]
+        self._queue = []                # символы, о которых ещё не спросили сервер
+        self._in_flight = 0.0           # когда ушёл запрос, ответа на который ещё нет (0 — нет такого)
 
     def symbols_changed(self):
         self.request()
@@ -77,22 +80,36 @@ class CodeLens(Insight):
             self.ctl.update_views()
             return
         code = ed.toPlainText()
-        srv = self.ctl.server("referencesProvider")
-        if srv is not None:
-            for lens in visible:
-                srv.submit("reference_count", self.ctl.revision(), id(ed), code, lens.line + 1, lens.col, ed.path,
-                           {"key": lens.key})
+        if self.ctl.server("referencesProvider") is not None:
+            # по одному: pyright, получив новый поиск ссылок, отменяет прежний и падает на этом
+            # («this._token.cancel is not a function») — так ни одно число и не приходило
+            self._queue = visible
+            # ответ так и не пришёл (сервер перезапустился) — не ждать его вечно
+            if not self._in_flight or time.monotonic() - self._in_flight > 10:
+                self._ask_next()
             return
-        jedi = self.ctl.jedi()
-        if jedi is not None:
+        source, jedi = self.ctl.python_source() if ed.lang == "python" else (None, None)
+        if source == "jedi":                        # pyright нет совсем (пока грузится — ждём его, не jedi)
             line_text = code.split("\n")
             symbols = [(lens.key, lens.line + 1, _chars(line_text[lens.line], lens.col)) for lens in visible]
             jedi.submit("code_lens", req=self.ctl.revision(), editor=id(ed), code=code, line=1, col=0, path=ed.path,
                         extra={"symbols": symbols})
 
+    def _ask_next(self):
+        srv = self.ctl.server("referencesProvider")
+        if srv is None or not self._queue:
+            self._in_flight = 0.0
+            return
+        lens = self._queue.pop(0)
+        ed = self.ctl.editor
+        self._in_flight = time.monotonic()
+        srv.submit("reference_count", self.ctl.revision(), id(ed), ed.toPlainText(), lens.line + 1, lens.col,
+                   ed.path, {"key": lens.key})
+
     def on_result(self, res):
         data = res.get("data") or {}
         if res["kind"] == "reference_count":
+            self._ask_next()
             if data.get("key") is not None:
                 self.counts[data["key"]] = {"count": data.get("count", 0), "locations": data.get("locations", [])}
         else:
@@ -103,6 +120,7 @@ class CodeLens(Insight):
 
     def clear(self):
         self.lenses, self.counts, self._rects = [], {}, {}
+        self._queue, self._in_flight = [], 0.0
         self.ctl.update_views()
 
     # --- вид

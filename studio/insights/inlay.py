@@ -43,10 +43,15 @@ class InlayHints(Insight):
             srv.submit("inlay_hints", self.ctl.revision(), id(ed), code, 1, 0, ed.path,
                        {"first": first, "last": last})
             return
-        jedi = self.ctl.jedi()
-        if jedi is not None:
-            s = self.ctl.settings
-            jedi.submit("inlay_hints", req=self.ctl.revision(), editor=id(ed), code=code, line=1, col=0, path=ed.path,
+        if ed.lang != "python":
+            return
+        s = self.ctl.settings
+        source, provider = self.ctl.python_source()
+        if source == "pyright":
+            self.ctl.assist().inlay(provider, first, last, bool(s.get("inlay_parameters")), bool(s.get("inlay_types")),
+                                    self.ctl.answer("inlay_hints"))
+        elif source == "jedi":
+            provider.submit("inlay_hints", req=self.ctl.revision(), editor=id(ed), code=code, line=1, col=0, path=ed.path,
                         extra={"code": code, "first": first, "last": last,
                                "params": bool(s.get("inlay_parameters")), "types": bool(s.get("inlay_types"))})
 

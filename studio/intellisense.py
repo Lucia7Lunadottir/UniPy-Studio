@@ -5,6 +5,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 import re
+import sys
 import threading
 import time
 
@@ -143,6 +144,10 @@ class JediWorker(QObject):
             self._thread.join(1.0)
 
     def set_project(self, path, environment_path=None):
+        # тот же интерпретатор, что у программы, — окружение jedi «по умолчанию»: иначе jedi считает его другим
+        # и держит второй подпроцесс с теми же модулями (~100 МБ)
+        if environment_path and os.path.realpath(environment_path) == os.path.realpath(sys.executable):
+            environment_path = None
         with self._cv:
             self.project_path = path
             self.environment_path = environment_path
