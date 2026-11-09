@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "Bookmark, line %d",
   "bookmarks.rename": "Rename (F2)",
   "bookmarks.delete": "Delete Bookmark",
-  "bookmarks.none": "No bookmarks — add one with Ctrl+K, Ctrl+K"
+  "bookmarks.none": "No bookmarks — add one with Ctrl+K, Ctrl+K",
+  "tabs.window_menu": "Window",
+  "tabs.split_window": "Split",
+  "tabs.split": "Split Window",
+  "tabs.remove_split": "Remove Split",
+  "tabs.pin": "Pin Tab",
+  "tabs.unpin": "Unpin Tab",
+  "tabs.pin_toggle": "Pin or Unpin Tab",
+  "tabs.close_all_but_pinned": "Close All But Pinned"
 }

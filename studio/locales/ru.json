@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "Закладка, строка %d",
   "bookmarks.rename": "Переименовать (F2)",
   "bookmarks.delete": "Удалить закладку",
-  "bookmarks.none": "Закладок нет — поставьте: Ctrl+K, Ctrl+K"
+  "bookmarks.none": "Закладок нет — поставьте: Ctrl+K, Ctrl+K",
+  "tabs.window_menu": "Окно",
+  "tabs.split_window": "Разделить",
+  "tabs.split": "Разделить окно",
+  "tabs.remove_split": "Убрать разделение",
+  "tabs.pin": "Закрепить вкладку",
+  "tabs.unpin": "Открепить вкладку",
+  "tabs.pin_toggle": "Закрепить или открепить вкладку",
+  "tabs.close_all_but_pinned": "Закрыть все, кроме закреплённых"
 }

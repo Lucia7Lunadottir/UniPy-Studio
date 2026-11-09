@@ -118,6 +118,7 @@ class DiagnosticsMixin:
             self.diagnostics = diags
             self.update_selections()
             self.gutter.update()
+            self.refresh_views()
             self.diagnostics_changed.emit()
 
     def set_lsp_diagnostics(self, diags):

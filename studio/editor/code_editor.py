@@ -30,8 +30,10 @@ class CodeEditor(DocumentMixin, GutterMixin, MarkersMixin, QuickActionsMixin, Di
     references_found = pyqtSignal(str, object)   # слово, [{"path", "line", "col"}]
     rename_ready = pyqtSignal(str, object)       # новое имя, {"edits": …} | {"files": …} | {"error": …}
     saved = pyqtSignal(str)                      # путь; файл записан на диск
-    def __init__(self, path, services, font):
+    def __init__(self, path, services, font, shared=None):
+        """shared — основной редактор того же файла: это его второе окно (editor.split_view.SplitView)."""
         super().__init__()
+        self.split_views = []          # вторые окна этого файла (Окно → Разделить); у них общий документ
         self.path = path
         self.services = services
         self.language = languages.for_path(path)      # всё о языке файла — в реестре languages.py
@@ -71,9 +73,14 @@ class CodeEditor(DocumentMixin, GutterMixin, MarkersMixin, QuickActionsMixin, Di
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setCursorWidth(2)
         self._apply_palette()
-        self.highlighter = self._make_highlighter()
+        if shared is None:
+            self.highlighter = self._make_highlighter()
+        else:                           # общий документ: подсветка и свёрнутые блоки у него уже есть
+            self.setDocument(shared.document())
+            self.highlighter = shared.highlighter
         self.gutter = LineNumberArea(self)
-        self.folding = Folding(self)    # сворачивание блоков (Ctrl+M, Ctrl+M …)
+        # сворачивание блоков (Ctrl+M, Ctrl+M …); у второго окна — вид общего состояния
+        self.folding = Folding(self) if shared is None else shared.folding.add_view(self)
         self.symbols = []               # символы файла (symbols.Symbol) — для структуры, панели навигации, Ctrl+T
         self.navbar = NavigationBar(self)
         self.navbar.goto.connect(lambda line: (self.go_to_line(line), self.setFocus()))
@@ -119,3 +126,13 @@ class CodeEditor(DocumentMixin, GutterMixin, MarkersMixin, QuickActionsMixin, Di
         self.textChanged.connect(self._bulb_timer.start)
         self.setMouseTracking(True)
         self._on_cursor()
+
+    @property
+    def primary(self):
+        """Основной редактор файла (у второго окна — тот, чей это вид). Всё «про файл» — у него."""
+        return self
+
+    def refresh_views(self):
+        """Общее для окон файла изменилось (ошибки, бледный код, отладка, Git, символы) — перерисовать вторые окна."""
+        for view in self.split_views:
+            view.mirror_primary()

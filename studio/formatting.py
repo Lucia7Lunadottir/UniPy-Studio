@@ -140,7 +140,7 @@ class Formatter(QObject):
 
     def _apply(self, ed, revision, edits, tool=None):
         self.win.busy("")
-        if ed not in self.win.editors():
+        if ed not in self.win.views():                  # вкладку (или второе окно) успели закрыть
             return
         if edits is None:
             self.win.status(tr("formatting.failed"))

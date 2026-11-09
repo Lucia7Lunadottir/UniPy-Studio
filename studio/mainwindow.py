@@ -24,6 +24,7 @@ from .document_safety import DocumentSafety
 from .vcs.controller import VcsController
 from .testing.controller import TestController
 from .bookmarks.controller import BookmarkController
+from .document_tabs import DocumentTabs
 from .dependencies.controller import DependenciesController
 from .formatting import Formatter
 from .navigation import NavigationHistory
@@ -334,12 +335,16 @@ class MainWindow(QMainWindow):
         self.tabs.setMovable(True)
         self.tabs.setIconSize(QSize(16, 16))
         self.tabs.tabCloseRequested.connect(self.close_tab)
+        # вкладки документов (закрепление, разделение) — только через self.documents (document_tabs.py)
+        self.documents = DocumentTabs(self.tabs, self)
+        self.documents.pinned_changed.connect(self._remember_open)
+        self.documents.view_created.connect(self._connect_view)
         bar = self.tabs.tabBar()
         bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         # Метод, а не lambda с bar внутри: обёртку панели вкладок (её создаёт Qt) держала бы
         # только сама lambda — сборщик мусора удаляет обоих, и правый клик роняет процесс (SIGSEGV)
         bar.customContextMenuRequested.connect(self._tab_bar_menu)
-        self.tabs.currentChanged.connect(self._tab_changed)
+        self.documents.current_changed.connect(self._tab_changed)
         self.findbar = FindBar(self)
         lay.addWidget(self.tabs, 1)
         self.empty = bind_text(QLabel(), "mainwindow.open_file_solution_explorer_ctrl")
@@ -477,6 +482,10 @@ class MainWindow(QMainWindow):
         self.a_save_all = A("File.SaveAll", "mainwindow.save_all", self.save_all, "Ctrl+Shift+S", "saveall",
                             "mainwindow.save_all_ctrl_shift_s")
         self.a_close = A("Window.CloseDocumentWindow", "mainwindow.close_tab", lambda: self.close_tab(self.tabs.currentIndex()), "Ctrl+W")
+        self.a_close_all = A("Window.CloseAllDocuments", "mainwindow.close_all", self.close_all_tabs)
+        self.a_close_unpinned = A("Window.CloseAllButPinned", "tabs.close_all_but_pinned", self.close_unpinned_tabs)
+        self.a_pin = A("Window.PinTab", "tabs.pin_toggle", self.toggle_pin)
+        self.a_split = A("Window.Split", "tabs.split_window", self.split_window)
         self.a_quit = A("File.Exit", "mainwindow.exit", self.close, "Ctrl+Q")
         self.a_undo = A("Edit.Undo", "mainwindow.undo", ed("undo"), "Ctrl+Z")
         self.a_redo = A("Edit.Redo", "mainwindow.redo", ed("redo"), ("Ctrl+Y", "Ctrl+Shift+Z"))
@@ -720,6 +729,10 @@ class MainWindow(QMainWindow):
             m.addSeparator() if a is None else m.addAction(a)
         self.restart_menu = bind_text(m.addMenu(""), "mainwindow.restart_analyzer_above_memory_limit", "setTitle")
         self.restart_menu.aboutToShow.connect(self.analyzers.fill_restart_menu)
+        m = bind_text(mb.addMenu(""), "tabs.window_menu", "setTitle")
+        for a in (self.a_split, None, self.a_pin, self.a_close_unpinned, self.a_close_all, self.a_close, None,
+                  self.a_next_tab, self.a_prev_tab):
+            m.addSeparator() if a is None else m.addAction(a)
         m = bind_text(mb.addMenu(""), "mainwindow.help", "setTitle")
         m.addAction(self.a_keys)
         m.addAction(self.a_updates)
@@ -963,9 +976,10 @@ class MainWindow(QMainWindow):
         last = None if self.screenshot_mode else self.settings.value("solution/last")
         if last and os.path.isdir(last) and last != self.sample_root():
             self.set_root(last)
+            pinned = set(self.settings.value("solution/pinned_files") or [])
             for p in (self.settings.value("solution/open_files") or []):
-                if os.path.isfile(p):
-                    self.open_path(p)
+                if os.path.isfile(p) and self.open_path(p) is not None and p in pinned:
+                    self.documents.set_pinned(self.tabs.currentIndex(), True)
         else:
             self.open_sample()
 
@@ -1070,17 +1084,32 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------ вкладки
     def editors(self):
-        return [self.tabs.widget(i) for i in range(self.tabs.count())]
+        """Основные редакторы открытых файлов (по одному на вкладку)."""
+        return self.documents.editors()
+
+    def views(self):
+        """Все окна редакторов, включая вторые окна разделённых вкладок."""
+        return self.documents.views()
 
     def editor(self):
-        w = self.tabs.currentWidget()
-        return w if isinstance(w, CodeEditor) else None
+        """Окно редактора, где сейчас работают (во разделённой вкладке — то, где был курсор)."""
+        return self.documents.current_view()
+
+    def split_window(self):
+        """Окно → Разделить: второе окно того же файла сверху; ещё раз — убрать."""
+        if self.documents.current_page() is not None:
+            self.documents.toggle_split()
+
+    def toggle_pin(self, index=None):
+        i = self.tabs.currentIndex() if index is None else index
+        if i >= 0:
+            self.documents.set_pinned(i, not self.documents.is_pinned(i))
 
     def open_path(self, path, line=None, col=1):
         path = os.path.abspath(path)
         for i, ed in enumerate(self.editors()):
             if ed.path == path:
-                self.tabs.setCurrentIndex(i)
+                self.documents.set_current(i)
                 if line:
                     ed.go_to_line(line, col)
                 return ed
@@ -1107,12 +1136,8 @@ class MainWindow(QMainWindow):
             ed.set_view_option(name, self.options[key])
         if lsp.is_metadata_path(path):
             ed.setReadOnly(True)        # исходник из сборки (UnityEngine.dll и т.п.)
-        ed.cursor_moved.connect(self._cursor_moved)
+        self._connect_view(ed)
         ed.diagnostics_changed.connect(lambda e=ed: self._diagnostics(e))
-        ed.goto_requested.connect(lambda p, l: self.jump_to(p, l))
-        ed.busy_changed.connect(self.busy)
-        ed.references_found.connect(self.refactoring.show_references)
-        ed.rename_ready.connect(self.refactoring.apply_rename)
         ed.textChanged.connect(self.outline_timer.start)
         ed.document().modificationChanged.connect(lambda _m, e=ed: self._modified(e))
         self.safety.track(ed)
@@ -1120,9 +1145,8 @@ class MainWindow(QMainWindow):
         self.bookmarks.attach_editor(ed)
         self.vcs.attach_editor(ed)
         ed.saved.connect(self.tests.file_saved)
-        i = self.tabs.addTab(ed, theme.file_icon(path), os.path.basename(path))
-        self.tabs.setTabToolTip(i, path)
-        self.tabs.setCurrentIndex(i)
+        i = self.documents.add(ed, theme.file_icon(path), os.path.basename(path), path)
+        self.documents.set_current(i)
         self.tabs.show()
         self.empty.hide()
         self._diagnostics(ed)
@@ -1132,17 +1156,25 @@ class MainWindow(QMainWindow):
         ed.setFocus()
         return ed
 
+    def _connect_view(self, view):
+        """Сигналы окна редактора — и основного, и второго окна разделённой вкладки (F12, ссылки, переименование
+        из второго окна тоже работают)."""
+        view.cursor_moved.connect(self._cursor_moved)
+        view.goto_requested.connect(lambda p, l: self.jump_to(p, l))
+        view.busy_changed.connect(self.busy)
+        view.references_found.connect(self.refactoring.show_references)
+        view.rename_ready.connect(self.refactoring.apply_rename)
+
     def _remember_open(self):
         if not self.screenshot_mode:
             self.settings.setValue("solution/open_files", [e.path for e in self.editors()])
+            self.settings.setValue("solution/pinned_files", [p.editor.path for p in self.documents.pages() if p.pinned])
 
     def _modified(self, ed):
-        i = self.tabs.indexOf(ed)
-        if i >= 0:
-            self.tabs.setTabText(i, os.path.basename(ed.path) + (" ●" if ed.document().isModified() else ""))
+        self.documents.set_title(ed, os.path.basename(ed.path) + (" ●" if ed.document().isModified() else ""))
         self._update_title()
 
-    def _tab_changed(self, _i):
+    def _tab_changed(self):
         ed = self.editor()
         self._update_title()
         self.refresh_outline()
@@ -1168,7 +1200,7 @@ class MainWindow(QMainWindow):
     def close_tab(self, i):
         if i < 0:
             return True
-        ed = self.tabs.widget(i)
+        ed = self.documents.page(i).editor
         if ed.document().isModified():
             r = QMessageBox.question(self, APP_NAME, tr("mainwindow.save_changes") % os.path.basename(ed.path),
                                      QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard |
@@ -1182,9 +1214,7 @@ class MainWindow(QMainWindow):
         self.safety.forget(ed)
         for svc in self.language_services:
             svc.close(ed.path)
-        self.tabs.removeTab(i)
-        ed.calltip.hide()
-        ed.deleteLater()
+        self.documents.remove(i)
         if not self.tabs.count():
             self.tabs.hide()
             self.empty.show()
@@ -1200,12 +1230,20 @@ class MainWindow(QMainWindow):
         """Правый клик по вкладке (или по пустому месту панели): закрыть, сохранить, открыть файл и т. д."""
         menu = QMenu(self)
         if index >= 0:
-            ed, n = self.tabs.widget(index), self.tabs.count()
+            page, n = self.documents.page(index), self.tabs.count()
+            ed = page.editor
             menu.addAction(tr("mainwindow.save"), lambda: self._save_editor(ed)).setEnabled(ed.document().isModified())
-            menu.addAction(tr("common.close"), lambda: self.close_tab(self.tabs.indexOf(ed)))
+            menu.addAction(tr("common.close"), lambda: self.close_tab(self.documents.index_of(ed)))
             menu.addAction(tr("mainwindow.close_others"), lambda: self._close_tabs(keep=ed)).setEnabled(n > 1)
             menu.addAction(tr("mainwindow.close_right"), lambda: self._close_tabs(right_of=ed)).setEnabled(index < n - 1)
             menu.addAction(tr("mainwindow.close_all"), self.close_all_tabs)
+            menu.addAction(tr("tabs.close_all_but_pinned"), self.close_unpinned_tabs).setEnabled(
+                0 < self.documents.pinned_count() < n)
+            menu.addSeparator()
+            menu.addAction(tr("tabs.unpin" if page.pinned else "tabs.pin"),
+                           lambda: self.toggle_pin(self.documents.index_of(ed)))
+            menu.addAction(tr("tabs.remove_split" if page.view is not None else "tabs.split"),
+                           lambda: self.documents.toggle_split(page))
             menu.addSeparator()
             menu.addAction(tr("common.copy_path"), lambda: self.copy_text(ed.path))
             menu.addAction(tr("mainwindow.show_solution_explorer"),
@@ -1225,11 +1263,20 @@ class MainWindow(QMainWindow):
             self.status(tr("mainwindow.saved") + os.path.basename(ed.path))
 
     def _close_tabs(self, keep=None, right_of=None):
-        eds = self.editors()
-        targets = eds[eds.index(right_of) + 1:] if right_of is not None else [e for e in eds if e is not keep]
+        """«Закрыть остальные» и «Закрыть справа» закреплённые вкладки не трогают (как в Visual Studio)."""
+        pages = self.documents.pages()
+        eds = [p.editor for p in pages if not p.pinned]
+        if right_of is not None:
+            order = [p.editor for p in pages]
+            targets = [e for e in eds if order.index(e) > order.index(right_of)]
+        else:
+            targets = [e for e in eds if e is not keep]
         for ed in targets:
-            if not self.close_tab(self.tabs.indexOf(ed)):
+            if not self.close_tab(self.documents.index_of(ed)):
                 break               # нажали «Отмена» при вопросе о сохранении
+
+    def close_unpinned_tabs(self):
+        self._close_tabs()
 
     def close_all_tabs(self):
         while self.tabs.count():
@@ -1280,14 +1327,14 @@ class MainWindow(QMainWindow):
     def on_path_deleted(self, path):
         self.tell_analyzers([(path, 3)])
         for i in reversed(range(self.tabs.count())):
-            ed = self.tabs.widget(i)
+            ed = self.documents.page(i).editor
             if ed.path == path or ed.path.startswith(path + os.sep):
                 ed.document().setModified(False)
                 self.close_tab(i)
 
     # ------------------------------------------------------------ события редактора
     def _worker_result(self, res):
-        for ed in self.editors():
+        for ed in self.views():             # ответ мог запросить и второй вид разделённой вкладки
             if id(ed) == res["editor"]:
                 ed.on_worker_result(res)
                 return
@@ -1321,8 +1368,9 @@ class MainWindow(QMainWindow):
 
     def refresh_outline(self):
         """Символы текущего файла → структура, панель навигации, Ctrl+T. От анализатора (documentSymbol),
-        пока он не готов — из разбора текста; устаревший ответ (текст успел измениться) отбрасывается."""
-        ed = self.editor()
+        пока он не готов — из разбора текста; устаревший ответ (текст успел измениться) отбрасывается.
+        Символы общие для окон файла — у основного редактора, вторые окна берут их у него."""
+        ed = self.editor().primary if self.editor() is not None else None
         if not ed:
             self.outline.show_symbols(None, [])
             return
@@ -1335,7 +1383,7 @@ class MainWindow(QMainWindow):
         self._set_symbols(ed, symbols.from_outline(outline(text, ed.lang), ed.folding.ranges, ed.path))
 
     def _symbols_arrived(self, ed, revision, found):
-        if ed not in self.editors():
+        if ed not in self.views():
             return
         if found is None:               # сервер не ответил — разбор текста
             found = symbols.from_outline(outline(ed.toPlainText(), ed.lang), ed.folding.ranges, ed.path)
@@ -1345,7 +1393,7 @@ class MainWindow(QMainWindow):
 
     def _set_symbols(self, ed, found):
         ed.set_symbols(found)
-        if ed is self.editor():
+        if self.editor() is not None and ed.primary is self.editor().primary:
             self.outline.show_symbols(ed.path, found)
 
     def goto_all(self, text=""):

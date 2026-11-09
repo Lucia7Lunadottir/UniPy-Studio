@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "ブックマーク、%d 行",
   "bookmarks.rename": "名前の変更 (F2)",
   "bookmarks.delete": "ブックマークの削除",
-  "bookmarks.none": "ブックマークがありません — Ctrl+K, Ctrl+K で追加します"
+  "bookmarks.none": "ブックマークがありません — Ctrl+K, Ctrl+K で追加します",
+  "tabs.window_menu": "ウィンドウ",
+  "tabs.split_window": "分割",
+  "tabs.split": "ウィンドウの分割",
+  "tabs.remove_split": "分割の解除",
+  "tabs.pin": "タブのピン留め",
+  "tabs.unpin": "タブのピン留めを外す",
+  "tabs.pin_toggle": "タブのピン留め/解除",
+  "tabs.close_all_but_pinned": "ピン留め以外をすべて閉じる"
 }

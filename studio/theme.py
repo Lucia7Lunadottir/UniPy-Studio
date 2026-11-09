@@ -646,6 +646,15 @@ def tool_icon(name):
         p.setPen(QPen(QColor(C["icon"]), 1.6))
         p.drawEllipse(QRectF(2.5, 2.5, 8, 8))
         p.drawLine(QPointF(9.5, 9.5), QPointF(14, 14))
+    elif name == "pin":                         # булавка закреплённой вкладки, наклонена как в VS
+        p.translate(8, 8)
+        p.rotate(45)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(C["icon"]))
+        p.drawRoundedRect(QRectF(-3, -6.5, 6, 6), 1, 1)          # головка
+        p.drawRect(QRectF(-4.5, -1, 9, 1.8))                     # шляпка
+        p.setPen(QPen(QColor(C["icon"]), 1.3, cap=Qt.PenCapStyle.RoundCap))
+        p.drawLine(QPointF(0, 0.8), QPointF(0, 6.5))             # игла
     elif name == "terminal":                    # окно с подсказкой «>_»
         p.setPen(QPen(QColor(C["icon"]), 1.2))
         p.setBrush(Qt.BrushStyle.NoBrush)

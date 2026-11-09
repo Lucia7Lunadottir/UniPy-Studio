@@ -61,6 +61,9 @@
 | `toolchains/` | ~600 | Наборы инструментов: Python, .NET, Unity — запуск, сборка, шаблоны (см. раздел 8.1) |
 | `new_project.py` | ~200 | «Файл → Создать проект…» (Ctrl+Shift+N) по шаблонам всех наборов |
 | `debug/` | ~900 | Отладка по DAP: `dap.py` (транспорт), `session.py` (сеанс: остановки, шаги, стек, переменные), `breakpoints.py`, `panels.py`, `controller.py` |
+| `line_marks.py` | ~170 | Отметки на строках (общее для точек останова и закладок): `LineMarkStore` (по решению, в QSettings, сдвиг строк), `LineAnchors` (держит отметки открытого файла за строки) |
+| `bookmarks/` | ~250 | Закладки как в VS: `store.py`, `panel.py` (окно «Закладки»), `controller.py` (Ctrl+K, Ctrl+K / N / P / L / W) |
+| `document_tabs.py` | ~230 | Вкладки документов: `DocumentPage` (редактор + второе окно при «Окно → Разделить»), `DocumentTabs` (закрепление, порядок, какое окно активно). Окно работает с вкладками только через `win.documents` |
 | `framing.py` | ~30 | Рамка `Content-Length` — общая для LSP и DAP |
 | `lsp_features.py` | ~140 | Возможности анализатора для редактора (подсказки, справка, параметры, ссылки, переименование, F12): одна возможность — один класс; `LanguageServer.submit` общий, объявления для `initialize` собираются отсюда |
 | `vcs/` | ~750 | Контроль версий: интерфейс `Repository` (`base.py`), Git (`git.py`), полоски строк (`linediff.py`), панель «Изменения Git», сравнение рядом, связь с окном (`controller.py`). Новая система — подкласс `Repository` и строка в `vcs/PROVIDERS` |
@@ -68,12 +71,12 @@
 | `testing/` | ~650 | Обозреватель тестов: интерфейс `TestProvider` и протокол событий (`base.py`), Python — pytest/unittest через `python_helper.py` (запускается интерпретатором проекта), панель и связь с окном. Набор инструментов отдаёт поставщика: `Toolchain.test_provider()` |
 | `dependencies/` | ~450 | Зависимости проекта: интерфейс `DependencyProvider`, Python — pyproject.toml / requirements*.txt, версии в выбранном интерпретаторе, установка: системный Python → pacman (официальный репозиторий), venv → pip. `Toolchain.dependency_provider()` |
 | `indentation.py` | ~260 | Отступы: `IndentStyle`, `.editorconfig`, определение по файлу, правила сохранения (без Qt) |
-| `folding.py` | ~400 | Сворачивание: `fold_ranges` (без Qt) и `Folding` у каждого редактора |
+| `folding.py` | ~450 | Сворачивание: `fold_ranges` (без Qt), `Folding` — состояние документа для всех его окон, `FoldingView` — второе окно |
 | `symbols.py` | ~170 | Символы файла/решения (`Symbol`) из documentSymbol, workspace/symbol и разбора текста (без Qt) |
 | `navbar.py` | ~110 | Панель навигации «тип / член» над кодом (`NavigationBar`) |
 | `goto_all.py` | ~200 | «Перейти ко всему» (Ctrl+T): файлы, типы, члены (`GoToAll`) |
 | `formatting.py` | ~150 | Форматирование (Ctrl+K, Ctrl+D): Roslyn, для Python — ruff/black (`Formatter`) |
-| `editor/` | ~1900 | Редактор: `CodeEditor` (`code_editor.py`) собран из миксинов по ответственности — `document` (файл), `gutter` (поле номеров), `markers` (подсветки), `quick_actions` (лампочка), `diagnostics`, `appearance`, `text_input` (набор), `completion` (подсказки), `navigation` (F12, ссылки), `hover` (мышь); `source.py` — кодировки |
+| `editor/` | ~1900 | Редактор: `CodeEditor` (`code_editor.py`) собран из миксинов по ответственности — `document` (файл), `gutter` (поле номеров), `markers` (подсветки), `quick_actions` (лампочка), `diagnostics`, `appearance`, `text_input` (набор), `completion` (подсказки), `navigation` (F12, ссылки), `hover` (мышь), `visual_aids` (видимые пробелы, направляющие отступов); `source.py` — кодировки; `split_view.py` — второе окно того же файла (`SplitView`: поля «про файл» — ссылки на основной редактор, `editor.primary`) |
 | `highlighter.py` | 420 | Подсветка синтаксиса (своя для C#/Python/XML/JSON/Markdown + через Pygments) |
 | `languages.py` | 111 | **Реестр языков** — что редактор знает про каждый язык |
 | `intellisense.py` | 731 | Подсказки: Jedi для Python, свой разбор для C#, фоновые потоки |
@@ -449,6 +452,10 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 | Новая функция анализатора (CodeLens, inlay hints…) | класс в `lsp_features.py` + строка в `FEATURES`; обработка результата — в редакторе |
 | Изменить перенос типа в файл | `refactor.py` (логика) и `MainWindow.move_type_to_file` (применение к редактору) |
 | Добавить вид подсказок для кнопок-фильтров | `intellisense.KIND_GROUPS` |
+| Новый флажок вида редактора (как «Показать пробелы») | `BoolOption` в `options.py` + строка в `MainWindow.EDITOR_VIEW_OPTIONS`; рисование — миксин в `editor/` |
+| Новый вид отметок на строках (как закладки) | подкласс `LineMark`/`LineMarkStore` в `line_marks.py`, `LineAnchors` для открытых файлов |
+| Поле «про файл» у редактора, общее для разделённых окон | добавить имя в `editor/split_view.SHARED` |
+| Что-то про вкладки (закрепление, разделение, порядок) | `document_tabs.py`; меню вкладки — `MainWindow._tab_menu` |
 | Добавить класс/метод Unity в подсказки | `unity_api.py` — `_SPEC` |
 | Добавить шаблон нового файла | `templates.py` — константа + запись в `TEMPLATES` |
 | Добавить панель | свой модуль в `panels/` (и строка в `panels/__init__.py`) + `MainWindow._build_docks` |

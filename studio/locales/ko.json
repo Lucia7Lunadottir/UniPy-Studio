@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "책갈피, %d줄",
   "bookmarks.rename": "이름 바꾸기(F2)",
   "bookmarks.delete": "책갈피 삭제",
-  "bookmarks.none": "책갈피가 없습니다 — Ctrl+K, Ctrl+K로 추가하세요"
+  "bookmarks.none": "책갈피가 없습니다 — Ctrl+K, Ctrl+K로 추가하세요",
+  "tabs.window_menu": "창",
+  "tabs.split_window": "분할",
+  "tabs.split": "창 분할",
+  "tabs.remove_split": "분할 제거",
+  "tabs.pin": "탭 고정",
+  "tabs.unpin": "탭 고정 해제",
+  "tabs.pin_toggle": "탭 고정/해제",
+  "tabs.close_all_but_pinned": "고정된 탭 외 모두 닫기"
 }

@@ -205,7 +205,7 @@ class PythonFormatting(unittest.TestCase):
         messages = []
         window = SimpleNamespace(service_for=lambda lang: None, options={"formatting/python_tool": "auto"},
                                  status=lambda text, *a: messages.append(text), busy=lambda *a: None,
-                                 editors=lambda: [ed])
+                                 editors=lambda: [ed], views=lambda: [ed])
         fmt = Formatter.__new__(Formatter)
         from PyQt6.QtCore import QObject
         QObject.__init__(fmt)

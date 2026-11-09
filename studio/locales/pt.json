@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "Indicador, linha %d",
   "bookmarks.rename": "Renomear (F2)",
   "bookmarks.delete": "Excluir indicador",
-  "bookmarks.none": "Nenhum indicador — adicione com Ctrl+K, Ctrl+K"
+  "bookmarks.none": "Nenhum indicador — adicione com Ctrl+K, Ctrl+K",
+  "tabs.window_menu": "Janela",
+  "tabs.split_window": "Dividir",
+  "tabs.split": "Dividir janela",
+  "tabs.remove_split": "Remover divisão",
+  "tabs.pin": "Fixar guia",
+  "tabs.unpin": "Desafixar guia",
+  "tabs.pin_toggle": "Fixar ou desafixar guia",
+  "tabs.close_all_but_pinned": "Fechar tudo, exceto fixados"
 }

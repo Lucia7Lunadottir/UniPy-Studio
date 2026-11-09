@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "書籤，第 %d 行",
   "bookmarks.rename": "重新命名 (F2)",
   "bookmarks.delete": "刪除書籤",
-  "bookmarks.none": "沒有書籤 — 按 Ctrl+K, Ctrl+K 新增"
+  "bookmarks.none": "沒有書籤 — 按 Ctrl+K, Ctrl+K 新增",
+  "tabs.window_menu": "視窗",
+  "tabs.split_window": "分割",
+  "tabs.split": "分割視窗",
+  "tabs.remove_split": "移除分割",
+  "tabs.pin": "釘選索引標籤",
+  "tabs.unpin": "取消釘選索引標籤",
+  "tabs.pin_toggle": "釘選/取消釘選索引標籤",
+  "tabs.close_all_but_pinned": "關閉釘選以外的全部項目"
 }

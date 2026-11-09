@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "Закладка, рядок %d",
   "bookmarks.rename": "Перейменувати (F2)",
   "bookmarks.delete": "Видалити закладку",
-  "bookmarks.none": "Закладок немає — поставте: Ctrl+K, Ctrl+K"
+  "bookmarks.none": "Закладок немає — поставте: Ctrl+K, Ctrl+K",
+  "tabs.window_menu": "Вікно",
+  "tabs.split_window": "Розділити",
+  "tabs.split": "Розділити вікно",
+  "tabs.remove_split": "Прибрати розділення",
+  "tabs.pin": "Закріпити вкладку",
+  "tabs.unpin": "Відкріпити вкладку",
+  "tabs.pin_toggle": "Закріпити або відкріпити вкладку",
+  "tabs.close_all_but_pinned": "Закрити всі, крім закріплених"
 }

@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "Lesezeichen, Zeile %d",
   "bookmarks.rename": "Umbenennen (F2)",
   "bookmarks.delete": "Lesezeichen löschen",
-  "bookmarks.none": "Keine Lesezeichen — mit Strg+K, Strg+K setzen"
+  "bookmarks.none": "Keine Lesezeichen — mit Strg+K, Strg+K setzen",
+  "tabs.window_menu": "Fenster",
+  "tabs.split_window": "Teilen",
+  "tabs.split": "Fenster teilen",
+  "tabs.remove_split": "Teilung aufheben",
+  "tabs.pin": "Registerkarte anheften",
+  "tabs.unpin": "Registerkarte lösen",
+  "tabs.pin_toggle": "Registerkarte anheften/lösen",
+  "tabs.close_all_but_pinned": "Alle außer angehefteten schließen"
 }

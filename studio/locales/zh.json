@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "书签，第 %d 行",
   "bookmarks.rename": "重命名 (F2)",
   "bookmarks.delete": "删除书签",
-  "bookmarks.none": "没有书签 — 按 Ctrl+K, Ctrl+K 添加"
+  "bookmarks.none": "没有书签 — 按 Ctrl+K, Ctrl+K 添加",
+  "tabs.window_menu": "窗口",
+  "tabs.split_window": "拆分",
+  "tabs.split": "拆分窗口",
+  "tabs.remove_split": "取消拆分",
+  "tabs.pin": "固定选项卡",
+  "tabs.unpin": "取消固定选项卡",
+  "tabs.pin_toggle": "固定/取消固定选项卡",
+  "tabs.close_all_but_pinned": "关闭除固定项外的所有项"
 }

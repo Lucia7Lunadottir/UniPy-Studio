@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "Signet, ligne %d",
   "bookmarks.rename": "Renommer (F2)",
   "bookmarks.delete": "Supprimer le signet",
-  "bookmarks.none": "Aucun signet — ajoutez-en un avec Ctrl+K, Ctrl+K"
+  "bookmarks.none": "Aucun signet — ajoutez-en un avec Ctrl+K, Ctrl+K",
+  "tabs.window_menu": "Fenêtre",
+  "tabs.split_window": "Fractionner",
+  "tabs.split": "Fractionner la fenêtre",
+  "tabs.remove_split": "Supprimer le fractionnement",
+  "tabs.pin": "Épingler l'onglet",
+  "tabs.unpin": "Désépingler l'onglet",
+  "tabs.pin_toggle": "Épingler ou désépingler l'onglet",
+  "tabs.close_all_but_pinned": "Fermer tout sauf les éléments épinglés"
 }

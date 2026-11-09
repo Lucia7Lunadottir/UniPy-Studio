@@ -254,8 +254,10 @@ def _block_comments(text):
 
 # ---------------------------------------------------------------- в редакторе
 class Folding(QObject):
-    """Свёрнутые блоки одного CodeEditor. Свёрнутость запоминается курсором на строке заголовка —
-    он сам сдвигается при правках выше, поэтому блок остаётся свёрнутым."""
+    """Свёрнутые блоки документа CodeEditor. Свёрнутость запоминается курсором на строке заголовка —
+    он сам сдвигается при правках выше, поэтому блок остаётся свёрнутым.
+    Строки прячутся в самом документе, поэтому состояние одно на все виды файла (разделённое окно):
+    второй вид получает FoldingView — рисует и отвечает на щелчки в своём окне, состояние берёт отсюда."""
     COLUMN = 14                     # ширина колонки +/− на поле номеров строк
     DELAY_MS = 250
 
@@ -267,9 +269,21 @@ class Folding(QObject):
         self._by_start = {}
         self._collapsed = []        # QTextCursor на началах строк-заголовков
         self._hidden = set()        # номера строк, которые сейчас спрятаны
+        self.views = [editor]       # все окна, показывающие документ: основное и второе при разделении
         self._timer = QTimer(self, singleShot=True, interval=self.DELAY_MS, timeout=self.recompute)
         editor.document().contentsChange.connect(lambda *_: self._timer.start())
-        editor.cursorPositionChanged.connect(self._cursor_moved)
+        editor.cursorPositionChanged.connect(lambda: self._cursor_moved(editor))
+
+    def add_view(self, view):
+        self.views.append(view)
+        view.cursorPositionChanged.connect(lambda: self._cursor_moved(view))
+        view.destroyed.connect(lambda *_: self.views.remove(view) if view in self.views else None)
+        return FoldingView(self, view)
+
+    def _update_views(self):
+        for v in self.views:
+            v.viewport().update()
+            v.gutter.update()
 
     # --- блоки
     def set_enabled(self, on):
@@ -279,7 +293,7 @@ class Folding(QObject):
             self.ranges, self._by_start = [], {}
         else:
             self.recompute()
-        self.editor.gutter.update()
+        self._update_views()
 
     def recompute(self):
         if not self.enabled:
@@ -328,38 +342,38 @@ class Folding(QObject):
         if apply:
             self._apply()
 
-    def toggle(self, line):
+    def toggle(self, line, view=None):
         r = self.innermost(line)
         if r is None:
             return False
         self.set_collapsed(r.start, not self.is_collapsed(r.start))
         if self.is_collapsed(r.start):
-            self._move_cursor_out(r)
+            self._move_cursor_out(r, view)
         return True
 
-    def collapse_all(self, kinds=None):
+    def collapse_all(self, kinds=None, view=None):
         for r in self.ranges:
             if kinds is None or r.kind in kinds:
                 self.set_collapsed(r.start, True, apply=False)
         self._apply()
         for r in self.ranges:
             if self.is_collapsed(r.start):
-                self._move_cursor_out(r)
+                self._move_cursor_out(r, view)
 
     def expand_all(self):
         self._collapsed = []
         self._apply()
 
-    def toggle_all(self):
+    def toggle_all(self, view=None):
         """Ctrl+M, Ctrl+L: если что-то свёрнуто — развернуть всё, иначе свернуть всё."""
         if self._collapsed:
             self.expand_all()
         else:
-            self.collapse_all()
+            self.collapse_all(view=view)
 
-    def collapse_to_definitions(self):
+    def collapse_to_definitions(self, view=None):
         """Ctrl+M, Ctrl+O: свернуть тела методов, #region и комментарии к ним (как VS)."""
-        self.collapse_all({MEMBER, REGION, COMMENT, IMPORTS})
+        self.collapse_all({MEMBER, REGION, COMMENT, IMPORTS}, view)
 
     def ensure_visible(self, line):
         """Развернуть всё, что прячет строку (поиск, переход к ошибке, F12)."""
@@ -373,21 +387,22 @@ class Folding(QObject):
             self._apply()
         return changed
 
-    def _move_cursor_out(self, r):
-        """Курсор был внутри свёрнутого блока — на конец строки-заголовка. Прокрутка остаётся как была."""
-        ed = self.editor
-        c = ed.textCursor()
-        if r.contains(c.blockNumber()):
-            bar = ed.verticalScrollBar()
-            scroll = bar.value()
-            c.setPosition(ed.document().findBlockByNumber(r.start).position())
-            c.movePosition(QTextCursor.MoveOperation.EndOfBlock)
-            ed.setTextCursor(c)
-            bar.setValue(scroll)
+    def _move_cursor_out(self, r, view=None):
+        """Курсор был внутри свёрнутого блока — на конец строки-заголовка. Прокрутка остаётся как была.
+        Курсоры у видов свои: проверяются все, view — тот, где свернули (по умолчанию основной)."""
+        for ed in self.views:
+            c = ed.textCursor()
+            if r.contains(c.blockNumber()):
+                bar = ed.verticalScrollBar()
+                scroll = bar.value()
+                c.setPosition(ed.document().findBlockByNumber(r.start).position())
+                c.movePosition(QTextCursor.MoveOperation.EndOfBlock)
+                ed.setTextCursor(c)
+                bar.setValue(scroll)
 
-    def _cursor_moved(self):
+    def _cursor_moved(self, view):
         if self._hidden:
-            line = self.editor.textCursor().blockNumber()
+            line = view.textCursor().blockNumber()
             if line in self._hidden:
                 self.ensure_visible(line)
 
@@ -402,8 +417,8 @@ class Folding(QObject):
         changed = hidden ^ self._hidden
         if not changed:
             return
-        ed = self.editor
-        anchor = ed.firstVisibleBlock()     # вид не должен прыгать: та же строка остаётся первой на экране
+        # виды не должны прыгать: у каждого та же строка остаётся первой на экране
+        anchors = [(ed, ed.firstVisibleBlock()) for ed in self.views]
         for n in changed:
             block = doc.findBlockByNumber(n)
             if block.isValid():
@@ -414,12 +429,12 @@ class Folding(QObject):
         if not last.isValid():
             last = doc.lastBlock()
         doc.markContentsDirty(first.position(), last.position() + last.length() - first.position())
-        while anchor.isValid() and not anchor.isVisible():     # первая строка ушла в свёрнутый блок —
-            anchor = anchor.previous()                          # держимся за его заголовок
-        if anchor.isValid():
-            ed.verticalScrollBar().setValue(anchor.firstLineNumber())
-        ed.viewport().update()
-        ed.gutter.update()
+        for ed, anchor in anchors:
+            while anchor.isValid() and not anchor.isVisible():     # первая строка ушла в свёрнутый блок —
+                anchor = anchor.previous()                          # держимся за его заголовок
+            if anchor.isValid():
+                ed.verticalScrollBar().setValue(anchor.firstLineNumber())
+        self._update_views()
 
     # --- рисование
     def paint_marker(self, painter, line, x, top, height, color):
@@ -438,11 +453,11 @@ class Folding(QObject):
             painter.drawLine(int(mid.x()), int(rect.top() + 2), int(mid.x()), int(rect.bottom() - 1))
         painter.restore()
 
-    def collapsed_box(self, block):
-        """Прямоугольник «…» после текста свёрнутой строки (в координатах viewport) или None."""
+    def collapsed_box(self, block, view=None):
+        """Прямоугольник «…» после текста свёрнутой строки (в координатах viewport вида) или None."""
         if not self.is_collapsed(block.blockNumber()) or not block.isVisible():
             return None
-        ed = self.editor
+        ed = view or self.editor
         geo = ed.blockBoundingGeometry(block).translated(ed.contentOffset())
         layout = block.layout()
         if layout is None or layout.lineCount() == 0:
@@ -453,8 +468,8 @@ class Folding(QObject):
         y = geo.top() + line.y()
         return QRectF(x, y + 1, fm.horizontalAdvance("…") + 10, line.height() - 2)
 
-    def paint_boxes(self, painter, colors):
-        ed = self.editor
+    def paint_boxes(self, painter, colors, view=None):
+        ed = view or self.editor
         block = ed.firstVisibleBlock()
         bottom = ed.viewport().rect().bottom()
         painter.save()
@@ -462,7 +477,7 @@ class Folding(QObject):
             geo = ed.blockBoundingGeometry(block).translated(ed.contentOffset())
             if geo.top() > bottom:
                 break
-            box = self.collapsed_box(block)
+            box = self.collapsed_box(block, ed)
             if box is not None:
                 painter.setPen(QPen(QColor(colors["border"]), 1))
                 painter.setBrush(QColor(colors["back"]))
@@ -472,10 +487,11 @@ class Folding(QObject):
             block = block.next()
         painter.restore()
 
-    def box_at(self, pos):
-        """Строка, по чьему «…» щёлкнули (pos — QPointF в координатах viewport), или None."""
-        block = self.editor.cursorForPosition(pos.toPoint()).block()
-        box = self.collapsed_box(block)
+    def box_at(self, pos, view=None):
+        """Строка, по чьему «…» щёлкнули (pos — QPointF в координатах viewport вида), или None."""
+        ed = view or self.editor
+        block = ed.cursorForPosition(pos.toPoint()).block()
+        box = self.collapsed_box(block, ed)
         return block.blockNumber() if box is not None and box.contains(pos) else None
 
     def hidden_text(self, line):
@@ -487,3 +503,37 @@ class Folding(QObject):
         if len(lines) > 30:
             lines = lines[:30] + ["…"]
         return "\n".join(lines)
+
+
+class FoldingView:
+    """Сворачивание во втором окне того же файла: состояние и команды — общего Folding, а то, что зависит
+    от окна (рисование «…», щелчки, курсор при сворачивании), — для этого окна."""
+    COLUMN = Folding.COLUMN
+
+    def __init__(self, model, view):
+        self.model = model
+        self.view = view
+
+    def __getattr__(self, name):            # ranges, enabled, is_collapsed, set_collapsed, expand_all…
+        return getattr(self.model, name)
+
+    def toggle(self, line):
+        return self.model.toggle(line, self.view)
+
+    def collapse_all(self, kinds=None):
+        self.model.collapse_all(kinds, self.view)
+
+    def toggle_all(self):
+        self.model.toggle_all(self.view)
+
+    def collapse_to_definitions(self):
+        self.model.collapse_to_definitions(self.view)
+
+    def collapsed_box(self, block):
+        return self.model.collapsed_box(block, self.view)
+
+    def paint_boxes(self, painter, colors):
+        self.model.paint_boxes(painter, colors, self.view)
+
+    def box_at(self, pos):
+        return self.model.box_at(pos, self.view)

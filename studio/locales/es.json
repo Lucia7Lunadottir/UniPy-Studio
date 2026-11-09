@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "Marcador, línea %d",
   "bookmarks.rename": "Cambiar nombre (F2)",
   "bookmarks.delete": "Eliminar marcador",
-  "bookmarks.none": "No hay marcadores: añada uno con Ctrl+K, Ctrl+K"
+  "bookmarks.none": "No hay marcadores: añada uno con Ctrl+K, Ctrl+K",
+  "tabs.window_menu": "Ventana",
+  "tabs.split_window": "Dividir",
+  "tabs.split": "Dividir ventana",
+  "tabs.remove_split": "Quitar división",
+  "tabs.pin": "Anclar pestaña",
+  "tabs.unpin": "Desanclar pestaña",
+  "tabs.pin_toggle": "Anclar o desanclar pestaña",
+  "tabs.close_all_but_pinned": "Cerrar todo excepto lo anclado"
 }

@@ -20,6 +20,7 @@ class MarkersMixin:
         if ranges != self.faded:
             self.faded = ranges
             self.update_selections()
+            self.refresh_views()
 
     def _faded_selections(self):
         doc = self.document()
@@ -52,6 +53,7 @@ class MarkersMixin:
         if markers != self.vcs_markers:
             self.vcs_markers = markers
             self.gutter.update()
+            self.refresh_views()
 
     def set_execution_line(self, line, top=True):
         """Строка, где стоит отладчик (None — убрать стрелку и подсветку)."""
@@ -60,6 +62,7 @@ class MarkersMixin:
             self.folding.ensure_visible(line - 1)
         self.update_selections()
         self.gutter.update()
+        self.refresh_views()
 
     def set_navigation_bar(self, on):
         """Панель «тип / член» над кодом — для языков, где есть символы."""
@@ -70,6 +73,7 @@ class MarkersMixin:
         self.symbols = items or []
         if not self.navbar.isHidden():
             self.navbar.set_symbols(self.symbols)
+        self.refresh_views()
 
     def _on_cursor(self):
         c = self.textCursor()

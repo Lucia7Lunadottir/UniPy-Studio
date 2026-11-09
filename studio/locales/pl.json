@@ -1283,5 +1283,13 @@
   "bookmarks.default_name": "Zakładka, wiersz %d",
   "bookmarks.rename": "Zmień nazwę (F2)",
   "bookmarks.delete": "Usuń zakładkę",
-  "bookmarks.none": "Brak zakładek — dodaj: Ctrl+K, Ctrl+K"
+  "bookmarks.none": "Brak zakładek — dodaj: Ctrl+K, Ctrl+K",
+  "tabs.window_menu": "Okno",
+  "tabs.split_window": "Podziel",
+  "tabs.split": "Podziel okno",
+  "tabs.remove_split": "Usuń podział",
+  "tabs.pin": "Przypnij kartę",
+  "tabs.unpin": "Odepnij kartę",
+  "tabs.pin_toggle": "Przypnij lub odepnij kartę",
+  "tabs.close_all_but_pinned": "Zamknij wszystkie oprócz przypiętych"
 }
