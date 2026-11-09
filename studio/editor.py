@@ -262,6 +262,7 @@ class CodeEditor(QPlainTextEdit):
         self.execution_line = None     # строка (с 1), где стоит отладчик; None — не стоит
         self.execution_is_top = True   # верхний кадр стека (жёлтая стрелка) или выбранный выше (зелёная)
         self.debug_hover = None        # функция(выражение, ответ(текст)) — значение при наведении во время отладки
+        self.vcs_markers = {}          # {строка с 1: added/modified/deleted} относительно последнего коммита (vcs)
         self._link = None              # слово под мышью при зажатом Ctrl — подчёркнуто, как ссылка в VS
         self.find_text = ""
         self._completion_items = {}
@@ -444,6 +445,12 @@ class CodeEditor(QPlainTextEdit):
         self.breakpoints.toggle(self.path, line or self.textCursor().blockNumber() + 1)
         self.gutter.update()
 
+    def set_vcs_markers(self, markers):
+        """Полоски изменений на поле (vcs.linediff): зелёная — добавлено, синяя — изменено, красный треугольник — удалено."""
+        if markers != self.vcs_markers:
+            self.vcs_markers = markers
+            self.gutter.update()
+
     def set_execution_line(self, line, top=True):
         """Строка, где стоит отладчик (None — убрать стрелку и подсветку)."""
         self.execution_line, self.execution_is_top = line, top
@@ -497,6 +504,9 @@ class CodeEditor(QPlainTextEdit):
                     p.setPen(Qt.PenStyle.NoPen)
                     p.setBrush(QColor(C["error"] if err_lines[num] == "error" else C["warning"]))
                     p.drawEllipse(QRectF(BREAKPOINT_COLUMN + 2, top + h / 2 - 3, 6, 6))
+                change = self.vcs_markers.get(num + 1)
+                if change:
+                    self._draw_change(p, change, w - 3, top, h)
                 if num + 1 in breakpoints:
                     self._draw_breakpoint(p, breakpoints[num + 1], top + h / 2)
                 if num + 1 == self.execution_line:
@@ -506,6 +516,20 @@ class CodeEditor(QPlainTextEdit):
             bottom = top + round(self.blockBoundingRect(block).height())
             num += 1
         p.end()
+
+    @staticmethod
+    def _draw_change(p, kind, x, top, h):
+        """Полоска справа от номеров строк — как в Visual Studio и VS Code."""
+        if kind == "deleted":
+            p.save()
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor("#E4676B"))
+            y = top + h
+            p.drawPolygon(QPolygonF([QPointF(x - 2, y - 4), QPointF(x + 3, y), QPointF(x - 2, y + 4)]))
+            p.restore()
+            return
+        p.fillRect(QRectF(x, top, 3, h), QColor("#57AB5A" if kind == "added" else "#4C9BE8"))
 
     @staticmethod
     def _draw_breakpoint(p, bp, cy):

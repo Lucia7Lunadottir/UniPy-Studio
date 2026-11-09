@@ -21,6 +21,7 @@ from .commands import CommandRegistry, KeyboardPage
 from .debug.controller import DebugController
 from .debug.session import STOPPED as DEBUG_STOPPED
 from .document_safety import DocumentSafety
+from .vcs.controller import VcsController
 from .formatting import Formatter
 from .navigation import NavigationHistory
 from .options import Options, OptionsDialog
@@ -191,6 +192,7 @@ class MainWindow(QMainWindow):
         self.project = ProjectActions(self)         # новые файлы, Unity, PyQt-дизайнер
         self.analyzers = AnalyzerControl(self)      # состояние, перезапуск и обновление анализаторов
         self.debugger = DebugController(self)       # F5/F9/F10/F11: отладка по DAP (debugpy…)
+        self.vcs = VcsController(self)              # Git: статус, полоски изменений, коммит, ветки
         self.formatter = Formatter(self)            # Ctrl+K, Ctrl+D: Roslyn, для Python — ruff/black
         self.setWindowIcon(theme.app_icon())
         self.resize(1440, 900)
@@ -389,6 +391,9 @@ class MainWindow(QMainWindow):
         self.designer.preview_ui.connect(self.project.preview_ui)
         self.d_designer = self._dock("mainwindow.pyqt_designer", self.designer, Qt.DockWidgetArea.RightDockWidgetArea, "designer")
         self.tabifyDockWidget(self.d_unity, self.d_designer)
+        self.d_git = self._dock("vcs.changes_panel", self.vcs.panel, Qt.DockWidgetArea.RightDockWidgetArea, "git")
+        self.tabifyDockWidget(self.d_designer, self.d_git)
+        self.d_unity.raise_()
 
         self.output = OutputPanel(self.font)
         self.output.link.connect(self._open_link)
@@ -530,6 +535,13 @@ class MainWindow(QMainWindow):
         self.a_keys = A("Help.KeyboardShortcuts", "mainwindow.keyboard_shortcuts", self.show_keys, "F1")
         self.a_about = A("Help.About", "mainwindow.about", self.show_about)
         self.a_updates = A("Help.AnalyzerUpdates", "mainwindow.analyzer_updates", self.analyzers.show_updates)
+        V = self.vcs
+        self.a_git_changes = A("View.GitChanges", "vcs.changes_panel", lambda: self.show_dock(self.d_git), "Ctrl+0, Ctrl+G")
+        self.a_git_diff = A("Git.CompareWithUnmodified", "vcs.compare_current", lambda: V.show_diff())
+        self.a_git_fetch = A("Git.Fetch", "vcs.fetch", lambda: V.remote("fetch"))
+        self.a_git_pull = A("Git.Pull", "vcs.pull", lambda: V.remote("pull"))
+        self.a_git_push = A("Git.Push", "vcs.push", lambda: V.remote("push"))
+        self.a_git_branches = A("Git.SwitchBranch", "vcs.switch_branch", V.branch_menu)
         self.a_restart = A("Tools.RestartAnalyzers", "mainwindow.restart_code_analyzers", self.analyzers.restart_all)
         self.a_terminal = A("View.Terminal", "mainwindow.terminal", lambda: self.show_dock(self.d_terminal))
         self.a_designer = A("View.PyQtDesigner", "mainwindow.pyqt_designer", lambda: self.show_dock(self.d_designer))
@@ -555,6 +567,10 @@ class MainWindow(QMainWindow):
         if first:
             half = max(300, self.width() // 2)
             self.resizeDocks([self.d_errors, self.d_locals], [half, half], Qt.Orientation.Horizontal)
+
+    def set_branch_label(self, system, branch):
+        self.branch_label.setText(("⎇ " + branch) if branch else "")
+        self.branch_label.setToolTip(tr("vcs.branch_tip") % system if branch else "")
 
     def _stop_all(self):
         """Shift+F5: остановить отладку и запущенную программу."""
@@ -609,7 +625,7 @@ class MainWindow(QMainWindow):
         m = bind_text(mb.addMenu(""), "mainwindow.view", "setTitle")
         for d in (self.d_explorer, self.d_outline, self.d_unity, self.d_designer, self.d_output,
                   self.d_errors, self.d_references, self.d_terminal, self.d_unity_console,
-                  self.d_call_stack, self.d_locals, self.d_breakpoints):
+                  self.d_call_stack, self.d_locals, self.d_breakpoints, self.d_git):
             m.addAction(d.toggleViewAction())
         m.addSeparator()
         m.addAction(self.a_back)
@@ -637,6 +653,10 @@ class MainWindow(QMainWindow):
         for a in (self.a_run, self.a_run2, self.a_stop, self.a_restart, None, self.a_pause, self.a_step_over,
                   self.a_step_into, self.a_step_out, None, self.a_breakpoint, self.a_clear_breakpoints):
             m.addAction(a)
+        m = bind_text(mb.addMenu(""), "vcs.menu", "setTitle")
+        for a in (self.a_git_changes, self.a_git_diff, None, self.a_git_fetch, self.a_git_pull, self.a_git_push,
+                  None, self.a_git_branches):
+            m.addSeparator() if a is None else m.addAction(a)
         m = bind_text(mb.addMenu(""), "mainwindow.tools", "setTitle")
         m.addAction(self.a_settings)
         for a in (self.a_terminal, self.a_designer, self.a_unity_root, None, self.a_restart):
@@ -677,6 +697,7 @@ class MainWindow(QMainWindow):
         self.unity.retranslate()
         self.unity_console.retranslate()
         self.designer.retranslate()
+        self.vcs.panel.retranslate()
         if self.startup.count():
             self.startup.setItemText(0, tr("mainwindow.current_file"))
         self.analyzers.refresh_label()
@@ -762,10 +783,13 @@ class MainWindow(QMainWindow):
         self.indent_label.mousePressEvent = lambda e: self.show_settings(("options.text_editor", "options.indentation"))
         self.enc_label = QLabel("UTF-8")
         self.lang_label = QLabel("")
+        self.branch_label = QLabel("")
+        self.branch_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.branch_label.mousePressEvent = lambda e: self.vcs.branch_menu()
         self.busy_bar = BusyBar()
         self._busy_timeout = QTimer(self, singleShot=True, interval=30000,
                                     timeout=lambda: self.busy("", tr("mainwindow.server_failed_respond_definition_not")))
-        for w in (self.busy_bar, self.err_label, self.jedi_label, self.pos_label, self.indent_label,
+        for w in (self.busy_bar, self.branch_label, self.err_label, self.jedi_label, self.pos_label, self.indent_label,
                   self.enc_label, self.lang_label):
             sb.addPermanentWidget(w)
 
@@ -906,6 +930,7 @@ class MainWindow(QMainWindow):
         unity = find_unity_projects(root)
         self.unity_console.set_project(unity[0] if unity else None)
         self.debugger.load_solution(root)
+        self.vcs.set_root(root)
         if unity:
             self.output.write(tr("mainwindow.found_unity_project") % ", ".join(os.path.relpath(u, root) or "." for u in unity),
                               "Unity", C["dim"])
@@ -1024,6 +1049,7 @@ class MainWindow(QMainWindow):
         ed.document().modificationChanged.connect(lambda _m, e=ed: self._modified(e))
         self.safety.track(ed)
         self.debugger.attach_editor(ed)
+        self.vcs.attach_editor(ed)
         i = self.tabs.addTab(ed, theme.file_icon(path), os.path.basename(path))
         self.tabs.setTabToolTip(i, path)
         self.tabs.setCurrentIndex(i)

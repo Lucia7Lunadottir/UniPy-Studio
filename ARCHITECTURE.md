@@ -62,6 +62,7 @@
 | `new_project.py` | ~200 | «Файл → Создать проект…» (Ctrl+Shift+N) по шаблонам всех наборов |
 | `debug/` | ~900 | Отладка по DAP: `dap.py` (транспорт), `session.py` (сеанс: остановки, шаги, стек, переменные), `breakpoints.py`, `panels.py`, `controller.py` |
 | `framing.py` | ~30 | Рамка `Content-Length` — общая для LSP и DAP |
+| `vcs/` | ~750 | Контроль версий: интерфейс `Repository` (`base.py`), Git (`git.py`), полоски строк (`linediff.py`), панель «Изменения Git», сравнение рядом, связь с окном (`controller.py`). Новая система — подкласс `Repository` и строка в `vcs/PROVIDERS` |
 | `indentation.py` | ~260 | Отступы: `IndentStyle`, `.editorconfig`, определение по файлу, правила сохранения (без Qt) |
 | `folding.py` | ~400 | Сворачивание: `fold_ranges` (без Qt) и `Folding` у каждого редактора |
 | `symbols.py` | ~170 | Символы файла/решения (`Symbol`) из documentSymbol, workspace/symbol и разбора текста (без Qt) |
@@ -137,6 +138,7 @@
 | `analyzers` | `analyzer_control.AnalyzerControl` | Надпись состояния, перезапуск, обновления |
 | `safety` | `document_safety.DocumentSafety` | Изменения файлов на диске, автовосстановление |
 | `debugger` | `debug.controller.DebugController` | F5 (отладка), F9, F10, F11, Shift+F11, Ctrl+Shift+F5 |
+| `vcs` | `vcs.controller.VcsController` | Git: статус, полоски, коммит, ветки, Ctrl+0 Ctrl+G |
 
 Редактор и панели по-прежнему зовут окно (`jump_to`, `navigate`, `move_type_to_file`, `apply_code_action`,
 `run_file`) — это тонкие передачи в нужный класс, чтобы им не знать, кто внутри отвечает.

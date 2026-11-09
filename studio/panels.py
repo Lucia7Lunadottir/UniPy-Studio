@@ -182,6 +182,7 @@ class SolutionExplorer(QWidget):
         self._fill(top, self.root, 0, expanded, first)
         top.setExpanded(True)
         self._apply_filter(self.filter.text())
+        self._decorate()
         self.changed.emit()
 
     def _solution_title(self):
@@ -260,6 +261,39 @@ class SolutionExplorer(QWidget):
             it.setData(0, ROLE_LINE, "file")
             parent.addChild(it)
             self.files.append(p)
+
+    def set_vcs_status(self, states):
+        """{путь: состояние} от контроля версий (vcs) — цвет имени файла и папок, где что-то изменилось."""
+        self._vcs = dict(states)
+        self._decorate()
+
+    def _decorate(self):
+        from .vcs.panel import BADGES, STATE_NAMES
+        states = getattr(self, "_vcs", {})
+        folders = {}
+        for path, state in states.items():          # папка «изменена», если внутри что-то изменено
+            parent = os.path.dirname(path)
+            while self.root and parent.startswith(self.root) and parent not in folders:
+                folders[parent] = state
+                parent = os.path.dirname(parent)
+        untracked_dirs = [p + os.sep for p, s in states.items() if s == "untracked" and os.path.isdir(p)]
+        default = self.tree.palette().text().color()
+
+        def walk(item):
+            path = item.data(0, ROLE_PATH)
+            state = states.get(path) or folders.get(path)
+            if state is None and path and any(path.startswith(d) for d in untracked_dirs):
+                state = "untracked"
+            if state is not None and item.parent() is not None:
+                item.setForeground(0, QColor(BADGES.get(state, ("", "#999999"))[1]))
+                item.setToolTip(0, "%s — %s" % (path, tr(STATE_NAMES[state]) if state in STATE_NAMES else state))
+            elif item.parent() is not None:
+                item.setForeground(0, default)
+                item.setToolTip(0, path or "")
+            for i in range(item.childCount()):
+                walk(item.child(i))
+        for i in range(self.tree.topLevelItemCount()):
+            walk(self.tree.topLevelItem(i))
 
     def _expanded_paths(self):
         out = set()
