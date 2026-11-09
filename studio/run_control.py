@@ -31,34 +31,27 @@ class RunController(QObject):
 
     # --- что запускать
     def run_selected(self):
-        """F5: выбранное в списке «Запуск» или, при «Текущий файл», то, что узнал первый набор."""
-        win = self.win
-        ctx = win.project_context()
-        choice = win.startup.currentData()
-        if choice:                          # «набор::цель» — см. MainWindow._fill_run_targets
-            tc_id, _, target_id = choice.partition("::")
-            tc = toolchains.by_id(tc_id)
-            target = next((t for t in tc.run_targets(ctx) if t.id == target_id), None) if tc else None
-            if target is not None:
-                tc.launch(ctx, target, self)
-                return
-        ed = win.editor()
-        if ed is None or not self.run_path(ed.path, ctx):
-            win.status(tr("mainwindow.open_file_python_select_boot"))
+        """Ctrl+F5: выбранное в списке «Запуск» или, при «Текущий файл», то, что узнал первый набор."""
+        ed = self.win.editor()
+        if not self._launch(self.win.startup.currentData(), ed.path if ed else None):
+            self.win.status(tr("mainwindow.open_file_python_select_boot"))
 
-    def run_path(self, path, ctx=None):
-        """Запустить то, что относится к файлу (обозреватель → «Запустить», «Текущий файл»). False — нечего."""
-        ctx = ctx or self.win.project_context()
-        for tc in toolchains.TOOLCHAINS:
-            target = tc.target_for_file(ctx, path)
-            if target is not None:
-                ok, hint = tc.available()
-                if not ok:
-                    self.win.status(tr("run.tool_missing") % (tc.name, hint), 15000)
-                    return True
-                tc.launch(ctx, target, self)
-                return True
-        return False
+    def run_path(self, path):
+        """Запустить то, что относится к файлу (обозреватель → «Запустить»). False — нечего."""
+        return self._launch(None, path)
+
+    def _launch(self, choice, path):
+        ctx = self.win.project_context()
+        found = toolchains.resolve_target(ctx, choice, path)
+        if found is None:
+            return False
+        tc, target = found
+        ok, hint = tc.available()
+        if not ok:
+            self.win.status(tr("run.tool_missing") % (tc.name, hint), 15000)
+            return True
+        tc.launch(ctx, target, self)
+        return True
 
     # --- процесс
     def start(self, command):
@@ -92,7 +85,7 @@ class RunController(QObject):
         self.proc.finished.connect(self._finished)
         self.proc.errorOccurred.connect(self._failed)
         self.proc.start(command.program, command.args)
-        win.a_stop.setEnabled(True)
+        win.update_run_actions()
         win.status_label.setText(tr("mainwindow.running_ellipsis"))
 
     def _failed(self, _err):
@@ -108,7 +101,7 @@ class RunController(QObject):
 
     def _finished(self, code, _status):
         win = self.win
-        win.a_stop.setEnabled(False)
+        win.update_run_actions()
         win.output.write(tr("mainwindow.process_exited_with_code") % code, "common.run",
                          C["dim"] if code == 0 else C["warning"])
         win.status(tr("common.ready") if code == 0 else tr("mainwindow.program_ended_with_error_code") % code, 0)

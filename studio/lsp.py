@@ -18,6 +18,7 @@ from urllib.parse import quote, unquote, urlparse
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
 
 from . import unity_api
+from .framing import frame, split_frames
 from .intellisense import Item, CompletionList, TYPE_KINDS, completion_tier, file_imports
 from .theme import C
 from .i18n import tr
@@ -123,27 +124,12 @@ class JsonRpcConnection(QObject):
     def _send(self, msg):
         if not self.running():
             return
-        body = json.dumps(msg, ensure_ascii=False).encode("utf-8")
-        self.proc.write(b"Content-Length: %d\r\n\r\n" % len(body) + body)
+        self.proc.write(frame(msg))
 
     def _read(self):
         self._buf += bytes(self.proc.readAllStandardOutput())
-        while True:
-            head_end = self._buf.find(b"\r\n\r\n")
-            if head_end < 0:
-                return
-            m = re.search(rb"Content-Length:\s*(\d+)", self._buf[:head_end], re.I)
-            if not m:                       # мусор в выводе — пропускаем до следующего заголовка
-                self._buf = self._buf[head_end + 4:]
-                continue
-            start, length = head_end + 4, int(m.group(1))
-            if len(self._buf) < start + length:
-                return
-            body, self._buf = self._buf[start:start + length], self._buf[start + length:]
-            try:
-                msg = json.loads(body.decode("utf-8"))
-            except ValueError:
-                continue
+        messages, self._buf = split_frames(self._buf)
+        for msg in messages:
             self._dispatch(msg)
 
     def _dispatch(self, msg):

@@ -35,7 +35,7 @@ class UnityConsole(QWidget):
         self.watcher = UnityLogWatcher(self)
         self.watcher.events.connect(self._events)
         self.watcher.reset.connect(self._new_session)
-        self._render_timer = QTimer(self, singleShot=True, interval=150, timeout=self.render)
+        self._render_timer = QTimer(self, singleShot=True, interval=150, timeout=self.refresh)
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -45,7 +45,7 @@ class UnityConsole(QWidget):
         self.clear_button = QToolButton()
         self.clear_button.clicked.connect(self.clear)
         self.collapse = QToolButton(checkable=True)
-        self.collapse.toggled.connect(lambda *_: self.render())
+        self.collapse.toggled.connect(lambda *_: self.refresh())
         bar.addWidget(self.clear_button)
         bar.addWidget(self.collapse)
         bar.addSpacing(8)
@@ -56,7 +56,7 @@ class UnityConsole(QWidget):
         self.kind_buttons = {}
         for kind in (ERROR, WARNING, LOG, INFO):
             b = QToolButton(checkable=True, checked=kind != INFO)
-            b.toggled.connect(lambda *_: self.render())
+            b.toggled.connect(lambda *_: self.refresh())
             self.kind_buttons[kind] = b
             bar.addWidget(b)
         lay.addLayout(bar)
@@ -87,7 +87,7 @@ class UnityConsole(QWidget):
         path = log_path_for(project) if project else None
         self.watcher.watch(path)
         self._update_where()
-        self.render()
+        self.refresh()
 
     def _update_where(self):
         if not self.project:
@@ -99,7 +99,7 @@ class UnityConsole(QWidget):
         """Unity перезапущен — новый журнал."""
         self.entries.clear()
         self._set_compile({})
-        self.render()
+        self.refresh()
 
     def _events(self, events):
         compile_now = dict(self.compile)
@@ -127,7 +127,7 @@ class UnityConsole(QWidget):
     def clear(self):
         """Как «Clear» в Unity: убрать сообщения. Ошибки компиляции остаются, пока Unity их не исправит."""
         self.entries = [e for e in self.entries if e.compile and e.kind == ERROR]
-        self.render()
+        self.refresh()
 
     # --- показ
     def counts(self):
@@ -164,7 +164,7 @@ class UnityConsole(QWidget):
                 grouped[e.key()] = [e, 1]
         return [tuple(v) for v in grouped.values()]
 
-    def render(self):
+    def refresh(self):
         self._update_counts()
         bar = self.list.verticalScrollBar()
         at_bottom = bar.value() >= bar.maximum() - 2

@@ -60,6 +60,8 @@
 | `document_safety.py` | ~120 | Связь `documents.py` с окном: слежение за вкладками, восстановление (`DocumentSafety`) |
 | `toolchains/` | ~600 | Наборы инструментов: Python, .NET, Unity — запуск, сборка, шаблоны (см. раздел 8.1) |
 | `new_project.py` | ~200 | «Файл → Создать проект…» (Ctrl+Shift+N) по шаблонам всех наборов |
+| `debug/` | ~900 | Отладка по DAP: `dap.py` (транспорт), `session.py` (сеанс: остановки, шаги, стек, переменные), `breakpoints.py`, `panels.py`, `controller.py` |
+| `framing.py` | ~30 | Рамка `Content-Length` — общая для LSP и DAP |
 | `indentation.py` | ~260 | Отступы: `IndentStyle`, `.editorconfig`, определение по файлу, правила сохранения (без Qt) |
 | `folding.py` | ~400 | Сворачивание: `fold_ranges` (без Qt) и `Folding` у каждого редактора |
 | `symbols.py` | ~170 | Символы файла/решения (`Symbol`) из documentSymbol, workspace/symbol и разбора текста (без Qt) |
@@ -134,6 +136,7 @@
 | `project` | `project_actions.ProjectActions` | Новый файл, скрипт Unity, PyQt-дизайнер, requirements.txt |
 | `analyzers` | `analyzer_control.AnalyzerControl` | Надпись состояния, перезапуск, обновления |
 | `safety` | `document_safety.DocumentSafety` | Изменения файлов на диске, автовосстановление |
+| `debugger` | `debug.controller.DebugController` | F5 (отладка), F9, F10, F11, Shift+F11, Ctrl+Shift+F5 |
 
 Редактор и панели по-прежнему зовут окно (`jump_to`, `navigate`, `move_type_to_file`, `apply_code_action`,
 `run_file`) — это тонкие передачи в нужный класс, чтобы им не знать, кто внутри отвечает.
@@ -281,6 +284,11 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
    `file_extensions = (".rs",)`, `file_names = ("Cargo.toml",)`.
 4. `toolchains/__init__.py` — `register(RustToolchain())`.
 5. Строки интерфейса — ключи в `locales/*.json` (тест `test_i18n` проверит и подпапки).
+
+Отладка — тоже часть набора: `debug_available(ctx)` и `debug_config(ctx, target)` → `debug.session.DebugConfig`
+(какой адаптер DAP запустить и какой запрос launch/attach ему послать). Всё остальное — общее для всех языков:
+сеанс, точки останова, стек, переменные, значения при наведении. Python — `debugpy` (`python-debugpy`).
+Проверка без настоящих отладчиков — `tests/fake_dap_adapter.py` (поддельный адаптер).
 
 Список «Запуск», F5, «Собрать решение», «Создать проект» и обозреватель подхватят новый набор сами —
 это проверяет тест `tests/test_toolchains.py::Extensibility` (игрушечный набор Echo).

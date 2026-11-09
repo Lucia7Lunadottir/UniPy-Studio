@@ -46,9 +46,27 @@ def active(ctx):
     return [t for t in TOOLCHAINS if t.applies(ctx)]
 
 
+def resolve_target(ctx, choice, current_path):
+    """Что запускать или отлаживать: (набор, цель) или None.
+    choice — выбранное в списке «Запуск» («набор::цель») или None для «Текущий файл»;
+    тогда цель даёт первый набор, узнавший current_path (порядок регистрации важен)."""
+    if choice:
+        tc_id, _, target_id = choice.partition("::")
+        tc = by_id(tc_id)
+        target = next((t for t in tc.run_targets(ctx) if t.id == target_id), None) if tc else None
+        if target is not None:
+            return tc, target
+    if current_path:
+        for tc in TOOLCHAINS:
+            target = tc.target_for_file(ctx, current_path)
+            if target is not None:
+                return tc, target
+    return None
+
+
 register(UnityToolchain())
 register(PythonToolchain())
 register(DotnetToolchain())
 
-__all__ = ["TOOLCHAINS", "register", "unregister", "known_files", "by_id", "active", "Toolchain", "ProjectContext", "ProjectTemplate",
+__all__ = ["TOOLCHAINS", "register", "unregister", "known_files", "by_id", "active", "resolve_target", "Toolchain", "ProjectContext", "ProjectTemplate",
            "RunCommand", "RunTarget"]

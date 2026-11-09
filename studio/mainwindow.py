@@ -18,6 +18,8 @@ from .analyzer_control import AnalyzerControl
 from .build import BuildController
 from .build_check import FileCheck
 from .commands import CommandRegistry, KeyboardPage
+from .debug.controller import DebugController
+from .debug.session import STOPPED as DEBUG_STOPPED
 from .document_safety import DocumentSafety
 from .formatting import Formatter
 from .navigation import NavigationHistory
@@ -188,6 +190,7 @@ class MainWindow(QMainWindow):
         self.refactoring = RefactorActions(self)    # ссылки, переименование, перенос типа, лампочка
         self.project = ProjectActions(self)         # новые файлы, Unity, PyQt-дизайнер
         self.analyzers = AnalyzerControl(self)      # состояние, перезапуск и обновление анализаторов
+        self.debugger = DebugController(self)       # F5/F9/F10/F11: отладка по DAP (debugpy…)
         self.formatter = Formatter(self)            # Ctrl+K, Ctrl+D: Roslyn, для Python — ruff/black
         self.setWindowIcon(theme.app_icon())
         self.resize(1440, 900)
@@ -235,6 +238,7 @@ class MainWindow(QMainWindow):
         self._build_status()
         self.outline_timer = QTimer(self, singleShot=True, interval=400, timeout=self.refresh_outline)
         self.safety = DocumentSafety(self)          # изменения файлов на диске, автовосстановление
+        self.update_run_actions()                   # кнопки шагов отладки видны только во время отладки
 
     # ------------------------------------------------------------ параметры
     def _option_changed(self, key):
@@ -403,6 +407,16 @@ class MainWindow(QMainWindow):
         self.unity_console.compile_changed.connect(self._unity_compile_changed)
         self.d_unity_console = self._dock("mainwindow.unity_console", self.unity_console,
                                           Qt.DockWidgetArea.BottomDockWidgetArea, "unity_console")
+        D = self.debugger
+        self.d_call_stack = self._dock("debug.call_stack", D.call_stack, Qt.DockWidgetArea.BottomDockWidgetArea, "call_stack")
+        self.d_locals = self._dock("debug.locals", D.variables, Qt.DockWidgetArea.BottomDockWidgetArea, "locals")
+        self.d_breakpoints = self._dock("debug.breakpoints", D.breakpoints_panel, Qt.DockWidgetArea.BottomDockWidgetArea,
+                                        "breakpoints")
+        self.splitDockWidget(self.d_errors, self.d_locals, Qt.Orientation.Horizontal)
+        self.tabifyDockWidget(self.d_locals, self.d_call_stack)
+        self.tabifyDockWidget(self.d_call_stack, self.d_breakpoints)
+        for d in (self.d_call_stack, self.d_locals, self.d_breakpoints):
+            d.hide()                        # появляются при остановке, как в VS
         self.tabifyDockWidget(self.d_errors, self.d_references)
         self.tabifyDockWidget(self.d_errors, self.d_output)
         self.tabifyDockWidget(self.d_output, self.d_terminal)
@@ -480,10 +494,19 @@ class MainWindow(QMainWindow):
         self.a_unimported.setChecked(lsp.OPTIONS["unimported"])
         self.a_hint_in = A("View.HintSizeUp", "mainwindow.increase_tooltip_size", lambda: self.zoom_hints(1), "Ctrl+Alt+=")
         self.a_hint_out = A("View.HintSizeDown", "mainwindow.decrease_tooltip_size", lambda: self.zoom_hints(-1), "Ctrl+Alt+-")
-        self.a_run = A("Debug.Start", "common.run", self.runner.run_selected, "F5", "run", "mainwindow.run_f5")
+        D = self.debugger
+        self.a_run = A("Debug.Start", "debug.start", D.start_or_continue, "F5", "run", "debug.start_tip")
         self.a_run2 = A("Debug.StartWithoutDebugging", "mainwindow.run_without_debugging", self.runner.run_selected, "Ctrl+F5")
-        self.a_stop = A("Debug.StopDebugging", "mainwindow.stop", self.runner.stop, "Shift+F5", "stop", "mainwindow.stop_shift_f5")
-        self.a_stop.setEnabled(False)
+        self.a_stop = A("Debug.StopDebugging", "mainwindow.stop", self._stop_all, "Shift+F5", "stop", "mainwindow.stop_shift_f5")
+        self.a_restart = A("Debug.Restart", "debug.restart", D.restart, "Ctrl+Shift+F5")
+        self.a_pause = A("Debug.BreakAll", "debug.break_all", D.pause, "Ctrl+Alt+Break")
+        self.a_step_over = A("Debug.StepOver", "debug.step_over", D.step_over, "F10")
+        self.a_step_into = A("Debug.StepInto", "debug.step_into", D.step_into, "F11")
+        self.a_step_out = A("Debug.StepOut", "debug.step_out", D.step_out, "Shift+F11")
+        self.a_breakpoint = A("Debug.ToggleBreakpoint", "debug.toggle_breakpoint", D.toggle_breakpoint, "F9")
+        self.a_clear_breakpoints = A("Debug.DeleteAllBreakpoints", "debug.delete_all_breakpoints", D.store.clear,
+                                     "Ctrl+Shift+F9")
+        D.state_changed.connect(lambda _s: self.update_run_actions())
         B = self.builder
         self.a_build = A("Build.BuildSolution", "mainwindow.build_solution", B.build_solution, "Ctrl+Shift+B",
                          "build", "mainwindow.build_solution_tip")
@@ -524,6 +547,35 @@ class MainWindow(QMainWindow):
         else:
             getattr(ed.folding, name)()
 
+    def show_debug_docks(self):
+        """При остановке — «Стек вызовов» и «Локальные»; в первый раз — половина ширины низа, как в VS."""
+        first = self.d_locals.isHidden()
+        for d in (self.d_call_stack, self.d_locals):
+            self.show_dock(d)
+        if first:
+            half = max(300, self.width() // 2)
+            self.resizeDocks([self.d_errors, self.d_locals], [half, half], Qt.Orientation.Horizontal)
+
+    def _stop_all(self):
+        """Shift+F5: остановить отладку и запущенную программу."""
+        self.debugger.stop()
+        self.runner.stop()
+
+    def update_run_actions(self):
+        """Кнопки запуска и отладки по состоянию: идёт ли программа, стоит ли отладчик (как панель VS)."""
+        debugging = self.debugger.active()
+        stopped = debugging and self.debugger.session.state == DEBUG_STOPPED
+        self.a_stop.setEnabled(debugging or self.runner.running())
+        self.a_restart.setEnabled(debugging)
+        self.a_pause.setEnabled(debugging and not stopped)
+        for a in (self.a_step_over, self.a_step_into, self.a_step_out):
+            a.setEnabled(stopped)
+            a.setVisible(debugging)
+        bind_text(self.a_run, "debug.continue" if stopped else "debug.start")
+        if not debugging:
+            for d in (self.d_call_stack, self.d_locals):
+                d.hide()
+
     def _step_tab(self, step):
         self.tabs.setCurrentIndex((self.tabs.currentIndex() + step) % max(1, self.tabs.count()))
 
@@ -556,7 +608,8 @@ class MainWindow(QMainWindow):
         m.addAction(self.a_move_type)
         m = bind_text(mb.addMenu(""), "mainwindow.view", "setTitle")
         for d in (self.d_explorer, self.d_outline, self.d_unity, self.d_designer, self.d_output,
-                  self.d_errors, self.d_references, self.d_terminal, self.d_unity_console):
+                  self.d_errors, self.d_references, self.d_terminal, self.d_unity_console,
+                  self.d_call_stack, self.d_locals, self.d_breakpoints):
             m.addAction(d.toggleViewAction())
         m.addSeparator()
         m.addAction(self.a_back)
@@ -581,7 +634,8 @@ class MainWindow(QMainWindow):
                   None, self.a_build_cancel):
             m.addSeparator() if a is None else m.addAction(a)
         m = bind_text(mb.addMenu(""), "mainwindow.debug", "setTitle")
-        for a in (self.a_run, self.a_run2, self.a_stop):
+        for a in (self.a_run, self.a_run2, self.a_stop, self.a_restart, None, self.a_pause, self.a_step_over,
+                  self.a_step_into, self.a_step_out, None, self.a_breakpoint, self.a_clear_breakpoints):
             m.addAction(a)
         m = bind_text(mb.addMenu(""), "mainwindow.tools", "setTitle")
         m.addAction(self.a_settings)
@@ -666,6 +720,8 @@ class MainWindow(QMainWindow):
         run_btn.setObjectName("runButton")
         tb.addWidget(run_btn)
         tb.addAction(self.a_stop)
+        for a in (self.a_step_over, self.a_step_into, self.a_step_out):
+            tb.addAction(a)
         tb.addSeparator()
         tb.addAction(self.a_build)
         unity_btn = QToolButton()
@@ -849,6 +905,7 @@ class MainWindow(QMainWindow):
         self.output.write(tr("mainwindow.opened_solution") % root, "common.build", C["dim"])
         unity = find_unity_projects(root)
         self.unity_console.set_project(unity[0] if unity else None)
+        self.debugger.load_solution(root)
         if unity:
             self.output.write(tr("mainwindow.found_unity_project") % ", ".join(os.path.relpath(u, root) or "." for u in unity),
                               "Unity", C["dim"])
@@ -966,6 +1023,7 @@ class MainWindow(QMainWindow):
         ed.textChanged.connect(self.outline_timer.start)
         ed.document().modificationChanged.connect(lambda _m, e=ed: self._modified(e))
         self.safety.track(ed)
+        self.debugger.attach_editor(ed)
         i = self.tabs.addTab(ed, theme.file_icon(path), os.path.basename(path))
         self.tabs.setTabToolTip(i, path)
         self.tabs.setCurrentIndex(i)
@@ -1118,6 +1176,9 @@ class MainWindow(QMainWindow):
                 self.safety.renamed(before, ed.path)
                 self.tabs.setTabText(i, os.path.basename(ed.path))
                 self.tabs.setTabToolTip(i, ed.path)
+        for path in self.debugger.store.paths():         # точки останова едут вместе с файлом или папкой
+            if path == old or path.startswith(old + os.sep):
+                self.debugger.store.rename(path, new + path[len(old):])
 
     def on_path_deleted(self, path):
         self.tell_analyzers([(path, 3)])
@@ -1335,7 +1396,7 @@ class MainWindow(QMainWindow):
             ed.apply_theme()
         self.output._rerender()
         self.errors.render()
-        self.unity_console.render()
+        self.unity_console.refresh()
         self.explorer.refresh()
         if theme.CONTROLLER is not None:
             self.status(tr("mainwindow.theme_prefix") + theme.CONTROLLER.title())
@@ -1376,6 +1437,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("window/state", self.saveState())
         self.runner.shutdown()
         self.builder.cancel()
+        self.debugger.shutdown()
         self.unity_console.watcher.stop()
         for svc in self.language_services:
             svc.stop()

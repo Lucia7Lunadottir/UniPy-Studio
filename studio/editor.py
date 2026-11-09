@@ -1,12 +1,13 @@
 """Редактор кода: номера строк, подсветка, подсказки, подсказки параметров, ошибки."""
 import ast
+import html
 import os
 import re
 import traceback
 
-from PyQt6.QtCore import Qt, QEvent, QRect, QSize, QTimer, pyqtSignal, QPoint, QRectF, QModelIndex
+from PyQt6.QtCore import Qt, QEvent, QRect, QSize, QTimer, pyqtSignal, QPoint, QPointF, QRectF, QModelIndex
 from PyQt6.QtGui import (QColor, QCursor, QFont, QPainter, QTextFormat, QTextCursor, QStandardItemModel,
-                         QStandardItem, QKeySequence, QTextCharFormat, QPalette, QFontMetrics)
+                         QStandardItem, QKeySequence, QTextCharFormat, QPalette, QFontMetrics, QPen, QPolygonF)
 from PyQt6.QtWidgets import (QPlainTextEdit, QWidget, QTextEdit, QCompleter, QLabel,
                              QStyledItemDelegate, QToolTip, QStyle, QApplication, QMessageBox,
                              QListView, QToolButton, QHBoxLayout, QMenu)
@@ -30,6 +31,7 @@ DEFAULT_HINT_PT = 11    # размер подсказок (список, пар�
 ROLE_DETAIL = Qt.ItemDataRole.UserRole + 1
 ROLE_DOC = Qt.ItemDataRole.UserRole + 2
 ROLE_ITEM = Qt.ItemDataRole.UserRole + 3     # сам элемент подсказки (Item)
+BREAKPOINT_COLUMN = 16      # слева на поле номеров строк: точки останова и стрелка текущей строки отладки
 
 
 ENCODING_NAME = {"utf-8": "UTF-8", "utf-8-sig": "editor.utf_8_with_bom", "utf-16": "UTF-16",
@@ -72,6 +74,9 @@ class LineNumberArea(QWidget):
             block = ed.cursorForPosition(QPoint(1, int(e.position().y()))).block()
             x = e.position().x()
             fold = ed.folding.COLUMN if ed.folding.enabled else 0
+            if x < BREAKPOINT_COLUMN and ed.breakpoints is not None:     # слева — точки останова, как в VS
+                ed.toggle_breakpoint(block.blockNumber() + 1)
+                return
             if fold and x >= self.width() - fold:          # +/− — свернуть или развернуть блок
                 if ed.folding.range_at(block.blockNumber()) is not None:
                     ed.folding.toggle(block.blockNumber())
@@ -253,6 +258,10 @@ class CodeEditor(QPlainTextEdit):
         self.disk = DiskState(path)    # что было на диске при открытии/сохранении — чтобы заметить чужие изменения
         self.missing_on_disk = False   # файл удалили вне редактора; сохранение создаст его заново
         self.indent = IndentStyle()    # пробелы/табы и размер; окно ставит итог .editorconfig/файла/параметров
+        self.breakpoints = None        # debug.breakpoints.BreakpointStore — ставит окно (отладчик)
+        self.execution_line = None     # строка (с 1), где стоит отладчик; None — не стоит
+        self.execution_is_top = True   # верхний кадр стека (жёлтая стрелка) или выбранный выше (зелёная)
+        self.debug_hover = None        # функция(выражение, ответ(текст)) — значение при наведении во время отладки
         self._link = None              # слово под мышью при зажатом Ctrl — подчёркнуто, как ссылка в VS
         self.find_text = ""
         self._completion_items = {}
@@ -409,7 +418,7 @@ class CodeEditor(QPlainTextEdit):
     def gutter_width(self):
         digits = max(3, len(str(self.blockCount())))
         fold = self.folding.COLUMN if getattr(self, "folding", None) is not None and self.folding.enabled else 0
-        return 22 + fold + self.fontMetrics().horizontalAdvance("9") * digits
+        return 22 + BREAKPOINT_COLUMN + fold + self.fontMetrics().horizontalAdvance("9") * digits
 
     def _top_margin(self):
         bar = getattr(self, "navbar", None)
@@ -427,6 +436,21 @@ class CodeEditor(QPlainTextEdit):
         self.gutter.setGeometry(QRect(cr.left(), cr.top() + top, self.gutter_width(), cr.height() - top))
         if top:
             self.navbar.setGeometry(QRect(cr.left(), cr.top(), cr.width(), top))
+
+    # ------------------------------------------------------------ отладка
+    def toggle_breakpoint(self, line=None):
+        if self.breakpoints is None:
+            return
+        self.breakpoints.toggle(self.path, line or self.textCursor().blockNumber() + 1)
+        self.gutter.update()
+
+    def set_execution_line(self, line, top=True):
+        """Строка, где стоит отладчик (None — убрать стрелку и подсветку)."""
+        self.execution_line, self.execution_is_top = line, top
+        if line is not None:
+            self.folding.ensure_visible(line - 1)
+        self.update_selections()
+        self.gutter.update()
 
     def set_navigation_bar(self, on):
         """Панель «тип / член» над кодом — для языков, где есть символы."""
@@ -457,13 +481,14 @@ class CodeEditor(QPlainTextEdit):
         bottom = top + round(self.blockBoundingRect(block).height())
         current = self.textCursor().blockNumber()
         err_lines = {d[0] - 1: d[3] for d in self.diagnostics}
+        breakpoints = {b.line: b for b in self.breakpoints.for_path(self.path)} if self.breakpoints is not None else {}
         fold = self.folding.COLUMN if self.folding.enabled else 0
         w = self.gutter.width() - fold          # справа — колонка +/− сворачивания
         h = self.fontMetrics().height()
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
                 p.setPen(QColor(C["gutter_current"] if num == current else C["gutter_num"]))
-                p.drawText(0, top, w - 14, h, Qt.AlignmentFlag.AlignRight, str(num + 1))
+                p.drawText(BREAKPOINT_COLUMN, top, w - 14 - BREAKPOINT_COLUMN, h, Qt.AlignmentFlag.AlignRight, str(num + 1))
                 if num == self._bulb_line:
                     self._draw_bulb(p, w - 15, top + h / 2 - 7)
                 if fold:
@@ -471,12 +496,54 @@ class CodeEditor(QPlainTextEdit):
                 if num in err_lines:
                     p.setPen(Qt.PenStyle.NoPen)
                     p.setBrush(QColor(C["error"] if err_lines[num] == "error" else C["warning"]))
-                    p.drawEllipse(QRectF(3, top + h / 2 - 3.5, 7, 7))
+                    p.drawEllipse(QRectF(BREAKPOINT_COLUMN + 2, top + h / 2 - 3, 6, 6))
+                if num + 1 in breakpoints:
+                    self._draw_breakpoint(p, breakpoints[num + 1], top + h / 2)
+                if num + 1 == self.execution_line:
+                    self._draw_execution_arrow(p, top + h / 2, self.execution_is_top)
             block = block.next()
             top = bottom
             bottom = top + round(self.blockBoundingRect(block).height())
             num += 1
         p.end()
+
+    @staticmethod
+    def _draw_breakpoint(p, bp, cy):
+        """Красный круг; выключенная — пустой круг; не привязалась (нет кода на строке) — круг с дыркой."""
+        p.save()
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        color = QColor("#E51400")
+        rect = QRectF(BREAKPOINT_COLUMN / 2 - 5.5, cy - 5.5, 11, 11)
+        if not bp.enabled:
+            p.setPen(QPen(color, 1.5))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawEllipse(rect.adjusted(0.75, 0.75, -0.75, -0.75))
+        else:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(color)
+            p.drawEllipse(rect)
+            if bp.condition:                            # условная — белый «+», как в VS
+                p.setPen(QPen(QColor("#FFFFFF"), 1.6))
+                c = rect.center()
+                p.drawLine(QPointF(c.x() - 3, c.y()), QPointF(c.x() + 3, c.y()))
+                p.drawLine(QPointF(c.x(), c.y() - 3), QPointF(c.x(), c.y() + 3))
+            elif bp.verified is False:
+                p.setBrush(QColor(C["editor"]))
+                p.drawEllipse(rect.adjusted(3, 3, -3, -3))
+        p.restore()
+
+    @staticmethod
+    def _draw_execution_arrow(p, cy, top):
+        """Жёлтая стрелка — где остановилась программа; зелёная — выбранный кадр стека выше (как в VS)."""
+        p.save()
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(QColor("#5A4A00" if top else "#1F4D1F"), 1))
+        p.setBrush(QColor("#FFE000" if top else "#7BC27B"))
+        x = 2
+        p.drawPolygon(QPolygonF([QPointF(x, cy - 3), QPointF(x + 6, cy - 3), QPointF(x + 6, cy - 6.5),
+                                 QPointF(x + 12.5, cy), QPointF(x + 6, cy + 6.5), QPointF(x + 6, cy + 3),
+                                 QPointF(x, cy + 3)]))
+        p.restore()
 
     @staticmethod
     def _draw_bulb(p, x, y):
@@ -583,6 +650,16 @@ class CodeEditor(QPlainTextEdit):
         line.cursor = self.textCursor()
         line.cursor.clearSelection()
         sels.append(line)
+        if self.execution_line is not None:
+            block = self.document().findBlockByNumber(self.execution_line - 1)
+            if block.isValid():
+                here = QTextEdit.ExtraSelection()
+                back = QColor("#FFE000" if self.execution_is_top else "#7BC27B")
+                back.setAlpha(70)
+                here.format.setBackground(back)
+                here.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
+                here.cursor = QTextCursor(block)
+                sels.append(here)
         if self.find_text:
             doc = self.document()
             c = doc.find(self.find_text, 0)
@@ -1516,6 +1593,8 @@ class CodeEditor(QPlainTextEdit):
         word = self._word_at(QTextCursor(cur))
         if not word or not re.match(r"\w", word):
             return
+        if self.debug_hover is not None and self._debug_tip(cur):
+            return
         srv = self._lsp_server()
         if srv:
             srv.submit("hover", req=0, editor=id(self), code=self.toPlainText(),
@@ -1530,6 +1609,22 @@ class CodeEditor(QPlainTextEdit):
             html_ = CSHARP.hover(self.toPlainText(), wc.selectionStart(), word)
             if html_:
                 QToolTip.showText(self.mapToGlobal(self._hover_pos), self._tip_html(html_), self)
+
+    def _debug_tip(self, cur):
+        """Во время остановки — значение выражения под мышью (DataTip VS): a, self.hp, player.transform.position."""
+        block = cur.block().text()
+        col = cur.positionInBlock()
+        m = re.search(r"[A-Za-z_][\w.]*$", block[:col] + re.match(r"\w*", block[col:]).group())
+        if not m or m.group().endswith("."):
+            return False
+        expression = m.group()
+        pos = self._hover_pos
+
+        def show(text):
+            if text and self.underMouse() and self._hover_pos == pos:
+                QToolTip.showText(self.mapToGlobal(pos), self._tip_html(
+                    "<b>%s</b> = %s" % (html.escape(expression), html.escape(text))), self)
+        return self.debug_hover(expression, show)
 
     def focusOutEvent(self, e):
         self._update_link(None, False)

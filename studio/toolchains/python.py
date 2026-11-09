@@ -1,6 +1,7 @@
 """Python: запуск файла выбранным интерпретатором, проверка синтаксиса, шаблоны проектов."""
 import os
 import re
+import subprocess
 import sys
 
 from .. import templates
@@ -85,6 +86,40 @@ class PythonToolchain(Toolchain):
                           {"PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"},
                           title=os.path.basename(target.path),
                           problem_matcher=lambda text: traceback_problems(text, ctx.root))
+
+    # --- отладка (debugpy — адаптер DAP от Microsoft, пакет python-debugpy в официальном репозитории Arch)
+    _has_debugpy = {}
+
+    def _debugpy_python(self, ctx):
+        """Python, в котором есть debugpy: выбранный интерпретатор (venv), иначе системный."""
+        for interp in (ctx.interpreter, sys.executable, "/usr/bin/python3"):
+            if not interp:
+                continue
+            if interp not in self._has_debugpy:
+                try:
+                    self._has_debugpy[interp] = subprocess.run(
+                        [interp, "-c", "import debugpy"], capture_output=True, timeout=10).returncode == 0
+                except (OSError, subprocess.SubprocessError):
+                    self._has_debugpy[interp] = False
+            if self._has_debugpy[interp]:
+                return interp
+        return None
+
+    def debug_available(self, ctx):
+        return self._debugpy_python(ctx) is not None, "sudo pacman -S python-debugpy"
+
+    def debug_config(self, ctx, target):
+        from ..debug.session import DebugConfig
+        adapter_python = self._debugpy_python(ctx)
+        if adapter_python is None:
+            return None
+        program = ctx.interpreter or sys.executable
+        return DebugConfig(adapter_python, ["-m", "debugpy.adapter"], "launch", {
+            "name": os.path.basename(target.path), "type": "python", "request": "launch",
+            "program": target.path, "cwd": os.path.dirname(target.path), "python": [program],
+            "console": "internalConsole", "redirectOutput": True, "justMyCode": True, "showReturnValue": True,
+            "env": {"PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}},
+            adapter_id="debugpy", cwd=os.path.dirname(target.path), title=os.path.basename(target.path))
 
     # --- сборка
     def build_jobs(self, ctx, rebuild=False):

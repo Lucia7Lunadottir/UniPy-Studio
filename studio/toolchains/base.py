@@ -104,6 +104,15 @@ class Toolchain:
         if command is not None:
             runner.start(command)
 
+    # --- отладка
+    def debug_available(self, ctx) -> "tuple[bool, str]":
+        """(можно ли отлаживать, подсказка что поставить). По умолчанию — нельзя: F5 просто запускает."""
+        return False, ""
+
+    def debug_config(self, ctx, target) -> object:
+        """debug.session.DebugConfig — какой адаптер DAP запустить и что ему сказать; None — не умею."""
+        return None
+
     # --- сборка
     def build_jobs(self, ctx, rebuild=False) -> list:
         """[build.BuildJob] для «Собрать решение»."""
