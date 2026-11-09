@@ -15,7 +15,8 @@ from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QDockWidget, QWidget, QVBo
 from . import theme, templates, intellisense, lsp, indentation, symbols
 from .goto_all import GoToAll
 from .analyzer_control import AnalyzerControl
-from .build_check import SolutionCheck
+from .build import BuildController
+from .build_check import FileCheck
 from .commands import CommandRegistry, KeyboardPage
 from .document_safety import DocumentSafety
 from .formatting import Formatter
@@ -24,6 +25,7 @@ from .options import Options, OptionsDialog
 from .project_actions import ProjectActions
 from .refactor_actions import RefactorActions
 from .run_control import RunController
+from .unity_console import UnityConsole
 from .editor import CodeEditor
 from . import languages
 from .panels import (SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, TerminalPanel, UnityPanel,
@@ -181,7 +183,8 @@ class MainWindow(QMainWindow):
         self.commands = CommandRegistry(self, self.settings)    # команды и их клавиши (Параметры → Клавиатура)
         self.nav = NavigationHistory(self)          # «Назад» / «Вперёд»
         self.runner = RunController(self)           # F5: запуск Python-файла
-        self.checker = SolutionCheck(self)          # Ctrl+Shift+B: проверка решения
+        self.builder = BuildController(self)        # Ctrl+Shift+B: dotnet build / проверка Python в фоне
+        self.checker = FileCheck(self)              # Ctrl+F7: текущий файл
         self.refactoring = RefactorActions(self)    # ссылки, переименование, перенос типа, лампочка
         self.project = ProjectActions(self)         # новые файлы, Unity, PyQt-дизайнер
         self.analyzers = AnalyzerControl(self)      # состояние, перезапуск и обновление анализаторов
@@ -395,9 +398,15 @@ class MainWindow(QMainWindow):
         self.references.goto.connect(lambda p, l, c: self.jump_to(p, l, c))
         self.d_references = self._dock("mainwindow.reference_search_results", self.references,
                                        Qt.DockWidgetArea.BottomDockWidgetArea, "references")
+        self.unity_console = UnityConsole()
+        self.unity_console.open_file.connect(lambda p, l: self.jump_to(p, l))
+        self.unity_console.compile_changed.connect(self._unity_compile_changed)
+        self.d_unity_console = self._dock("mainwindow.unity_console", self.unity_console,
+                                          Qt.DockWidgetArea.BottomDockWidgetArea, "unity_console")
         self.tabifyDockWidget(self.d_errors, self.d_references)
         self.tabifyDockWidget(self.d_errors, self.d_output)
         self.tabifyDockWidget(self.d_output, self.d_terminal)
+        self.tabifyDockWidget(self.d_output, self.d_unity_console)
         self.d_errors.raise_()
         self.resizeDocks([self.d_explorer, self.d_unity], [290, 370], Qt.Orientation.Horizontal)
         self.resizeDocks([self.d_errors], [230], Qt.Orientation.Vertical)
@@ -474,8 +483,18 @@ class MainWindow(QMainWindow):
         self.a_run2 = A("Debug.StartWithoutDebugging", "mainwindow.run_without_debugging", self.runner.run_selected, "Ctrl+F5")
         self.a_stop = A("Debug.StopDebugging", "mainwindow.stop", self.runner.stop, "Shift+F5", "stop", "mainwindow.stop_shift_f5")
         self.a_stop.setEnabled(False)
-        self.a_build = A("Build.CheckSolution", "mainwindow.check_solution", self.checker.check_solution, "Ctrl+Shift+B",
-                         "build", "mainwindow.check_solution_ctrl_shift_b")
+        B = self.builder
+        self.a_build = A("Build.BuildSolution", "mainwindow.build_solution", B.build_solution, "Ctrl+Shift+B",
+                         "build", "mainwindow.build_solution_tip")
+        self.a_rebuild = A("Build.RebuildSolution", "mainwindow.rebuild_solution", lambda: B.build_solution(True),
+                           "Ctrl+Alt+F7")
+        self.a_clean = A("Build.CleanSolution", "mainwindow.clean_solution", B.clean_solution)
+        self.a_build_project = A("Build.BuildSelection", "mainwindow.build_current_project", B.build_current_project,
+                                 "Shift+F6")
+        self.a_build_cancel = A("Build.Cancel", "mainwindow.cancel_build", B.cancel, "Ctrl+Break")
+        self.a_build_cancel.setEnabled(False)
+        B.started.connect(lambda: (self.a_build_cancel.setEnabled(True), self.a_build.setEnabled(False)))
+        B.stopped.connect(lambda: (self.a_build_cancel.setEnabled(False), self.a_build.setEnabled(True)))
         self.a_build_file = A("Build.CheckCurrentFile", "mainwindow.check_current_file", self.checker.check_current, "Ctrl+F7")
         self.a_unity = A("Project.OpenInUnity", "common.open_unity", lambda: self.unity.open_in_unity(), None, "unity",
                          "mainwindow.open_project_unity")
@@ -536,7 +555,7 @@ class MainWindow(QMainWindow):
         m.addAction(self.a_move_type)
         m = bind_text(mb.addMenu(""), "mainwindow.view", "setTitle")
         for d in (self.d_explorer, self.d_outline, self.d_unity, self.d_designer, self.d_output,
-                  self.d_errors, self.d_references, self.d_terminal):
+                  self.d_errors, self.d_references, self.d_terminal, self.d_unity_console):
             m.addAction(d.toggleViewAction())
         m.addSeparator()
         m.addAction(self.a_back)
@@ -557,8 +576,9 @@ class MainWindow(QMainWindow):
                   None, self.a_unity, self.a_hub):
             m.addSeparator() if a is None else m.addAction(a)
         m = bind_text(mb.addMenu(""), "common.build", "setTitle")
-        m.addAction(self.a_build)
-        m.addAction(self.a_build_file)
+        for a in (self.a_build, self.a_rebuild, self.a_clean, None, self.a_build_project, self.a_build_file,
+                  None, self.a_build_cancel):
+            m.addSeparator() if a is None else m.addAction(a)
         m = bind_text(mb.addMenu(""), "mainwindow.debug", "setTitle")
         for a in (self.a_run, self.a_run2, self.a_stop):
             m.addAction(a)
@@ -600,6 +620,7 @@ class MainWindow(QMainWindow):
         self.references.retranslate()
         self.errors.retranslate()
         self.unity.retranslate()
+        self.unity_console.retranslate()
         self.designer.retranslate()
         if self.startup.count():
             self.startup.setItemText(0, tr("mainwindow.current_file"))
@@ -818,6 +839,7 @@ class MainWindow(QMainWindow):
         self._update_title()
         self.output.write(tr("mainwindow.opened_solution") % root, "common.build", C["dim"])
         unity = find_unity_projects(root)
+        self.unity_console.set_project(unity[0] if unity else None)
         if unity:
             self.output.write(tr("mainwindow.found_unity_project") % ", ".join(os.path.relpath(u, root) or "." for u in unity),
                               "Unity", C["dim"])
@@ -1128,6 +1150,13 @@ class MainWindow(QMainWindow):
         e, w = self.errors.counts()
         self.err_label.setText("✖ %d  ⚠ %d" % (e, w))
 
+    def _unity_compile_changed(self, groups):
+        """Ошибки компиляции из журнала Unity → «Список ошибок» (источник Unity)."""
+        for path, items in groups.items():
+            self.errors.set_group("Unity", path, items)
+        e, w = self.errors.counts()
+        self.err_label.setText("✖ %d  ⚠ %d" % (e, w))
+
     def refresh_outline(self):
         """Символы текущего файла → структура, панель навигации, Ctrl+T. От анализатора (documentSymbol),
         пока он не готов — из разбора текста; устаревший ответ (текст успел измениться) отбрасывается."""
@@ -1271,6 +1300,7 @@ class MainWindow(QMainWindow):
             ed.apply_theme()
         self.output._rerender()
         self.errors.render()
+        self.unity_console.render()
         self.explorer.refresh()
         if theme.CONTROLLER is not None:
             self.status(tr("mainwindow.theme_prefix") + theme.CONTROLLER.title())
@@ -1310,6 +1340,8 @@ class MainWindow(QMainWindow):
         self.settings.setValue("window/geometry", self.saveGeometry())
         self.settings.setValue("window/state", self.saveState())
         self.runner.shutdown()
+        self.builder.cancel()
+        self.unity_console.watcher.stop()
         for svc in self.language_services:
             svc.stop()
         e.accept()

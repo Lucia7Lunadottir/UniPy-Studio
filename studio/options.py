@@ -327,6 +327,10 @@ PAGES = (
         NumberOption("recovery/interval_sec", 30, "options.recovery_interval", 5, 600, suffix="options.seconds"),
         NumberOption("recovery/keep_days", 7, "options.recovery_keep_days", 1, 90, suffix="options.days"),
     )),
+    Page(("options.projects", "options.build"), (
+        BoolOption("build/unity_cache", True, "options.unity_build_cache", hint="options.unity_build_cache_hint"),
+        BoolOption("build/shared_compiler", False, "options.shared_compiler", hint="options.shared_compiler_hint"),
+    ), intro="options.build_intro"),
     Page(("options.analyzers", "options.general"), (
         ChoiceOption("analyzers/restart_mb", 1024, "options.restart_mb",
                      RESTART_THRESHOLDS, hint="options.restart_hint"),

@@ -697,22 +697,22 @@ class ErrorList(QWidget):
                 continue
             if scope == 2 and path != self.current:
                 continue
-            for line, col, msg, sev in diags:
+            for line, col, msg, sev, *project in diags:    # пятым может идти проект (сборка его знает)
                 if sev == "error" and not self.btn_err.isChecked():
                     continue
                 if sev != "error" and not self.btn_warn.isChecked():
                     continue
-                rows.append((sev, msg, path, line, col))
+                rows.append((sev, msg, path, line, col, project[0] if project else None))
         rows.sort(key=lambda r: (r[0] != "error", r[2], r[3]))
         self.table.setRowCount(len(rows))
-        for i, (sev, msg, path, line, col) in enumerate(rows):
+        for i, (sev, msg, path, line, col, project) in enumerate(rows):
             icon = QTableWidgetItem("✖" if sev == "error" else "⚠")
             icon.setForeground(QBrush(QColor(C["error"] if sev == "error" else C["warning"])))
             icon.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(i, 0, icon)
             self.table.setItem(i, 1, QTableWidgetItem(msg))
-            proj = ""
-            if self.root and path.startswith(self.root):
+            proj = project or ""
+            if not proj and self.root and path.startswith(self.root):
                 proj = os.path.relpath(path, self.root).split(os.sep)[0]
             self.table.setItem(i, 2, QTableWidgetItem(proj))
             fi = QTableWidgetItem(os.path.basename(path))

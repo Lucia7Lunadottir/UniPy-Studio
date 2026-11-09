@@ -50,7 +50,10 @@
 | `commands.py` | ~330 | Реестр команд (id как в VS: `Edit.Undo`) и страница «Параметры → Клавиатура» |
 | `navigation.py` | ~45 | «Назад / Вперёд» (`NavigationHistory`) |
 | `run_control.py` | ~120 | Запуск Python-файла по F5 (`RunController`) |
-| `build_check.py` | ~95 | «Проверить решение / текущий файл» (`SolutionCheck`) |
+| `build_check.py` | ~40 | Ctrl+F7 — проверка текущего файла (`FileCheck`), `check_text` |
+| `build.py` | ~420 | Сборка: `dotnet build` (Unity — в кэш, проект не трогается), проверка Python в потоке, разбор вывода MSBuild (`BuildController`) |
+| `unity_log.py` | ~200 | Editor.log Unity: разбор на записи и слежение за хвостом файла (без виджетов) |
+| `unity_console.py` | ~230 | Панель «Консоль Unity» (`UnityConsole`) |
 | `refactor_actions.py` | ~280 | Ссылки, переименование, перенос типа, лампочка (`RefactorActions`) |
 | `project_actions.py` | ~150 | Новые файлы, шаблоны, Unity, PyQt-дизайнер (`ProjectActions`) |
 | `analyzer_control.py` | ~95 | Состояние, перезапуск, обновление анализаторов (`AnalyzerControl`) |
@@ -123,7 +126,8 @@
 | `commands` | `commands.CommandRegistry` | Все команды и их клавиши; `_build_actions` только регистрирует |
 | `nav` | `navigation.NavigationHistory` | «Назад / Вперёд» |
 | `runner` | `run_control.RunController` | F5 / Shift+F5 |
-| `checker` | `build_check.SolutionCheck` | Ctrl+Shift+B, Ctrl+F7 |
+| `builder` | `build.BuildController` | Ctrl+Shift+B, Ctrl+Alt+F7, Shift+F6, Ctrl+Break |
+| `checker` | `build_check.FileCheck` | Ctrl+F7 |
 | `refactoring` | `refactor_actions.RefactorActions` | Shift+F12, F2, Ctrl+R Ctrl+F, лампочка |
 | `project` | `project_actions.ProjectActions` | Новый файл, скрипт Unity, PyQt-дизайнер, requirements.txt |
 | `analyzers` | `analyzer_control.AnalyzerControl` | Надпись состояния, перезапуск, обновления |
@@ -393,6 +397,8 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 | Поменять порог памяти анализаторов | `options.RESTART_THRESHOLDS`, `LanguageService.IDLE_BEFORE_RESTART` |
 | Добавить параметр в «Средства → Параметры» | `options.PAGES` + `MainWindow._option_changed` + `locales/*.json` |
 | Поведение при изменении файла вне редактора, автовосстановление | `documents.py` |
+| Аргументы `dotnet build`, куда пишет сборка Unity | `build.DotnetBuild.arguments`, `build.write_redirect_targets` |
+| Как читаются сообщения Unity | `unity_log.classify_block` (записи), `unity_log.log_path_for` (где журнал) |
 | Отступы, `.editorconfig` | `indentation.py`; применяет `MainWindow.apply_indent` |
 | Какие блоки сворачиваются | `folding.fold_ranges` (новый язык — ветка там же) |
 | Форматер для нового языка | `formatting.Formatter.format` (сервер с `documentFormattingProvider` подхватится сам) |
