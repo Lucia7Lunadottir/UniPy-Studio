@@ -46,7 +46,15 @@
 | `app.py` | 131 | Точка входа: создаёт приложение и окно, закрывает всё в правильном порядке |
 | `launch.py` | 47 | Разбирает, **что открыть**: какой проект, какой файл, строка, столбец (без Qt) |
 | `instance.py` | 76 | «Один процесс на проект»: второй запуск передаёт команду первому окну |
-| `mainwindow.py` | 1578 | Главное окно, меню, панели, вкладки, навигация, переименование, запуск |
+| `mainwindow.py` | ~1230 | Главное окно: связывает части — вкладки, панели, меню, параметры |
+| `commands.py` | ~330 | Реестр команд (id как в VS: `Edit.Undo`) и страница «Параметры → Клавиатура» |
+| `navigation.py` | ~45 | «Назад / Вперёд» (`NavigationHistory`) |
+| `run_control.py` | ~120 | Запуск Python-файла по F5 (`RunController`) |
+| `build_check.py` | ~95 | «Проверить решение / текущий файл» (`SolutionCheck`) |
+| `refactor_actions.py` | ~280 | Ссылки, переименование, перенос типа, лампочка (`RefactorActions`) |
+| `project_actions.py` | ~150 | Новые файлы, шаблоны, Unity, PyQt-дизайнер (`ProjectActions`) |
+| `analyzer_control.py` | ~95 | Состояние, перезапуск, обновление анализаторов (`AnalyzerControl`) |
+| `document_safety.py` | ~120 | Связь `documents.py` с окном: слежение за вкладками, восстановление (`DocumentSafety`) |
 | `editor.py` | 1237 | Один редактор кода (`CodeEditor`): ввод, отступы, скобки, подсказки |
 | `highlighter.py` | 420 | Подсветка синтаксиса (своя для C#/Python/XML/JSON/Markdown + через Pygments) |
 | `languages.py` | 111 | **Реестр языков** — что редактор знает про каждый язык |
@@ -101,12 +109,27 @@
 4. `CSharpIndexWorker` — фоновый поток, который сканирует проект и пакеты для C#-подсказок.
 5. Интерфейс: `_build_central` (вкладки) → `_build_docks` (панели) → `_build_actions` → `_build_menus` → `_build_toolbar` → `_build_status`.
 
-Что ещё делает окно:
+Окно само почти ничего не делает — оно **связывает** части. Действия живут в своих классах,
+каждый получает ссылку на окно (`self.win`) и берёт у него только нужное:
+
+| Атрибут окна | Класс | Что делает |
+|---|---|---|
+| `commands` | `commands.CommandRegistry` | Все команды и их клавиши; `_build_actions` только регистрирует |
+| `nav` | `navigation.NavigationHistory` | «Назад / Вперёд» |
+| `runner` | `run_control.RunController` | F5 / Shift+F5 |
+| `checker` | `build_check.SolutionCheck` | Ctrl+Shift+B, Ctrl+F7 |
+| `refactoring` | `refactor_actions.RefactorActions` | Shift+F12, F2, Ctrl+R Ctrl+F, лампочка |
+| `project` | `project_actions.ProjectActions` | Новый файл, скрипт Unity, PyQt-дизайнер, requirements.txt |
+| `analyzers` | `analyzer_control.AnalyzerControl` | Надпись состояния, перезапуск, обновления |
+| `safety` | `document_safety.DocumentSafety` | Изменения файлов на диске, автовосстановление |
+
+Редактор и панели по-прежнему зовут окно (`jump_to`, `navigate`, `move_type_to_file`, `apply_code_action`,
+`run_file`) — это тонкие передачи в нужный класс, чтобы им не знать, кто внутри отвечает.
+
+Что остаётся в самом окне:
 
 - **Вкладки:** `open_path`, `close_tab`, `save_current`, `save_all`. Сюда же — запоминание открытых файлов.
-- **Навигация** «Назад/Вперёд» (`_nav_back` / `_nav_fwd`), `jump_to`.
-- **Переименование символа** (`rename_dialog`, `_apply_rename`) и «Найти все ссылки».
-- **Запуск программы** (F5) через `QProcess`, вывод идёт в панель «Вывод».
+- **Параметры:** `_option_changed` применяет смену любого параметра (окно, меню и клавиши идут через `options.set`).
 - **Панель поиска `FindBar`** (Ctrl+F) — поиск и замена внутри открытого файла.
 - **Смена языка интерфейса** без перезапуска (`_change_language`).
 - **Перезапуск анализаторов** по порогу памяти (см. раздел 7).
@@ -357,7 +380,7 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 | Добавить класс/метод Unity в подсказки | `unity_api.py` — `_SPEC` |
 | Добавить шаблон нового файла | `templates.py` — константа + запись в `TEMPLATES` |
 | Добавить панель | `panels.py` (класс) + `MainWindow._build_docks` |
-| Добавить пункт меню / горячую клавишу | `MainWindow._build_actions` и `_build_menus` |
+| Добавить команду / горячую клавишу | `MainWindow._build_actions` (`self.commands.add("Раздел.Имя", …)`) и `_build_menus`; клавиши пользователь меняет сам в «Параметры → Клавиатура» |
 | Поменять цвета или значок | `theme.py` |
 | Добавить строку интерфейса | Ключ `модуль.смысл` в `tr("...")`/`bind_text`, текст во все `locales/*.json` (тест `test_i18n` проверит) |
 | Добавить язык интерфейса | Только положить `locales/<код>.json` (название в меню — ключ `"__name__"` внутри файла). Больше ничего править не нужно |

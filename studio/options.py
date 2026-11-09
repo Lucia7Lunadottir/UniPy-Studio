@@ -146,13 +146,142 @@ class ChoiceOption(Option):
         return super().search_text() + " " + " ".join(tr(label) for _, label in self.choices)
 
 
-class Page:
-    """Страница окна параметров. path — цепочка ключей перевода: («раздел», «страница»)."""
+class OptionsPage:
+    """Страница окна параметров. path — цепочка ключей перевода: («раздел», «страница»).
+    Страница — только описание; для каждого открытого окна она создаёт свой вид (`create_view`),
+    поэтому одно и то же описание можно показывать много раз."""
+
+    def __init__(self, path, intro=None):
+        self.path = tuple(path)
+        self.intro = intro
+
+    def title(self):
+        return " › ".join(tr(p) for p in self.path)
+
+    def create_view(self, dialog):
+        raise NotImplementedError
+
+
+class PageView:
+    """Вид страницы в одном окне параметров: поля, применение, сброс, поиск."""
+
+    def __init__(self, page, dialog):
+        self.page = page
+        self.dialog = dialog
+
+    def widget(self):
+        raise NotImplementedError
+
+    def load(self):
+        """Показать текущие значения."""
+
+    def dirty(self):
+        return False
+
+    def apply(self):
+        """Записать изменённое."""
+
+    def reset_defaults(self):
+        """Поля → значения по умолчанию (запишутся по «Применить»)."""
+
+    def filter(self, needle):
+        """Скрыть то, что не подходит под поиск. True — на странице что-то осталось."""
+        return not needle or needle in self.page.title().casefold()
+
+    def _frame(self, body):
+        """Общая рамка: заголовок, пояснение, содержимое с прокруткой."""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        host = QWidget()
+        lay = QVBoxLayout(host)
+        title = QLabel(self.page.title())
+        theme.style(title, "font-size:12pt; font-weight:600;")
+        lay.addWidget(title)
+        if self.page.intro:
+            intro = QLabel(tr(self.page.intro))
+            intro.setWordWrap(True)
+            lay.addWidget(intro)
+        if isinstance(body, QWidget):
+            lay.addWidget(body, 1)
+        else:
+            lay.addLayout(body)
+            lay.addStretch(1)
+        scroll.setWidget(host)
+        return scroll
+
+
+class Page(OptionsPage):
+    """Страница из параметров `Option` — поля строятся сами."""
 
     def __init__(self, path, options, intro=None):
-        self.path = tuple(path)
+        super().__init__(path, intro)
         self.options = tuple(options)
-        self.intro = intro
+
+    def create_view(self, dialog):
+        return FormView(self, dialog)
+
+
+class FormView(PageView):
+    def __init__(self, page, dialog):
+        super().__init__(page, dialog)
+        self.store = dialog.options
+        self.fields = {}            # ключ → (параметр, поле, строка-контейнер)
+        form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
+        for option in page.options:
+            row = QWidget()
+            rl = QVBoxLayout(row)
+            rl.setContentsMargins(0, 2, 0, 6)
+            rl.setSpacing(2)
+            field = option.make_editor()
+            option.connect(field, dialog.touched)
+            if option.has_own_label():
+                rl.addWidget(field)
+            else:
+                line = QHBoxLayout()
+                line.addWidget(QLabel(tr(option.label)))
+                line.addWidget(field)
+                line.addStretch(1)
+                rl.addLayout(line)
+            if option.hint:
+                hint = QLabel(tr(option.hint))
+                hint.setWordWrap(True)
+                theme.style(hint, "color:@dim@;")
+                rl.addWidget(hint)
+            form.addRow(row)
+            self.fields[option.key] = (option, field, row)
+        self._widget = self._frame(form)
+
+    def widget(self):
+        return self._widget
+
+    def load(self):
+        for key, (option, field, _row) in self.fields.items():
+            field.blockSignals(True)
+            option.set_editor_value(field, self.store[key])
+            field.blockSignals(False)
+
+    def dirty(self):
+        return any(option.cast(option.editor_value(field)) != self.store[key]
+                   for key, (option, field, _r) in self.fields.items())
+
+    def apply(self):
+        for key, (option, field, _row) in self.fields.items():
+            self.store.set(key, option.editor_value(field))
+
+    def reset_defaults(self):
+        for option, field, _row in self.fields.values():
+            option.set_editor_value(field, option.default)
+
+    def filter(self, needle):
+        page_hit = super().filter(needle)
+        any_hit = False
+        for option, _field, row in self.fields.values():
+            hit = page_hit or needle in option.search_text().casefold()
+            row.setVisible(hit)
+            any_hit |= hit
+        return any_hit
 
 
 # ---------------------------------------------------------------- реестр
@@ -197,7 +326,7 @@ class Options(QObject):
         super().__init__(parent)
         self.qsettings = qsettings
         self.pages = pages
-        self.by_key = {o.key: o for page in pages for o in page.options}
+        self.by_key = {o.key: o for page in pages for o in getattr(page, "options", ())}
         self._values = {key: o.read(qsettings) for key, o in self.by_key.items()}
 
     def __getitem__(self, key):
@@ -222,15 +351,15 @@ class Options(QObject):
 
 # ---------------------------------------------------------------- окно
 class OptionsDialog(QDialog):
-    """Дерево страниц слева, поля справа, поиск сверху. Изменения вступают в силу по «ОК»/«Применить»."""
+    """Дерево страниц слева, страница справа, поиск сверху. Изменения вступают в силу по «ОК»/«Применить».
+    extra_pages — страницы, которым нужно что-то из окна программы (например, «Клавиатура» — реестр команд)."""
 
-    def __init__(self, options, parent=None, start_page=None):
+    def __init__(self, options, parent=None, start_page=None, extra_pages=()):
         super().__init__(parent)
         self.options = options
         self.setWindowTitle(tr("options.title"))
-        self.resize(820, 520)
-        self._editors = {}          # ключ → (параметр, поле, строка-контейнер)
-        self._page_items = []       # (элемент дерева, страница, индекс в стопке)
+        self.resize(860, 560)
+        self.views = []             # (элемент дерева, вид страницы, индекс в стопке)
 
         root = QVBoxLayout(self)
         self.search = QLineEdit()
@@ -248,8 +377,13 @@ class OptionsDialog(QDialog):
         body.addWidget(self.stack, 1)
         root.addLayout(body, 1)
 
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel |
+                                   QDialogButtonBox.StandardButton.Apply)
+        self.apply_button = buttons.button(QDialogButtonBox.StandardButton.Apply)
+        self.apply_button.setEnabled(False)
+
         sections = {}
-        for page in options.pages:
+        for page in (*options.pages, *extra_pages):
             parent_item = self.tree.invisibleRootItem()
             for depth, part in enumerate(page.path[:-1]):
                 key = page.path[:depth + 1]
@@ -258,15 +392,12 @@ class OptionsDialog(QDialog):
                     sections[key].setExpanded(True)
                 parent_item = sections[key]
             item = QTreeWidgetItem(parent_item, [tr(page.path[-1])])
-            index = self.stack.addWidget(self._build_page(page))
+            view = page.create_view(self)
+            index = self.stack.addWidget(view.widget())
             item.setData(0, Qt.ItemDataRole.UserRole, index)
-            self._page_items.append((item, page, index))
+            self.views.append((item, view, index))
         self.tree.currentItemChanged.connect(self._page_selected)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel |
-                                   QDialogButtonBox.StandardButton.Apply)
-        self.apply_button = buttons.button(QDialogButtonBox.StandardButton.Apply)
-        self.apply_button.setEnabled(False)
         reset = QPushButton(tr("options.reset_page"))
         reset.clicked.connect(self._reset_page)
         buttons.addButton(reset, QDialogButtonBox.ButtonRole.ResetRole)
@@ -275,62 +406,21 @@ class OptionsDialog(QDialog):
         self.apply_button.clicked.connect(self.apply)
         root.addWidget(buttons)
 
-        self._load_values()
-        first = next((it for it, p, _ in self._page_items if p.path == tuple(start_page or ())), self._page_items[0][0])
+        for _item, view, _index in self.views:
+            view.load()
+        first = next((it for it, v, _ in self.views if v.page.path == tuple(start_page or ())), self.views[0][0])
         self.tree.setCurrentItem(first)
 
-    def _build_page(self, page):
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        host = QWidget()
-        lay = QVBoxLayout(host)
-        title = QLabel(" › ".join(tr(p) for p in page.path))
-        theme.style(title, "font-size:12pt; font-weight:600;")
-        lay.addWidget(title)
-        if page.intro:
-            intro = QLabel(tr(page.intro))
-            intro.setWordWrap(True)
-            lay.addWidget(intro)
-        form = QFormLayout()
-        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
-        for option in page.options:
-            row = QWidget()
-            rl = QVBoxLayout(row)
-            rl.setContentsMargins(0, 2, 0, 6)
-            rl.setSpacing(2)
-            field = option.make_editor()
-            option.connect(field, self._touched)
-            if option.has_own_label():
-                rl.addWidget(field)
-            else:
-                line = QHBoxLayout()
-                line.addWidget(QLabel(tr(option.label)))
-                line.addWidget(field)
-                line.addStretch(1)
-                rl.addLayout(line)
-            if option.hint:
-                hint = QLabel(tr(option.hint))
-                hint.setWordWrap(True)
-                theme.style(hint, "color:@dim@;")
-                rl.addWidget(hint)
-            form.addRow(row)
-            self._editors[option.key] = (option, field, row)
-        lay.addLayout(form)
-        lay.addStretch(1)
-        scroll.setWidget(host)
-        return scroll
+    def field(self, key):
+        """Поле параметра по ключу (для тестов и переходов «показать этот параметр»)."""
+        for _item, view, _index in self.views:
+            entry = getattr(view, "fields", {}).get(key)
+            if entry:
+                return entry[1]
+        raise KeyError(key)
 
-    def _load_values(self):
-        for key, (option, field, _row) in self._editors.items():
-            field.blockSignals(True)
-            option.set_editor_value(field, self.options[key])
-            field.blockSignals(False)
-        self.apply_button.setEnabled(False)
-
-    def _touched(self):
-        self.apply_button.setEnabled(any(option.cast(option.editor_value(field)) != self.options[key]
-                                         for key, (option, field, _r) in self._editors.items()))
+    def touched(self):
+        self.apply_button.setEnabled(any(view.dirty() for _it, view, _i in self.views))
 
     def _page_selected(self, item, _previous):
         index = item.data(0, Qt.ItemDataRole.UserRole) if item else None
@@ -339,41 +429,36 @@ class OptionsDialog(QDialog):
         if index is not None:
             self.stack.setCurrentIndex(index)
 
-    def current_page(self):
+    def current_view(self):
         index = self.stack.currentIndex()
-        return next((p for _it, p, i in self._page_items if i == index), None)
+        return next((v for _it, v, i in self.views if i == index), None)
 
     def _reset_page(self):
-        page = self.current_page()
-        if page is None:
-            return
-        for option in page.options:
-            option.set_editor_value(self._editors[option.key][1], option.default)
-        self._touched()
+        view = self.current_view()
+        if view is not None:
+            view.reset_defaults()
+            self.touched()
 
     def _filter(self, text):
-        """Поиск по названиям страниц, подписям, пояснениям и вариантам выбора."""
+        """Поиск по названиям страниц, подписям, пояснениям, вариантам выбора и командам."""
         needle = text.strip().casefold()
         first = None
-        for item, page, _index in self._page_items:
-            page_hit = not needle or needle in " ".join(tr(p) for p in page.path).casefold()
-            any_hit = False
-            for option in page.options:
-                hit = page_hit or needle in option.search_text().casefold()
-                self._editors[option.key][2].setVisible(hit)
-                any_hit |= hit
-            item.setHidden(not any_hit)
-            if any_hit and first is None:
+        for item, view, _index in self.views:
+            hit = view.filter(needle)
+            item.setHidden(not hit)
+            if hit and first is None:
                 first = item
         for i in range(self.tree.topLevelItemCount()):
             top = self.tree.topLevelItem(i)
             top.setHidden(all(top.child(j).isHidden() for j in range(top.childCount())))
-        if first is not None and (self.tree.currentItem() is None or self.tree.currentItem().isHidden()):
+        current = self.tree.currentItem()
+        if first is not None and (current is None or current.isHidden()):
             self.tree.setCurrentItem(first)
 
     def apply(self):
-        for key, (option, field, _row) in self._editors.items():
-            self.options.set(key, option.editor_value(field))
+        for _item, view, _index in self.views:
+            if view.dirty():
+                view.apply()
         self.apply_button.setEnabled(False)
 
     def accept(self):

@@ -1005,5 +1005,15 @@
   "options.recovery_interval": "Kopie speichern alle",
   "options.recovery_keep_days": "Kopien höchstens aufbewahren für",
   "options.restart_mb": "Analyse neu starten, wenn sie mehr belegt als",
-  "options.restart_hint": "Neustart nur nach 2 Minuten ohne Tippen; geöffnete Dateien werden erneut übergeben."
+  "options.restart_hint": "Neustart nur nach 2 Minuten ohne Tippen; geöffnete Dateien werden erneut übergeben.",
+  "commands.keyboard": "Tastatur",
+  "commands.keyboard_intro": "Befehl auswählen, neue Tastenkombination drücken und „Zuweisen“ klicken. Geänderte Befehle sind fett. Eine von einem anderen Befehl belegte Kombination geht an den ausgewählten über.",
+  "commands.command": "Befehl",
+  "commands.shortcuts": "Tastenkombinationen",
+  "commands.new_shortcut": "Neue Kombination:",
+  "commands.assign": "Zuweisen",
+  "commands.add": "Hinzufügen",
+  "commands.remove": "Alle entfernen",
+  "commands.default": "Standard",
+  "commands.used_by": "Wird bereits verwendet von: %s"
 }

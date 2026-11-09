@@ -1005,5 +1005,15 @@
   "options.recovery_interval": "Save a copy every",
   "options.recovery_keep_days": "Keep copies for at most",
   "options.restart_mb": "Restart an analyzer that uses more than",
-  "options.restart_hint": "Restarts only after 2 minutes without typing; open files are sent again."
+  "options.restart_hint": "Restarts only after 2 minutes without typing; open files are sent again.",
+  "commands.keyboard": "Keyboard",
+  "commands.keyboard_intro": "Select a command, press the new shortcut and click Assign. Changed commands are shown in bold. A shortcut used by another command moves to the selected one.",
+  "commands.command": "Command",
+  "commands.shortcuts": "Shortcuts",
+  "commands.new_shortcut": "New shortcut:",
+  "commands.assign": "Assign",
+  "commands.add": "Add",
+  "commands.remove": "Remove All",
+  "commands.default": "Default",
+  "commands.used_by": "Currently used by: %s"
 }

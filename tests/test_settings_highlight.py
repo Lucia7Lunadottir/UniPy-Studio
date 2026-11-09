@@ -36,9 +36,8 @@ class SettingsHighlight(unittest.TestCase):
                 dialog=app.activeModalWidget()
                 outcome.append(isinstance(dialog,QDialog))
                 if dialog:
-                    fields={key:field for key,(_o,field,_r) in dialog._editors.items()}
-                    fields['editor/font_size'].setValue(15); fields['editor/hint_size'].setValue(13)
-                    fields['editor/word_wrap'].setChecked(True)
+                    dialog.field('editor/font_size').setValue(15); dialog.field('editor/hint_size').setValue(13)
+                    dialog.field('editor/word_wrap').setChecked(True)
                     dialog.accept()
             QTimer.singleShot(50,accept)
             win.a_settings.trigger()

@@ -1005,5 +1005,15 @@
   "options.recovery_interval": "Salvar uma cópia a cada",
   "options.recovery_keep_days": "Manter cópias no máximo por",
   "options.restart_mb": "Reiniciar um analisador que use mais de",
-  "options.restart_hint": "Reinicia só após 2 minutos sem digitar; os arquivos abertos são enviados de novo."
+  "options.restart_hint": "Reinicia só após 2 minutos sem digitar; os arquivos abertos são enviados de novo.",
+  "commands.keyboard": "Teclado",
+  "commands.keyboard_intro": "Selecione um comando, pressione o novo atalho e clique em “Atribuir”. Comandos alterados aparecem em negrito. Um atalho usado por outro comando passa para o selecionado.",
+  "commands.command": "Comando",
+  "commands.shortcuts": "Atalhos",
+  "commands.new_shortcut": "Novo atalho:",
+  "commands.assign": "Atribuir",
+  "commands.add": "Adicionar",
+  "commands.remove": "Remover todos",
+  "commands.default": "Padrão",
+  "commands.used_by": "Já usado por: %s"
 }

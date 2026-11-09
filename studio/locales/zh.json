@@ -1005,5 +1005,15 @@
   "options.recovery_interval": "保存副本的间隔",
   "options.recovery_keep_days": "副本最长保留",
   "options.restart_mb": "分析器内存超过此值时重新启动",
-  "options.restart_hint": "只在 2 分钟未输入时重新启动；打开的文件会重新发送。"
+  "options.restart_hint": "只在 2 分钟未输入时重新启动；打开的文件会重新发送。",
+  "commands.keyboard": "键盘",
+  "commands.keyboard_intro": "选择命令，按下新的快捷键，然后点击“分配”。已更改的命令以粗体显示。被其他命令占用的快捷键会转给所选命令。",
+  "commands.command": "命令",
+  "commands.shortcuts": "快捷键",
+  "commands.new_shortcut": "新快捷键：",
+  "commands.assign": "分配",
+  "commands.add": "添加",
+  "commands.remove": "全部移除",
+  "commands.default": "默认",
+  "commands.used_by": "当前使用者：%s"
 }

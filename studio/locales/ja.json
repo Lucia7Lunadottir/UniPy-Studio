@@ -1005,5 +1005,15 @@
   "options.recovery_interval": "コピーを保存する間隔",
   "options.recovery_keep_days": "コピーを保持する最大期間",
   "options.restart_mb": "次の量を超えたらアナライザーを再起動",
-  "options.restart_hint": "2 分間入力がないときだけ再起動し、開いているファイルを再送します。"
+  "options.restart_hint": "2 分間入力がないときだけ再起動し、開いているファイルを再送します。",
+  "commands.keyboard": "キーボード",
+  "commands.keyboard_intro": "コマンドを選び、新しいショートカットを押して [割り当て] をクリックします。変更したコマンドは太字で表示されます。他のコマンドが使っているショートカットは選択したコマンドに移ります。",
+  "commands.command": "コマンド",
+  "commands.shortcuts": "ショートカット",
+  "commands.new_shortcut": "新しいショートカット:",
+  "commands.assign": "割り当て",
+  "commands.add": "追加",
+  "commands.remove": "すべて削除",
+  "commands.default": "既定",
+  "commands.used_by": "使用中のコマンド: %s"
 }

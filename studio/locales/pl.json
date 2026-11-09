@@ -1005,5 +1005,15 @@
   "options.recovery_interval": "Zapisuj kopię co",
   "options.recovery_keep_days": "Przechowuj kopie najdłużej",
   "options.restart_mb": "Uruchom ponownie analizator, który zajmuje więcej niż",
-  "options.restart_hint": "Ponowne uruchomienie tylko po 2 minutach bez pisania; otwarte pliki są przekazywane ponownie."
+  "options.restart_hint": "Ponowne uruchomienie tylko po 2 minutach bez pisania; otwarte pliki są przekazywane ponownie.",
+  "commands.keyboard": "Klawiatura",
+  "commands.keyboard_intro": "Wybierz polecenie, naciśnij nowy skrót i kliknij „Przypisz”. Zmienione polecenia są pogrubione. Skrót zajęty przez inne polecenie przejdzie do wybranego.",
+  "commands.command": "Polecenie",
+  "commands.shortcuts": "Skróty klawiszowe",
+  "commands.new_shortcut": "Nowy skrót:",
+  "commands.assign": "Przypisz",
+  "commands.add": "Dodaj",
+  "commands.remove": "Usuń wszystkie",
+  "commands.default": "Domyślne",
+  "commands.used_by": "Już używane przez: %s"
 }

@@ -1005,5 +1005,15 @@
   "options.recovery_interval": "儲存副本的間隔",
   "options.recovery_keep_days": "副本最長保留",
   "options.restart_mb": "分析器記憶體超過此值時重新啟動",
-  "options.restart_hint": "只在 2 分鐘未輸入時重新啟動；開啟的檔案會重新傳送。"
+  "options.restart_hint": "只在 2 分鐘未輸入時重新啟動；開啟的檔案會重新傳送。",
+  "commands.keyboard": "鍵盤",
+  "commands.keyboard_intro": "選擇命令，按下新的快速鍵，然後按「指派」。已變更的命令以粗體顯示。被其他命令使用的快速鍵會轉給所選命令。",
+  "commands.command": "命令",
+  "commands.shortcuts": "快速鍵",
+  "commands.new_shortcut": "新快速鍵：",
+  "commands.assign": "指派",
+  "commands.add": "新增",
+  "commands.remove": "全部移除",
+  "commands.default": "預設",
+  "commands.used_by": "目前使用者：%s"
 }

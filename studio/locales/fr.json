@@ -1005,5 +1005,15 @@
   "options.recovery_interval": "Enregistrer une copie toutes les",
   "options.recovery_keep_days": "Conserver les copies au plus",
   "options.restart_mb": "Redémarrer un analyseur qui utilise plus de",
-  "options.restart_hint": "Redémarrage uniquement après 2 minutes sans saisie ; les fichiers ouverts sont renvoyés."
+  "options.restart_hint": "Redémarrage uniquement après 2 minutes sans saisie ; les fichiers ouverts sont renvoyés.",
+  "commands.keyboard": "Clavier",
+  "commands.keyboard_intro": "Sélectionnez une commande, appuyez sur le nouveau raccourci puis sur « Attribuer ». Les commandes modifiées sont en gras. Un raccourci déjà utilisé passe à la commande sélectionnée.",
+  "commands.command": "Commande",
+  "commands.shortcuts": "Raccourcis",
+  "commands.new_shortcut": "Nouveau raccourci :",
+  "commands.assign": "Attribuer",
+  "commands.add": "Ajouter",
+  "commands.remove": "Tout supprimer",
+  "commands.default": "Par défaut",
+  "commands.used_by": "Déjà utilisé par : %s"
 }
