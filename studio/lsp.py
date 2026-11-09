@@ -27,7 +27,8 @@ from .theme import C
 from .i18n import tr
 
 # Настройки, которые меняются из меню без перезапуска (читаются при workspace/configuration)
-OPTIONS = {"unimported": True}      # подсказки из ещё не подключённых пространств имён (Roslyn)
+OPTIONS = {"unimported": True,      # подсказки из ещё не подключённых пространств имён (Roslyn)
+           "inlay_parameters": True, "inlay_types": False}     # подсказки в строке (Roslyn; insights/inlay.py)
 
 METADATA_DIR = os.path.join(os.path.expanduser("~"), ".cache", "unipy-studio", "metadata")
 
@@ -661,7 +662,7 @@ class LanguageServer(QObject):
             return
         self.last_activity = time.monotonic()
         self.sync(path, code)
-        key = (editor, kind)
+        key = (editor, kind, (extra or {}).get("key"))     # key — несколько параллельных запросов (CodeLens)
         old = self._pending.pop(key, None)
         if old is not None:
             self.conn.cancel(old)
@@ -908,16 +909,21 @@ def find_csharp_server():
     return None, None
 
 
-def find_solution_dir(path):
-    """Ближайшая вверх папка с .sln/.slnx — так же решение ищут Visual Studio и Rider."""
+def _nearest_dir_with(path, patterns):
     d = os.path.dirname(os.path.abspath(path))
     while True:
-        if glob.glob(os.path.join(glob.escape(d), "*.sln")) or glob.glob(os.path.join(glob.escape(d), "*.slnx")):
+        if any(glob.glob(os.path.join(glob.escape(d), p)) for p in patterns):
             return d
         parent = os.path.dirname(d)
         if parent == d:
             return None
         d = parent
+
+
+def find_solution_dir(path):
+    """Ближайшая вверх папка с .sln/.slnx — так же решение ищут Visual Studio и Rider. Решения нет —
+    папка проекта .csproj (так создаёт `dotnet new console`): Roslyn с --autoLoadProjects загрузит проект сам."""
+    return _nearest_dir_with(path, ("*.sln", "*.slnx")) or _nearest_dir_with(path, ("*.csproj",))
 
 
 def pick_solution(folder):
@@ -1001,6 +1007,19 @@ class RoslynServer(CSharpServer):
             "navigation.dotnet_navigate_to_decompiled_sources": True,
             "navigation.dotnet_navigate_to_source_link_and_embedded_sources": True,
             "csharp|navigation.dotnet_navigate_to_decompiled_sources": True,
+            # подсказки в строке (insights/inlay.py): имена параметров и типы, правила «лишних» — как в VS
+            "csharp|inlay_hints.dotnet_enable_inlay_hints_for_parameters": OPTIONS["inlay_parameters"],
+            "csharp|inlay_hints.dotnet_enable_inlay_hints_for_literal_parameters": OPTIONS["inlay_parameters"],
+            "csharp|inlay_hints.dotnet_enable_inlay_hints_for_indexer_parameters": OPTIONS["inlay_parameters"],
+            "csharp|inlay_hints.dotnet_enable_inlay_hints_for_object_creation_parameters": OPTIONS["inlay_parameters"],
+            "csharp|inlay_hints.dotnet_enable_inlay_hints_for_other_parameters": OPTIONS["inlay_parameters"],
+            "csharp|inlay_hints.dotnet_suppress_inlay_hints_for_parameters_that_differ_only_by_suffix": True,
+            "csharp|inlay_hints.dotnet_suppress_inlay_hints_for_parameters_that_match_method_intent": True,
+            "csharp|inlay_hints.dotnet_suppress_inlay_hints_for_parameters_that_match_argument_name": True,
+            "csharp|inlay_hints.csharp_enable_inlay_hints_for_types": OPTIONS["inlay_types"],
+            "csharp|inlay_hints.csharp_enable_inlay_hints_for_implicit_variable_types": OPTIONS["inlay_types"],
+            "csharp|inlay_hints.csharp_enable_inlay_hints_for_lambda_parameter_types": OPTIONS["inlay_types"],
+            "csharp|inlay_hints.csharp_enable_inlay_hints_for_implicit_object_creation": OPTIONS["inlay_types"],
             "csharp|navigation.dotnet_navigate_to_source_link_and_embedded_sources": True,
         }
         if section == "projects.dotnet_enable_automatic_restore" and self.is_unity_project:
