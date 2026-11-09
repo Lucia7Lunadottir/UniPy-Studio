@@ -951,7 +951,7 @@ class MainWindow(QMainWindow):
         self.terminal.set_cwd(root)
         self.errors.root = root
         self.errors.groups.clear()
-        self.errors.render()
+        self.errors.refresh()
         if not self.screenshot_mode:
             self.settings.setValue("solution/last", root)
             recent = [r for r in (self.settings.value("solution/recent") or []) if r != root]
@@ -1121,7 +1121,7 @@ class MainWindow(QMainWindow):
             self._show_indent(ed)
             self.explorer.select_path(ed.path)
             self.errors.current = ed.path
-            self.errors.render()
+            self.errors.refresh()
             if self.findbar.isVisible():
                 self.findbar.update_matches()
         else:
@@ -1457,7 +1457,7 @@ class MainWindow(QMainWindow):
         for ed in self.editors():
             ed.apply_theme()
         self.output._rerender()
-        self.errors.render()
+        self.errors.refresh()
         self.unity_console.refresh()
         self.explorer.refresh()
         if theme.CONTROLLER is not None:
