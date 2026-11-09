@@ -1272,5 +1272,16 @@
   "options.indent_guides": "들여쓰기 안내선",
   "options.indent_guides_hint": "중첩 수준마다 점선 세로줄을 표시하고 커서가 있는 블록의 선은 더 밝게 표시합니다",
   "mainwindow.view_whitespace": "공백 보기",
-  "mainwindow.advanced": "고급"
+  "mainwindow.advanced": "고급",
+  "bookmarks.window": "책갈피",
+  "bookmarks.menu": "책갈피",
+  "bookmarks.toggle": "책갈피 설정/해제",
+  "bookmarks.next": "다음 책갈피",
+  "bookmarks.previous": "이전 책갈피",
+  "bookmarks.clear_all": "모든 책갈피 지우기",
+  "bookmarks.name": "책갈피",
+  "bookmarks.default_name": "책갈피, %d줄",
+  "bookmarks.rename": "이름 바꾸기(F2)",
+  "bookmarks.delete": "책갈피 삭제",
+  "bookmarks.none": "책갈피가 없습니다 — Ctrl+K, Ctrl+K로 추가하세요"
 }

@@ -1272,5 +1272,16 @@
   "options.indent_guides": "缩进参考线",
   "options.indent_guides_hint": "在每个嵌套层级显示虚线竖线；光标所在块的线更亮",
   "mainwindow.view_whitespace": "查看空白",
-  "mainwindow.advanced": "高级"
+  "mainwindow.advanced": "高级",
+  "bookmarks.window": "书签",
+  "bookmarks.menu": "书签",
+  "bookmarks.toggle": "切换书签",
+  "bookmarks.next": "下一个书签",
+  "bookmarks.previous": "上一个书签",
+  "bookmarks.clear_all": "清除所有书签",
+  "bookmarks.name": "书签",
+  "bookmarks.default_name": "书签，第 %d 行",
+  "bookmarks.rename": "重命名 (F2)",
+  "bookmarks.delete": "删除书签",
+  "bookmarks.none": "没有书签 — 按 Ctrl+K, Ctrl+K 添加"
 }

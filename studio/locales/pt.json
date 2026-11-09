@@ -1272,5 +1272,16 @@
   "options.indent_guides": "Guias de recuo",
   "options.indent_guides_hint": "Linhas verticais pontilhadas em cada nível de aninhamento; a do bloco com o cursor fica mais clara",
   "mainwindow.view_whitespace": "Exibir espaço em branco",
-  "mainwindow.advanced": "Avançado"
+  "mainwindow.advanced": "Avançado",
+  "bookmarks.window": "Indicadores",
+  "bookmarks.menu": "Indicadores",
+  "bookmarks.toggle": "Alternar indicador",
+  "bookmarks.next": "Próximo indicador",
+  "bookmarks.previous": "Indicador anterior",
+  "bookmarks.clear_all": "Limpar todos os indicadores",
+  "bookmarks.name": "Indicador",
+  "bookmarks.default_name": "Indicador, linha %d",
+  "bookmarks.rename": "Renomear (F2)",
+  "bookmarks.delete": "Excluir indicador",
+  "bookmarks.none": "Nenhum indicador — adicione com Ctrl+K, Ctrl+K"
 }

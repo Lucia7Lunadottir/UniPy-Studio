@@ -1272,5 +1272,16 @@
   "options.indent_guides": "Guías de sangría",
   "options.indent_guides_hint": "Líneas verticales punteadas en cada nivel de anidamiento; la del bloque con el cursor es más clara",
   "mainwindow.view_whitespace": "Ver espacios en blanco",
-  "mainwindow.advanced": "Avanzado"
+  "mainwindow.advanced": "Avanzado",
+  "bookmarks.window": "Marcadores",
+  "bookmarks.menu": "Marcadores",
+  "bookmarks.toggle": "Alternar marcador",
+  "bookmarks.next": "Marcador siguiente",
+  "bookmarks.previous": "Marcador anterior",
+  "bookmarks.clear_all": "Borrar todos los marcadores",
+  "bookmarks.name": "Marcador",
+  "bookmarks.default_name": "Marcador, línea %d",
+  "bookmarks.rename": "Cambiar nombre (F2)",
+  "bookmarks.delete": "Eliminar marcador",
+  "bookmarks.none": "No hay marcadores: añada uno con Ctrl+K, Ctrl+K"
 }

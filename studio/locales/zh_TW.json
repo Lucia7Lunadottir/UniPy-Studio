@@ -1272,5 +1272,16 @@
   "options.indent_guides": "縮排輔助線",
   "options.indent_guides_hint": "在每個巢狀層級顯示虛線直線；游標所在區塊的線更亮",
   "mainwindow.view_whitespace": "檢視空白",
-  "mainwindow.advanced": "進階"
+  "mainwindow.advanced": "進階",
+  "bookmarks.window": "書籤",
+  "bookmarks.menu": "書籤",
+  "bookmarks.toggle": "切換書籤",
+  "bookmarks.next": "下一個書籤",
+  "bookmarks.previous": "上一個書籤",
+  "bookmarks.clear_all": "清除所有書籤",
+  "bookmarks.name": "書籤",
+  "bookmarks.default_name": "書籤，第 %d 行",
+  "bookmarks.rename": "重新命名 (F2)",
+  "bookmarks.delete": "刪除書籤",
+  "bookmarks.none": "沒有書籤 — 按 Ctrl+K, Ctrl+K 新增"
 }

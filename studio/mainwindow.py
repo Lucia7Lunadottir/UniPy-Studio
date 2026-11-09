@@ -23,6 +23,7 @@ from .debug.session import STOPPED as DEBUG_STOPPED
 from .document_safety import DocumentSafety
 from .vcs.controller import VcsController
 from .testing.controller import TestController
+from .bookmarks.controller import BookmarkController
 from .dependencies.controller import DependenciesController
 from .formatting import Formatter
 from .navigation import NavigationHistory
@@ -195,6 +196,7 @@ class MainWindow(QMainWindow):
         self.debugger = DebugController(self)       # F5/F9/F10/F11: отладка по DAP (debugpy…)
         self.vcs = VcsController(self)              # Git: статус, полоски изменений, коммит, ветки
         self.tests = TestController(self)           # «Обозреватель тестов»: pytest / unittest…
+        self.bookmarks = BookmarkController(self)   # закладки: Ctrl+K, Ctrl+K / N / P, окно «Закладки»
         self.dependencies = DependenciesController(self)    # что требуется проекту и что установлено
         self.formatter = Formatter(self)            # Ctrl+K, Ctrl+D: Roslyn, для Python — ruff/black
         self.setWindowIcon(theme.app_icon())
@@ -245,6 +247,10 @@ class MainWindow(QMainWindow):
         self.outline_timer = QTimer(self, singleShot=True, interval=400, timeout=self.refresh_outline)
         self.safety = DocumentSafety(self)          # изменения файлов на диске, автовосстановление
         self.update_run_actions()                   # кнопки шагов отладки видны только во время отладки
+        # Пока доки строились, они стояли рядом (во вкладки собраны позже) — и окно запомнило минимум ширины
+        # «все доки рядом». restoreGeometry/resize до show() упирались в него: сохранённая узкая ширина
+        # не восстанавливалась. Пересчёт по готовой раскладке.
+        self.layout().activate()
 
     # ------------------------------------------------------------ параметры
     def _option_changed(self, key):
@@ -441,10 +447,14 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self.d_call_stack, self.d_breakpoints)
         for d in (self.d_call_stack, self.d_locals, self.d_breakpoints):
             d.hide()                        # появляются при остановке, как в VS
+        self.d_bookmarks = self._dock("bookmarks.window", self.bookmarks.panel, Qt.DockWidgetArea.BottomDockWidgetArea,
+                                      "bookmarks")
         self.tabifyDockWidget(self.d_errors, self.d_references)
         self.tabifyDockWidget(self.d_errors, self.d_output)
         self.tabifyDockWidget(self.d_output, self.d_terminal)
         self.tabifyDockWidget(self.d_output, self.d_unity_console)
+        self.tabifyDockWidget(self.d_output, self.d_bookmarks)
+        self.d_bookmarks.hide()             # окно «Закладки» — по Ctrl+K, Ctrl+W, вкладкой в нижней группе, как в VS
         self.d_errors.raise_()
         self.resizeDocks([self.d_explorer, self.d_unity], [290, 370], Qt.Orientation.Horizontal)
         self.resizeDocks([self.d_errors], [230], Qt.Orientation.Vertical)
@@ -513,6 +523,12 @@ class MainWindow(QMainWindow):
         self.a_fold_expand = A("Edit.ExpandAllOutlining", "mainwindow.fold_expand_all", fold("expand_all"), "Ctrl+M, Ctrl+X")
         self.a_rename = A("Refactor.Rename", "common.rename_2", R.rename_dialog, ("Ctrl+R, Ctrl+R", "F2"))
         self.a_move_type = A("Refactor.MoveTypeToFile", "common.move_type_own_file", R.move_type_to_file, "Ctrl+R, Ctrl+F")
+        K = self.bookmarks
+        self.a_bookmark = A("Edit.ToggleBookmark", "bookmarks.toggle", K.toggle, "Ctrl+K, Ctrl+K")
+        self.a_bookmark_next = A("Edit.NextBookmark", "bookmarks.next", lambda: K.step(True), "Ctrl+K, Ctrl+N")
+        self.a_bookmark_prev = A("Edit.PreviousBookmark", "bookmarks.previous", lambda: K.step(False), "Ctrl+K, Ctrl+P")
+        self.a_bookmark_clear = A("Edit.ClearBookmarks", "bookmarks.clear_all", K.clear, "Ctrl+K, Ctrl+L")
+        self.a_bookmark_window = A("View.BookmarkWindow", "bookmarks.window", K.show_window, "Ctrl+K, Ctrl+W")
         self.a_whitespace = A("Edit.ViewWhiteSpace", "mainwindow.view_whitespace",
                               lambda: self.options.set("editor/show_whitespace", self.a_whitespace.isChecked()),
                               "Ctrl+R, Ctrl+W", checkable=True)
@@ -645,6 +661,10 @@ class MainWindow(QMainWindow):
         sub = bind_text(m.addMenu(""), "mainwindow.outlining", "setTitle")
         for a in (self.a_fold_toggle, self.a_fold_all, self.a_fold_defs, self.a_fold_collapse, self.a_fold_expand):
             sub.addAction(a)
+        sub = bind_text(m.addMenu(""), "bookmarks.menu", "setTitle")
+        for a in (self.a_bookmark, self.a_bookmark_next, self.a_bookmark_prev, self.a_bookmark_clear, None,
+                  self.a_bookmark_window):
+            sub.addSeparator() if a is None else sub.addAction(a)
         self.advanced_menu = sub = bind_text(m.addMenu(""), "mainwindow.advanced", "setTitle")
         sub.addAction(self.a_whitespace)
         sub = m.addMenu("IntelliSense")
@@ -657,7 +677,7 @@ class MainWindow(QMainWindow):
         m = bind_text(mb.addMenu(""), "mainwindow.view", "setTitle")
         for d in (self.d_explorer, self.d_outline, self.d_unity, self.d_designer, self.d_output,
                   self.d_errors, self.d_references, self.d_terminal, self.d_unity_console,
-                  self.d_call_stack, self.d_locals, self.d_breakpoints, self.d_git, self.d_tests,
+                  self.d_call_stack, self.d_locals, self.d_breakpoints, self.d_bookmarks, self.d_git, self.d_tests,
                   self.d_dependencies):
             m.addAction(d.toggleViewAction())
         m.addSeparator()
@@ -971,6 +991,7 @@ class MainWindow(QMainWindow):
         unity = find_unity_projects(root)
         self.unity_console.set_project(unity[0] if unity else None)
         self.debugger.load_solution(root)
+        self.bookmarks.load_solution(root)
         self.vcs.set_root(root)
         self.tests.nodes = {}
         self.tests.panel.set_nodes({})
@@ -1096,6 +1117,7 @@ class MainWindow(QMainWindow):
         ed.document().modificationChanged.connect(lambda _m, e=ed: self._modified(e))
         self.safety.track(ed)
         self.debugger.attach_editor(ed)
+        self.bookmarks.attach_editor(ed)
         self.vcs.attach_editor(ed)
         ed.saved.connect(self.tests.file_saved)
         i = self.tabs.addTab(ed, theme.file_icon(path), os.path.basename(path))
@@ -1250,9 +1272,10 @@ class MainWindow(QMainWindow):
                 self.safety.renamed(before, ed.path)
                 self.tabs.setTabText(i, os.path.basename(ed.path))
                 self.tabs.setTabToolTip(i, ed.path)
-        for path in self.debugger.store.paths():         # точки останова едут вместе с файлом или папкой
-            if path == old or path.startswith(old + os.sep):
-                self.debugger.store.rename(path, new + path[len(old):])
+        for store in (self.debugger.store, self.bookmarks.store):   # точки останова и закладки едут с файлом
+            for path in store.paths():
+                if path == old or path.startswith(old + os.sep):
+                    store.rename(path, new + path[len(old):])
 
     def on_path_deleted(self, path):
         self.tell_analyzers([(path, 3)])

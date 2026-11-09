@@ -1272,5 +1272,16 @@
   "options.indent_guides": "Einzugshilfslinien",
   "options.indent_guides_hint": "Gepunktete senkrechte Linien auf jeder Verschachtelungsebene; die Linie des Blocks mit dem Cursor ist heller",
   "mainwindow.view_whitespace": "Leerraum anzeigen",
-  "mainwindow.advanced": "Erweitert"
+  "mainwindow.advanced": "Erweitert",
+  "bookmarks.window": "Lesezeichen",
+  "bookmarks.menu": "Lesezeichen",
+  "bookmarks.toggle": "Lesezeichen umschalten",
+  "bookmarks.next": "Nächstes Lesezeichen",
+  "bookmarks.previous": "Vorheriges Lesezeichen",
+  "bookmarks.clear_all": "Alle Lesezeichen löschen",
+  "bookmarks.name": "Lesezeichen",
+  "bookmarks.default_name": "Lesezeichen, Zeile %d",
+  "bookmarks.rename": "Umbenennen (F2)",
+  "bookmarks.delete": "Lesezeichen löschen",
+  "bookmarks.none": "Keine Lesezeichen — mit Strg+K, Strg+K setzen"
 }

@@ -1272,5 +1272,16 @@
   "options.indent_guides": "Направляющие отступов",
   "options.indent_guides_hint": "Пунктирные вертикальные линии на каждом уровне вложенности; у блока с курсором линия ярче",
   "mainwindow.view_whitespace": "Показать пробелы",
-  "mainwindow.advanced": "Дополнительно"
+  "mainwindow.advanced": "Дополнительно",
+  "bookmarks.window": "Закладки",
+  "bookmarks.menu": "Закладки",
+  "bookmarks.toggle": "Поставить или убрать закладку",
+  "bookmarks.next": "Следующая закладка",
+  "bookmarks.previous": "Предыдущая закладка",
+  "bookmarks.clear_all": "Удалить все закладки",
+  "bookmarks.name": "Закладка",
+  "bookmarks.default_name": "Закладка, строка %d",
+  "bookmarks.rename": "Переименовать (F2)",
+  "bookmarks.delete": "Удалить закладку",
+  "bookmarks.none": "Закладок нет — поставьте: Ctrl+K, Ctrl+K"
 }

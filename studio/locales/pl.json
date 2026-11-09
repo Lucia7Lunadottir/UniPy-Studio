@@ -1272,5 +1272,16 @@
   "options.indent_guides": "Linie wcięć",
   "options.indent_guides_hint": "Kropkowane pionowe linie na każdym poziomie zagnieżdżenia; linia bloku z kursorem jest jaśniejsza",
   "mainwindow.view_whitespace": "Pokaż białe znaki",
-  "mainwindow.advanced": "Zaawansowane"
+  "mainwindow.advanced": "Zaawansowane",
+  "bookmarks.window": "Zakładki",
+  "bookmarks.menu": "Zakładki",
+  "bookmarks.toggle": "Przełącz zakładkę",
+  "bookmarks.next": "Następna zakładka",
+  "bookmarks.previous": "Poprzednia zakładka",
+  "bookmarks.clear_all": "Wyczyść wszystkie zakładki",
+  "bookmarks.name": "Zakładka",
+  "bookmarks.default_name": "Zakładka, wiersz %d",
+  "bookmarks.rename": "Zmień nazwę (F2)",
+  "bookmarks.delete": "Usuń zakładkę",
+  "bookmarks.none": "Brak zakładek — dodaj: Ctrl+K, Ctrl+K"
 }

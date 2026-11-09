@@ -44,6 +44,7 @@ class CodeEditor(DocumentMixin, GutterMixin, MarkersMixin, QuickActionsMixin, Di
         self.missing_on_disk = False   # файл удалили вне редактора; сохранение создаст его заново
         self.indent = IndentStyle()    # пробелы/табы и размер; окно ставит итог .editorconfig/файла/параметров
         self.breakpoints = None        # debug.breakpoints.BreakpointStore — ставит окно (отладчик)
+        self.bookmarks = None          # bookmarks.store.BookmarkStore — ставит окно
         self.execution_line = None     # строка (с 1), где стоит отладчик; None — не стоит
         self.execution_is_top = True   # верхний кадр стека (жёлтая стрелка) или выбранный выше (зелёная)
         self.debug_hover = None        # функция(выражение, ответ(текст)) — значение при наведении во время отладки

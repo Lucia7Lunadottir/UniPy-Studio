@@ -1,4 +1,4 @@
-"""Поле слева от кода: номера строк, точки останова, стрелка отладки, полоски Git, лампочка, +/− сворачивания."""
+"""Поле слева от кода: номера строк, точки останова, закладки, стрелка отладки, полоски Git, лампочка, +/− сворачивания."""
 from PyQt6.QtCore import Qt, QRect, QSize, QPoint, QPointF, QRectF
 from PyQt6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PyQt6.QtWidgets import QWidget
@@ -84,6 +84,7 @@ class GutterMixin:
         current = self.textCursor().blockNumber()
         err_lines = {d[0] - 1: d[3] for d in self.diagnostics}
         breakpoints = {b.line: b for b in self.breakpoints.for_path(self.path)} if self.breakpoints is not None else {}
+        bookmarks = {m.line: m for m in self.bookmarks.for_path(self.path)} if self.bookmarks is not None else {}
         fold = self.folding.COLUMN if self.folding.enabled else 0
         w = self.gutter.width() - fold          # справа — колонка +/− сворачивания
         h = self.fontMetrics().height()
@@ -102,6 +103,8 @@ class GutterMixin:
                 change = self.vcs_markers.get(num + 1)
                 if change:
                     self._draw_change(p, change, w - 3, top, h)
+                if num + 1 in bookmarks:            # под точкой останова: та рисуется поверх, как в VS
+                    self._draw_bookmark(p, bookmarks[num + 1], top + h / 2)
                 if num + 1 in breakpoints:
                     self._draw_breakpoint(p, breakpoints[num + 1], top + h / 2)
                 if num + 1 == self.execution_line:
@@ -149,6 +152,24 @@ class GutterMixin:
             elif bp.verified is False:
                 p.setBrush(QColor(C["editor"]))
                 p.drawEllipse(rect.adjusted(3, 3, -3, -3))
+        p.restore()
+
+    @staticmethod
+    def _draw_bookmark(p, mark, cy):
+        """Закладка — флажок-ленточка с вырезом снизу; выключенная — только контур (как в VS)."""
+        p.save()
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        color = QColor("#6F8FC0")              # постоянный, как красный у точек останова: не путается с ними в любой теме
+        x, w, h = BREAKPOINT_COLUMN / 2 - 4, 8, 11
+        shape = QPolygonF([QPointF(x, cy - h / 2), QPointF(x + w, cy - h / 2), QPointF(x + w, cy + h / 2),
+                           QPointF(x + w / 2, cy + h / 2 - 3), QPointF(x, cy + h / 2)])
+        if mark.enabled:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(color)
+        else:
+            p.setPen(QPen(color, 1.2))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPolygon(shape)
         p.restore()
 
     @staticmethod

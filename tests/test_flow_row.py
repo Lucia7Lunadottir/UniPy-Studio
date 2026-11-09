@@ -52,6 +52,8 @@ class Window(unittest.TestCase):
         for dock in win.findChildren(type(win.d_git)):
             self.assertLess(dock.minimumSizeHint().width(), 260, dock.windowTitle())
         self.assertLess(win.minimumSizeHint().width(), 900)
+        win.resize(760, 600)                    # как restoreGeometry до show(): узкое окно восстанавливается узким
+        self.assertEqual(win.width(), 760)
 
 
 if __name__ == "__main__":

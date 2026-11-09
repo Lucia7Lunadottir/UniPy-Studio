@@ -1272,5 +1272,16 @@
   "options.indent_guides": "Indent guides",
   "options.indent_guides_hint": "Dotted vertical lines at each nesting level; the line of the block with the caret is brighter",
   "mainwindow.view_whitespace": "View White Space",
-  "mainwindow.advanced": "Advanced"
+  "mainwindow.advanced": "Advanced",
+  "bookmarks.window": "Bookmarks",
+  "bookmarks.menu": "Bookmarks",
+  "bookmarks.toggle": "Toggle Bookmark",
+  "bookmarks.next": "Next Bookmark",
+  "bookmarks.previous": "Previous Bookmark",
+  "bookmarks.clear_all": "Clear All Bookmarks",
+  "bookmarks.name": "Bookmark",
+  "bookmarks.default_name": "Bookmark, line %d",
+  "bookmarks.rename": "Rename (F2)",
+  "bookmarks.delete": "Delete Bookmark",
+  "bookmarks.none": "No bookmarks — add one with Ctrl+K, Ctrl+K"
 }

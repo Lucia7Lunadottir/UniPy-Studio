@@ -1272,5 +1272,16 @@
   "options.indent_guides": "Repères de retrait",
   "options.indent_guides_hint": "Lignes verticales pointillées à chaque niveau d'imbrication ; celle du bloc contenant le curseur est plus vive",
   "mainwindow.view_whitespace": "Afficher les espaces blancs",
-  "mainwindow.advanced": "Avancé"
+  "mainwindow.advanced": "Avancé",
+  "bookmarks.window": "Signets",
+  "bookmarks.menu": "Signets",
+  "bookmarks.toggle": "Basculer le signet",
+  "bookmarks.next": "Signet suivant",
+  "bookmarks.previous": "Signet précédent",
+  "bookmarks.clear_all": "Effacer tous les signets",
+  "bookmarks.name": "Signet",
+  "bookmarks.default_name": "Signet, ligne %d",
+  "bookmarks.rename": "Renommer (F2)",
+  "bookmarks.delete": "Supprimer le signet",
+  "bookmarks.none": "Aucun signet — ajoutez-en un avec Ctrl+K, Ctrl+K"
 }

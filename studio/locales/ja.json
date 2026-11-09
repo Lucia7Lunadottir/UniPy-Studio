@@ -1272,5 +1272,16 @@
   "options.indent_guides": "インデント ガイド",
   "options.indent_guides_hint": "入れ子の各レベルに点線の縦線を表示し、カーソルのあるブロックの線を明るくします",
   "mainwindow.view_whitespace": "空白の表示",
-  "mainwindow.advanced": "詳細"
+  "mainwindow.advanced": "詳細",
+  "bookmarks.window": "ブックマーク",
+  "bookmarks.menu": "ブックマーク",
+  "bookmarks.toggle": "ブックマークの切り替え",
+  "bookmarks.next": "次のブックマーク",
+  "bookmarks.previous": "前のブックマーク",
+  "bookmarks.clear_all": "すべてのブックマークのクリア",
+  "bookmarks.name": "ブックマーク",
+  "bookmarks.default_name": "ブックマーク、%d 行",
+  "bookmarks.rename": "名前の変更 (F2)",
+  "bookmarks.delete": "ブックマークの削除",
+  "bookmarks.none": "ブックマークがありません — Ctrl+K, Ctrl+K で追加します"
 }
