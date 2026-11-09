@@ -110,7 +110,7 @@ class EditorFileSafety(unittest.TestCase):
     def test_save_error_is_reported_not_raised(self):
         ed, path = self.editor()
         type_text(ed, "x")
-        with patch("studio.editor.atomic_write", side_effect=PermissionError(13, "Permission denied")), \
+        with patch("studio.editor.document.atomic_write", side_effect=PermissionError(13, "Permission denied")), \
                 patch.object(QMessageBox, "warning") as warned:
             self.assertFalse(ed.save())
         warned.assert_called_once()

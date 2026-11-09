@@ -72,13 +72,13 @@
 | `navbar.py` | ~110 | Панель навигации «тип / член» над кодом (`NavigationBar`) |
 | `goto_all.py` | ~200 | «Перейти ко всему» (Ctrl+T): файлы, типы, члены (`GoToAll`) |
 | `formatting.py` | ~150 | Форматирование (Ctrl+K, Ctrl+D): Roslyn, для Python — ruff/black (`Formatter`) |
-| `editor.py` | 1237 | Один редактор кода (`CodeEditor`): ввод, отступы, скобки, подсказки |
+| `editor/` | ~1900 | Редактор: `CodeEditor` (`code_editor.py`) собран из миксинов по ответственности — `document` (файл), `gutter` (поле номеров), `markers` (подсветки), `quick_actions` (лампочка), `diagnostics`, `appearance`, `text_input` (набор), `completion` (подсказки), `navigation` (F12, ссылки), `hover` (мышь); `source.py` — кодировки |
 | `highlighter.py` | 420 | Подсветка синтаксиса (своя для C#/Python/XML/JSON/Markdown + через Pygments) |
 | `languages.py` | 111 | **Реестр языков** — что редактор знает про каждый язык |
 | `intellisense.py` | 731 | Подсказки: Jedi для Python, свой разбор для C#, фоновые потоки |
 | `lsp.py` | 1231 | Языковые серверы (Roslyn для C#, pyright для Python) в отдельных процессах |
 | `unity_api.py` | 590 | Встроенный справочник Unity (классы, методы) — работает без сервера |
-| `panels.py` | 1370 | Все боковые/нижние панели + диалог «Новый файл» |
+| `panels/` | ~1400 | Панели — по модулю на панель: `solution_explorer`, `outline`, `output`, `references`, `error_list`, `unity`, `pyqt_designer`, `new_file`; общее — `common.py`. `from .panels import X` работает как раньше |
 | `refactor.py` | ~250 | Рефакторинг C# без Qt: «Перенести тип в отдельный файл» (разбор текста + план переноса) |
 | `search.py` | 206 | Поиск и замена по всему проекту (в фоновом потоке) |
 | `templates.py` | 428 | Шаблоны новых файлов и демонстрационный проект |
@@ -434,7 +434,7 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 | Добавить вид подсказок для кнопок-фильтров | `intellisense.KIND_GROUPS` |
 | Добавить класс/метод Unity в подсказки | `unity_api.py` — `_SPEC` |
 | Добавить шаблон нового файла | `templates.py` — константа + запись в `TEMPLATES` |
-| Добавить панель | `panels.py` (класс) + `MainWindow._build_docks` |
+| Добавить панель | свой модуль в `panels/` (и строка в `panels/__init__.py`) + `MainWindow._build_docks` |
 | Добавить команду / горячую клавишу | `MainWindow._build_actions` (`self.commands.add("Раздел.Имя", …)`) и `_build_menus`; клавиши пользователь меняет сам в «Параметры → Клавиатура» |
 | Поменять цвета или значок | `theme.py` |
 | Добавить строку интерфейса | Ключ `модуль.смысл` в `tr("...")`/`bind_text`, текст во все `locales/*.json` (тест `test_i18n` проверит) |
