@@ -129,6 +129,14 @@ class PythonToolchain(Toolchain):
             "env": {"PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}},
             adapter_id="debugpy", cwd=os.path.dirname(target.path), title=os.path.basename(target.path))
 
+    # --- тесты (pytest или unittest — решает помощник в интерпретаторе проекта)
+    def test_provider(self, ctx):
+        names = (os.path.basename(p) for p in ctx.files)
+        if not any(n.endswith(".py") and (n.startswith("test_") or n.endswith("_test.py")) for n in names):
+            return None
+        from ..testing.python import PythonTests
+        return PythonTests(ctx.root, ctx.interpreter or sys.executable, self._debugpy_python(ctx))
+
     # --- сборка
     def build_jobs(self, ctx, rebuild=False):
         files = [p for p in ctx.files if p.endswith(".py")]

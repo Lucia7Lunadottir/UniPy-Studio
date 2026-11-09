@@ -64,6 +64,7 @@
 | `framing.py` | ~30 | Рамка `Content-Length` — общая для LSP и DAP |
 | `vcs/` | ~750 | Контроль версий: интерфейс `Repository` (`base.py`), Git (`git.py`), полоски строк (`linediff.py`), панель «Изменения Git», сравнение рядом, связь с окном (`controller.py`). Новая система — подкласс `Repository` и строка в `vcs/PROVIDERS` |
 | `terminal/` | ~600 | Встроенный терминал на настоящем PTY: процесс (`pty_process.py`, запуск через `setsid -c`), экран (`screen.py`, разбор — `pyte`), виджет (`widget.py`), вкладки (`panel.py`). F5/Ctrl+F5 и отладка (`runInTerminal`) запускают программы сюда — работает ввод с клавиатуры |
+| `testing/` | ~650 | Обозреватель тестов: интерфейс `TestProvider` и протокол событий (`base.py`), Python — pytest/unittest через `python_helper.py` (запускается интерпретатором проекта), панель и связь с окном. Набор инструментов отдаёт поставщика: `Toolchain.test_provider()` |
 | `indentation.py` | ~260 | Отступы: `IndentStyle`, `.editorconfig`, определение по файлу, правила сохранения (без Qt) |
 | `folding.py` | ~400 | Сворачивание: `fold_ranges` (без Qt) и `Folding` у каждого редактора |
 | `symbols.py` | ~170 | Символы файла/решения (`Symbol`) из documentSymbol, workspace/symbol и разбора текста (без Qt) |
@@ -140,6 +141,7 @@
 | `safety` | `document_safety.DocumentSafety` | Изменения файлов на диске, автовосстановление |
 | `debugger` | `debug.controller.DebugController` | F5 (отладка), F9, F10, F11, Shift+F11, Ctrl+Shift+F5 |
 | `vcs` | `vcs.controller.VcsController` | Git: статус, полоски, коммит, ветки, Ctrl+0 Ctrl+G |
+| `tests` | `testing.controller.TestController` | Ctrl+E,T; Ctrl+R,A / F / T; Ctrl+R,Ctrl+T |
 
 Редактор и панели по-прежнему зовут окно (`jump_to`, `navigate`, `move_type_to_file`, `apply_code_action`,
 `run_file`) — это тонкие передачи в нужный класс, чтобы им не знать, кто внутри отвечает.

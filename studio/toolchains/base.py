@@ -113,6 +113,11 @@ class Toolchain:
         """debug.session.DebugConfig — какой адаптер DAP запустить и что ему сказать; None — не умею."""
         return None
 
+    # --- тесты
+    def test_provider(self, ctx) -> object:
+        """testing.base.TestProvider для «Обозревателя тестов» или None — тестов этой платформы нет."""
+        return None
+
     # --- сборка
     def build_jobs(self, ctx, rebuild=False) -> list:
         """[build.BuildJob] для «Собрать решение»."""

@@ -82,11 +82,18 @@ class DebugController(QObject):
         found = toolchains.resolve_target(ctx, self.win.startup.currentData(), ed.path if ed else None)
         return (found[0], found[1], ctx) if found else None
 
+    def start_config(self, config):
+        """Отладить готовую конфигурацию (тест из «Обозревателя тестов» и т. п.), а не цель из «Запуска»."""
+        if self.active():
+            self.win.status(tr("debug.already_running"))
+            return
+        self._start(None, None, config)
+
     def _start(self, tc, target, config):
         win = self.win
         if win.options["documents/save_before_run"]:
             win.save_all()
-        self._last = (tc, target)
+        self._last = (tc, target, config)
         self.store.reset_verified()
         in_terminal = self.win.terminal.available and self.win.options["run/in_terminal"]
         self.session = DebugSession(config, self.store, run_in_terminal=self._run_in_terminal if in_terminal else None,
@@ -97,7 +104,7 @@ class DebugController(QObject):
         self.session.breakpoints_bound.connect(lambda path, _b: self._repaint(path))
         self.session.ended.connect(self._ended)
         win.output.clear()
-        win.output.write(tr("debug.started") % (config.title or target.label), SOURCE, C["link"])
+        win.output.write(tr("debug.started") % (config.title or (target.label if target else "")), SOURCE, C["link"])
         win.show_dock(win.d_output)
         self.session.start()
 
@@ -111,16 +118,17 @@ class DebugController(QObject):
     def restart(self):
         if self._last is None:
             return
-        tc, target = self._last
+        tc, target, config = self._last
         if self.active():
-            self.session.ended.connect(lambda *_: self._relaunch(tc, target))
+            self.session.ended.connect(lambda *_: self._relaunch(tc, target, config))
             self.session.terminate()
         else:
-            self._relaunch(tc, target)
+            self._relaunch(tc, target, config)
 
-    def _relaunch(self, tc, target):
-        ctx = self.win.project_context()
-        config = tc.debug_config(ctx, target)
+    def _relaunch(self, tc, target, config):
+        """Ctrl+Shift+F5: цель из «Запуска» — конфигурация заново (файлы могли измениться); готовая — та же."""
+        if tc is not None:
+            config = tc.debug_config(self.win.project_context(), target)
         if config is not None:
             self._start(tc, target, config)
 
