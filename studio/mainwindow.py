@@ -1445,31 +1445,38 @@ class MainWindow(QMainWindow):
             self.status(tr("common.stopping_search"))
             e.ignore()
             return
-        if self.screenshot_mode:
-            e.accept()
+        if not self.screenshot_mode and not self._confirm_close():
+            e.ignore()
             return
+        if not self.screenshot_mode:
+            self.safety.shutdown()      # обычный выход: копии на случай падения больше не нужны
+            self.settings.setValue("window/geometry", self.saveGeometry())
+            self.settings.setValue("window/state", self.saveState())
+        # фоновое — гасится всегда (и в режиме скриншотов): процессы не должны пережить окно
+        for ed in self.editors():
+            ed._diag_timer.stop()
+        self.runner.shutdown()
+        self.builder.cancel()
+        self.debugger.shutdown()
+        self.terminal.stop()
+        self.unity_console.watcher.stop()
+        for svc in self.language_services:
+            svc.shutdown()
+        e.accept()
+
+    def _confirm_close(self):
+        """Несохранённые правки: сохранить все / не сохранять / отмена. False — не закрываться."""
         for ed in self.editors():
             if ed.document().isModified():
                 r = QMessageBox.question(self, APP_NAME, tr("mainwindow.some_files_have_unsaved_changes"),
                                          QMessageBox.StandardButton.SaveAll | QMessageBox.StandardButton.Discard |
                                          QMessageBox.StandardButton.Cancel)
                 if r == QMessageBox.StandardButton.Cancel:
-                    e.ignore()
-                    return
+                    return False
                 if r == QMessageBox.StandardButton.SaveAll and not self.save_all():
-                    e.ignore()          # что-то не сохранилось — не закрываемся, иначе правки пропадут
-                    return
+                    return False        # что-то не сохранилось — не закрываемся, иначе правки пропадут
                 break
-        self.safety.shutdown()          # обычный выход: копии на случай падения больше не нужны
-        self.settings.setValue("window/geometry", self.saveGeometry())
-        self.settings.setValue("window/state", self.saveState())
-        self.runner.shutdown()
-        self.builder.cancel()
-        self.debugger.shutdown()
-        self.unity_console.watcher.stop()
-        for svc in self.language_services:
-            svc.stop()
-        e.accept()
+        return True
 
     def restore_layout(self):
         g = self.settings.value("window/geometry")

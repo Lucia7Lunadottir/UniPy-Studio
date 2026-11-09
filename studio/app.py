@@ -121,7 +121,7 @@ def run(args):
     win.jedi.stop()
     win.csharp_index.stop()
     for svc in win.language_services:
-        svc.stop()
+        svc.shutdown()                  # окончательно: запоздалые таймеры не поднимут анализатор
     # окно удаляет сам Qt, пока QApplication жив: иначе при уничтожении приложения Qt
     # может вызвать Python-обработчик (eventFilter и т.п.) уже удалённого объекта
     win.deleteLater()

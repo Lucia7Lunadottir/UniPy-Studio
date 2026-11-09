@@ -1144,7 +1144,7 @@ class LanguageService(QObject):
     # ---- общее
     def server_for(self, path, start=True):
         """Сервер для файла; None — файла нет в проекте или анализатора нет."""
-        if not self.available or not path or not self.handles(path):
+        if getattr(self, "closed", False) or not self.available or not path or not self.handles(path):
             return None
         if is_metadata_path(path):
             # класс из UnityEngine.dll и т.п.: переходы дальше (к Behaviour, Object…) даёт тот же сервер
@@ -1195,11 +1195,19 @@ class LanguageService(QObject):
             srv.close(path)
 
     def stop(self):
+        """Остановить серверы (смена решения): следующий запрос запустит новые."""
         for srv in self.servers.values():
             srv.stop()
             srv.deleteLater()
         self.servers.clear()
         self._metadata_owner.clear()
+
+    def shutdown(self):
+        """Окончательно (окно закрывается): остановить и больше не запускать — иначе запоздалый таймер
+        проверки ошибок в редакторе поднимал бы анализатор заново уже после выхода."""
+        self.closed = True
+        self._memory_timer.stop()
+        self.stop()
 
     def configuration_changed(self):
         """Настройки (например, выбранный интерпретатор) изменились — серверы перечитают их сами."""
