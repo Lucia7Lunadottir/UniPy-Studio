@@ -64,6 +64,7 @@
 | `line_marks.py` | ~170 | Отметки на строках (общее для точек останова и закладок): `LineMarkStore` (по решению, в QSettings, сдвиг строк), `LineAnchors` (держит отметки открытого файла за строки) |
 | `bookmarks/` | ~250 | Закладки как в VS: `store.py`, `panel.py` (окно «Закладки»), `controller.py` (Ctrl+K, Ctrl+K / N / P / L / W) |
 | `insights/` | ~900 | Подсказки в коде: `base.py` (`Insight`, `InsightController` у основного редактора), `semantic.py` (семантическая подсветка), `inlay.py` (имена параметров и типы в строке), `codelens.py` («Ссылок: N»); для Python без pyright — `python_semantic.py` (области видимости по ast), `python_inlay.py` (места для подсказок), jedi в `JediWorker._semantic_tokens/_inlay_hints/_code_lens`; `positions.py` — UTF-8/символы/UTF-16 |
+| `solution/` | ~300 | Решение для обозревателя (без Qt): `model.py` (`Solution` → `Project` → `Dependency`), `readers.py` (.sln/.slnx, .csproj SDK и Unity, проекты Python; реестр `PROJECT_READERS`, `load_solution(корень)`) |
 | `document_tabs.py` | ~230 | Вкладки документов: `DocumentPage` (редактор + второе окно при «Окно → Разделить»), `DocumentTabs` (закрепление, порядок, какое окно активно). Окно работает с вкладками только через `win.documents` |
 | `framing.py` | ~30 | Рамка `Content-Length` — общая для LSP и DAP |
 | `lsp_features.py` | ~140 | Возможности анализатора для редактора (подсказки, справка, параметры, ссылки, переименование, F12): одна возможность — один класс; `LanguageServer.submit` общий, объявления для `initialize` собираются отсюда |
@@ -332,7 +333,7 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 
 | Класс | Что это |
 |---|---|
-| `SolutionExplorer` | Обозреватель решения (дерево файлов). Следит за диском через `QFileSystemWatcher`; фильтр, создание/переименование/удаление |
+| `SolutionExplorer` | Обозреватель решений как в VS: решение → проекты → «Зависимости» и файлы (данные — `studio/solution`); «Показать все файлы» — папка. Следит за диском и файлами .sln/.csproj; фильтр, создание/переименование/удаление, «Собрать», «Назначить запускаемым проектом» |
 | `OutlinePanel` | Структура файла (классы, методы) — функция `outline()` |
 | `OutputPanel` | Вывод запуска и сообщений сборки, с цветами |
 | `ErrorList` | Список ошибок/предупреждений; группируется по источнику (C#, Python…) |
@@ -458,6 +459,7 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 | Новый вид отметок на строках (как закладки) | подкласс `LineMark`/`LineMarkStore` в `line_marks.py`, `LineAnchors` для открытых файлов |
 | Поле «про файл» у редактора, общее для разделённых окон | добавить имя в `editor/split_view.SHARED` |
 | Что-то про вкладки (закрепление, разделение, порядок) | `document_tabs.py`; меню вкладки — `MainWindow._tab_menu` |
+| Новый вид проектов в обозревателе решений (.vcxproj, Cargo.toml…) | класс-читатель в `solution/readers.py` + строка в `PROJECT_READERS`; значок — `PROJECT_BADGES` в `panels/solution_explorer.py` |
 | Добавить класс/метод Unity в подсказки | `unity_api.py` — `_SPEC` |
 | Добавить шаблон нового файла | `templates.py` — константа + запись в `TEMPLATES` |
 | Добавить панель | свой модуль в `panels/` (и строка в `panels/__init__.py`) + `MainWindow._build_docks` |

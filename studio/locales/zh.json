@@ -420,7 +420,7 @@
   "unity.Input.GetAxis": "输入轴:水平,垂直,鼠标X...",
   "mainwindow.open_c_script_insert_method": "打开C#脚本来输入方法",
   "mainwindow.open_file_python_select_boot": "打开Python文件或选取从窗口中启动文件",
-  "mainwindow.open_file_solution_explorer_ctrl": "在解决方案资源管理器中打开文件\n\nCtrl+N — 新建文件     Ctrl+P — 转到文件     F5 — 运行",
+  "mainwindow.open_file_solution_explorer_ctrl": "在解决方案资源管理器中打开文件\n\nCtrl+N — 新建文件\nCtrl+P — 转到文件\nF5 — 运行",
   "mainwindow.open_file_form_ui_editor": "在编辑器中打开.ui表格文件.",
   "unity.EditorWindow.GetWindow": "打开窗户",
   "panels.opening_project_at_unity": "在Unity%s:%s号码上打开这个项目",
@@ -1304,5 +1304,17 @@
   "insights.inlay_hint": "如果参数已与形参同名，则不显示",
   "insights.inlay_types": "变量类型（var、无注解的赋值）",
   "insights.references": "引用: %d",
-  "insights.unity_message": "Unity 消息"
+  "insights.unity_message": "Unity 消息",
+  "explorer.dependencies": "依赖项",
+  "explorer.frameworks": "框架",
+  "explorer.packages": "包",
+  "explorer.projects": "项目",
+  "explorer.assemblies": "程序集",
+  "explorer.analyzers": "分析器",
+  "explorer.build_project": "生成",
+  "explorer.set_startup": "设为启动项目",
+  "explorer.edit_project_file": "编辑项目文件",
+  "explorer.go_to_project": "转到项目",
+  "explorer.check_dependencies": "检查已安装项",
+  "explorer.startup_set": "启动项目: %s"
 }

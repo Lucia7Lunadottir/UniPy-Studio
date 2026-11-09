@@ -420,7 +420,7 @@
   "unity.Input.GetAxis": "입력축: \"평평선\", \"상선\", \"마우스 X\"...",
   "mainwindow.open_c_script_insert_method": "C# 스크립트를 열고 메소드를 입력하세요",
   "mainwindow.open_file_python_select_boot": "Python 파일을 열거나 패널에서 시작 파일을 선택",
-  "mainwindow.open_file_solution_explorer_ctrl": "솔루션 탐색기에서 파일을 여세요\n\nCtrl+N — 새 파일     Ctrl+P — 파일로 이동     F5 — 실행",
+  "mainwindow.open_file_solution_explorer_ctrl": "솔루션 탐색기에서 파일을 여세요\n\nCtrl+N — 새 파일\nCtrl+P — 파일로 이동\nF5 — 실행",
   "mainwindow.open_file_form_ui_editor": "에디터에서 .ui 형식의 파일을 열십시오.",
   "unity.EditorWindow.GetWindow": "창을 열기",
   "panels.opening_project_at_unity": "Unity %s: %s에 프로젝트를 열고 있습니다",
@@ -1304,5 +1304,17 @@
   "insights.inlay_hint": "인수 이름이 매개 변수와 같으면 표시하지 않습니다",
   "insights.inlay_types": "변수 형식(var, 주석 없는 할당)",
   "insights.references": "참조: %d",
-  "insights.unity_message": "Unity 메시지"
+  "insights.unity_message": "Unity 메시지",
+  "explorer.dependencies": "종속성",
+  "explorer.frameworks": "프레임워크",
+  "explorer.packages": "패키지",
+  "explorer.projects": "프로젝트",
+  "explorer.assemblies": "어셈블리",
+  "explorer.analyzers": "분석기",
+  "explorer.build_project": "빌드",
+  "explorer.set_startup": "시작 프로젝트로 설정",
+  "explorer.edit_project_file": "프로젝트 파일 편집",
+  "explorer.go_to_project": "프로젝트로 이동",
+  "explorer.check_dependencies": "설치 상태 확인",
+  "explorer.startup_set": "시작 프로젝트: %s"
 }

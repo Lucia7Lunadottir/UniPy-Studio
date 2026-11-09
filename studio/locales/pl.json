@@ -420,7 +420,7 @@
   "unity.Input.GetAxis": "Wpływy: \"Horizontal\", \"Vertical\", \"Mouse X\"...",
   "mainwindow.open_c_script_insert_method": "Otwórz skrypt C#, aby wprowadzić metodę",
   "mainwindow.open_file_python_select_boot": "Otwórz plik Python lub wybierz plik uruchomienia w panele",
-  "mainwindow.open_file_solution_explorer_ctrl": "Otwórz plik w eksploratorze rozwiązań\n\nCtrl+N — nowy plik     Ctrl+P — przejdź do pliku     F5 — uruchom",
+  "mainwindow.open_file_solution_explorer_ctrl": "Otwórz plik w eksploratorze rozwiązań\n\nCtrl+N — nowy plik\nCtrl+P — przejdź do pliku\nF5 — uruchom",
   "mainwindow.open_file_form_ui_editor": "Otwórz plik formularza .ui w wydawcy.",
   "unity.EditorWindow.GetWindow": "Otwiera okno",
   "panels.opening_project_at_unity": "Otwieram projekt na numer Unity %s: %s",
@@ -1304,5 +1304,17 @@
   "insights.inlay_hint": "Ukryte, gdy argument już nazywa się jak parametr",
   "insights.inlay_types": "Typy zmiennych (var, przypisania bez adnotacji)",
   "insights.references": "Odwołania: %d",
-  "insights.unity_message": "Komunikat Unity"
+  "insights.unity_message": "Komunikat Unity",
+  "explorer.dependencies": "Zależności",
+  "explorer.frameworks": "Platformy",
+  "explorer.packages": "Pakiety",
+  "explorer.projects": "Projekty",
+  "explorer.assemblies": "Zestawy",
+  "explorer.analyzers": "Analizatory",
+  "explorer.build_project": "Kompiluj",
+  "explorer.set_startup": "Ustaw jako projekt startowy",
+  "explorer.edit_project_file": "Edytuj plik projektu",
+  "explorer.go_to_project": "Przejdź do projektu",
+  "explorer.check_dependencies": "Sprawdź, co jest zainstalowane",
+  "explorer.startup_set": "Projekt startowy: %s"
 }

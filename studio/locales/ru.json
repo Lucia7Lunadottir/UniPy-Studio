@@ -420,7 +420,7 @@
   "unity.Input.GetAxis": "Ось ввода: \"Horizontal\", \"Vertical\", \"Mouse X\"…",
   "mainwindow.open_c_script_insert_method": "Откройте скрипт C#, чтобы вставить метод",
   "mainwindow.open_file_python_select_boot": "Откройте файл Python или выберите файл запуска на панели",
-  "mainwindow.open_file_solution_explorer_ctrl": "Откройте файл в обозревателе решений\n\nCtrl+N — новый файл     Ctrl+P — перейти к файлу     F5 — запуск",
+  "mainwindow.open_file_solution_explorer_ctrl": "Откройте файл в обозревателе решений\n\nCtrl+N — новый файл\nCtrl+P — перейти к файлу\nF5 — запуск",
   "mainwindow.open_file_form_ui_editor": "Откройте файл формы .ui в редакторе.",
   "unity.EditorWindow.GetWindow": "Открывает окно",
   "panels.opening_project_at_unity": "Открываю проект в Unity %s: %s",
@@ -1304,5 +1304,17 @@
   "insights.inlay_hint": "Не показываются, если аргумент и так называется как параметр",
   "insights.inlay_types": "Типы переменных (var, присваивания без аннотации)",
   "insights.references": "Ссылок: %d",
-  "insights.unity_message": "Сообщение Unity"
+  "insights.unity_message": "Сообщение Unity",
+  "explorer.dependencies": "Зависимости",
+  "explorer.frameworks": "Платформы",
+  "explorer.packages": "Пакеты",
+  "explorer.projects": "Проекты",
+  "explorer.assemblies": "Сборки",
+  "explorer.analyzers": "Анализаторы",
+  "explorer.build_project": "Собрать",
+  "explorer.set_startup": "Назначить запускаемым проектом",
+  "explorer.edit_project_file": "Изменить файл проекта",
+  "explorer.go_to_project": "Перейти к проекту",
+  "explorer.check_dependencies": "Проверить, что установлено",
+  "explorer.startup_set": "Запускаемый проект: %s"
 }

@@ -404,6 +404,9 @@ class MainWindow(QMainWindow):
         self.explorer.open_file.connect(self.open_path)
         self.explorer.run_file.connect(lambda p: self.runner.run_path(p))
         self.explorer.changed.connect(self._solution_changed)
+        self.explorer.build_project.connect(lambda path: self.builder.build_project(path))
+        self.explorer.set_startup.connect(self.set_startup_project)
+        self.explorer.can_start = lambda path: self._startup_index(path) >= 0
         self.d_explorer = self._dock("mainwindow.solution_explorer", self.explorer,
                                      Qt.DockWidgetArea.LeftDockWidgetArea, "explorer")
 
@@ -1058,6 +1061,25 @@ class MainWindow(QMainWindow):
         idx = self.startup.findData(current) if current else (1 if self.startup.count() > 1 else 0)
         self.startup.setCurrentIndex(max(0, idx))
         self.startup.blockSignals(False)
+
+    def _startup_index(self, project_path):
+        """Пункт списка «Запуск» для проекта (цель набора инструментов с этим файлом проекта) или −1."""
+        for i in range(self.startup.count()):
+            data = self.startup.itemData(i)
+            if data and data.partition("::")[2] == project_path:
+                return i
+        return -1
+
+    def set_startup_project(self, project_path):
+        """«Назначить запускаемым проектом» из обозревателя решений, как в Visual Studio."""
+        i = self._startup_index(project_path)
+        if i >= 0:
+            self.startup.setCurrentIndex(i)
+            self.status(tr("explorer.startup_set") % os.path.basename(project_path))
+
+    def show_dependencies(self):
+        self.show_dock(self.d_dependencies)
+        self.dependencies.check()
 
     def _fill_interpreters(self):
         cur = self.interp.currentData()

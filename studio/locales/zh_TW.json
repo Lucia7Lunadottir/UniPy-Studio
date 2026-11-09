@@ -420,7 +420,7 @@
   "unity.Input.GetAxis": "輸入的軸是\"水平\", \"垂直\", \"滑鼠X\"...",
   "mainwindow.open_c_script_insert_method": "開啟C#字型輸入方法",
   "mainwindow.open_file_python_select_boot": "開啟檔案Python 或選取開啟檔案",
-  "mainwindow.open_file_solution_explorer_ctrl": "在方案總管中開啟檔案\n\nCtrl+N — 新增檔案     Ctrl+P — 移至檔案     F5 — 執行",
+  "mainwindow.open_file_solution_explorer_ctrl": "在方案總管中開啟檔案\n\nCtrl+N — 新增檔案\nCtrl+P — 移至檔案\nF5 — 執行",
   "mainwindow.open_file_form_ui_editor": "請在編輯器中開啟.ui表格檔案.",
   "unity.EditorWindow.GetWindow": "開啟視窗",
   "panels.opening_project_at_unity": "在 Unity %s: %s 開啟這個專案",
@@ -1304,5 +1304,17 @@
   "insights.inlay_hint": "若引數已與參數同名則不顯示",
   "insights.inlay_types": "變數型別（var、無註解的指派）",
   "insights.references": "參考: %d",
-  "insights.unity_message": "Unity 訊息"
+  "insights.unity_message": "Unity 訊息",
+  "explorer.dependencies": "相依性",
+  "explorer.frameworks": "架構",
+  "explorer.packages": "套件",
+  "explorer.projects": "專案",
+  "explorer.assemblies": "組件",
+  "explorer.analyzers": "分析器",
+  "explorer.build_project": "建置",
+  "explorer.set_startup": "設定為啟始專案",
+  "explorer.edit_project_file": "編輯專案檔",
+  "explorer.go_to_project": "移至專案",
+  "explorer.check_dependencies": "檢查已安裝項目",
+  "explorer.startup_set": "啟始專案: %s"
 }

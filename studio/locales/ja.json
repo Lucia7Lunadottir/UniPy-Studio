@@ -420,7 +420,7 @@
   "unity.Input.GetAxis": "入力軸は\"水平\", \"垂直\", \"マウス X\"...",
   "mainwindow.open_c_script_insert_method": "C# スクリプトを開いて方法を入力します",
   "mainwindow.open_file_python_select_boot": "パネルからファイル Python を開くか起動ファイルを選択する",
-  "mainwindow.open_file_solution_explorer_ctrl": "ソリューション エクスプローラーでファイルを開く\n\nCtrl+N — 新しいファイル     Ctrl+P — ファイルに移動     F5 — 実行",
+  "mainwindow.open_file_solution_explorer_ctrl": "ソリューション エクスプローラーでファイルを開く\n\nCtrl+N — 新しいファイル\nCtrl+P — ファイルに移動\nF5 — 実行",
   "mainwindow.open_file_form_ui_editor": "エディターでフォーム.uiを開きます.",
   "unity.EditorWindow.GetWindow": "窓を開ける",
   "panels.opening_project_at_unity": "Unity %s: %sでプロジェクトを開きます",
@@ -1304,5 +1304,17 @@
   "insights.inlay_hint": "引数がすでにパラメーターと同じ名前の場合は表示しません",
   "insights.inlay_types": "変数の型 (var、注釈のない代入)",
   "insights.references": "参照: %d",
-  "insights.unity_message": "Unity メッセージ"
+  "insights.unity_message": "Unity メッセージ",
+  "explorer.dependencies": "依存関係",
+  "explorer.frameworks": "フレームワーク",
+  "explorer.packages": "パッケージ",
+  "explorer.projects": "プロジェクト",
+  "explorer.assemblies": "アセンブリ",
+  "explorer.analyzers": "アナライザー",
+  "explorer.build_project": "ビルド",
+  "explorer.set_startup": "スタートアップ プロジェクトに設定",
+  "explorer.edit_project_file": "プロジェクト ファイルの編集",
+  "explorer.go_to_project": "プロジェクトへ移動",
+  "explorer.check_dependencies": "インストール状態を確認",
+  "explorer.startup_set": "スタートアップ プロジェクト: %s"
 }

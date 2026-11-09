@@ -420,7 +420,7 @@
   "unity.Input.GetAxis": "Os eixos de entrada: \"Horizontal\", \"Vertical\", \"Mouse X\"...",
   "mainwindow.open_c_script_insert_method": "Abra o script C# para inserir o método",
   "mainwindow.open_file_python_select_boot": "Abra o arquivo Python ou selecione o arquivo de inicialização no painel",
-  "mainwindow.open_file_solution_explorer_ctrl": "Abra um arquivo no Gerenciador de Soluções\n\nCtrl+N — novo arquivo     Ctrl+P — ir para o arquivo     F5 — executar",
+  "mainwindow.open_file_solution_explorer_ctrl": "Abra um arquivo no Gerenciador de Soluções\n\nCtrl+N — novo arquivo\nCtrl+P — ir para o arquivo\nF5 — executar",
   "mainwindow.open_file_form_ui_editor": "Abra o arquivo do formulário .ui no editor.",
   "unity.EditorWindow.GetWindow": "Abre a janela",
   "panels.opening_project_at_unity": "Abrindo o projeto em Unity %s: %s",
@@ -1304,5 +1304,17 @@
   "insights.inlay_hint": "Ocultos quando o argumento já tem o nome do parâmetro",
   "insights.inlay_types": "Tipos de variáveis (var, atribuições sem anotação)",
   "insights.references": "Referências: %d",
-  "insights.unity_message": "Mensagem do Unity"
+  "insights.unity_message": "Mensagem do Unity",
+  "explorer.dependencies": "Dependências",
+  "explorer.frameworks": "Estruturas",
+  "explorer.packages": "Pacotes",
+  "explorer.projects": "Projetos",
+  "explorer.assemblies": "Assemblies",
+  "explorer.analyzers": "Analisadores",
+  "explorer.build_project": "Compilar",
+  "explorer.set_startup": "Definir como projeto de inicialização",
+  "explorer.edit_project_file": "Editar arquivo de projeto",
+  "explorer.go_to_project": "Ir para o projeto",
+  "explorer.check_dependencies": "Verificar o que está instalado",
+  "explorer.startup_set": "Projeto de inicialização: %s"
 }

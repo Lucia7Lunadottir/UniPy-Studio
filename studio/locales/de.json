@@ -420,7 +420,7 @@
   "unity.Input.GetAxis": "Die Eingabe-Achse: \"Horizontal\", \"Vertical\", \"Mouse X\"...",
   "mainwindow.open_c_script_insert_method": "Öffnen Sie das C#-Skript, um die Methode einzufügen",
   "mainwindow.open_file_python_select_boot": "Öffnen Sie Python oder wählen Sie die Startdatei aus",
-  "mainwindow.open_file_solution_explorer_ctrl": "Öffnen Sie eine Datei im Projektmappen-Explorer\n\nCtrl+N — neue Datei     Ctrl+P — zur Datei wechseln     F5 — ausführen",
+  "mainwindow.open_file_solution_explorer_ctrl": "Öffnen Sie eine Datei im Projektmappen-Explorer\n\nCtrl+N — neue Datei\nCtrl+P — zur Datei wechseln\nF5 — ausführen",
   "mainwindow.open_file_form_ui_editor": "Öffnen Sie das Formular .ui im Editor.",
   "unity.EditorWindow.GetWindow": "Öffnet das Fenster",
   "panels.opening_project_at_unity": "Ich öffne das Projekt unter Unity %s: %s",
@@ -1304,5 +1304,17 @@
   "insights.inlay_hint": "Ausgeblendet, wenn das Argument bereits wie der Parameter heißt",
   "insights.inlay_types": "Variablentypen (var, Zuweisungen ohne Annotation)",
   "insights.references": "Verweise: %d",
-  "insights.unity_message": "Unity-Nachricht"
+  "insights.unity_message": "Unity-Nachricht",
+  "explorer.dependencies": "Abhängigkeiten",
+  "explorer.frameworks": "Frameworks",
+  "explorer.packages": "Pakete",
+  "explorer.projects": "Projekte",
+  "explorer.assemblies": "Assemblys",
+  "explorer.analyzers": "Analysetools",
+  "explorer.build_project": "Erstellen",
+  "explorer.set_startup": "Als Startprojekt festlegen",
+  "explorer.edit_project_file": "Projektdatei bearbeiten",
+  "explorer.go_to_project": "Zum Projekt wechseln",
+  "explorer.check_dependencies": "Installierte prüfen",
+  "explorer.startup_set": "Startprojekt: %s"
 }

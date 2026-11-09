@@ -437,7 +437,7 @@
   "mainwindow.open_your_own_c_file": "Open your own C# or Python file to move a type",
   "mainwindow.open_c_script_insert_method": "Open the C# script to insert the method",
   "mainwindow.open_file_python_select_boot": "Open file Python or select the boot file from the dashboard",
-  "mainwindow.open_file_solution_explorer_ctrl": "Open a file in Solution Explorer\n\nCtrl+N — new file     Ctrl+P — go to file     F5 — run",
+  "mainwindow.open_file_solution_explorer_ctrl": "Open a file in Solution Explorer\n\nCtrl+N — new file\nCtrl+P — go to file\nF5 — run",
   "mainwindow.open_file_form_ui_editor": "Open the file form .ui in the editor.",
   "unity.EditorWindow.GetWindow": "Opening the window",
   "panels.opening_project_at_unity": "Opening the project at Unity %s: %s",
@@ -1304,5 +1304,17 @@
   "insights.inlay_hint": "Hidden when the argument is already named like the parameter",
   "insights.inlay_types": "Variable types (var, unannotated assignments)",
   "insights.references": "References: %d",
-  "insights.unity_message": "Unity Message"
+  "insights.unity_message": "Unity Message",
+  "explorer.dependencies": "Dependencies",
+  "explorer.frameworks": "Frameworks",
+  "explorer.packages": "Packages",
+  "explorer.projects": "Projects",
+  "explorer.assemblies": "Assemblies",
+  "explorer.analyzers": "Analyzers",
+  "explorer.build_project": "Build",
+  "explorer.set_startup": "Set as Startup Project",
+  "explorer.edit_project_file": "Edit Project File",
+  "explorer.go_to_project": "Go to Project",
+  "explorer.check_dependencies": "Check What Is Installed",
+  "explorer.startup_set": "Startup project: %s"
 }

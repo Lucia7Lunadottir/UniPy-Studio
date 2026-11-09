@@ -441,6 +441,16 @@ class BuildController(QObject):
         else:
             self.win.status(tr("build.cleaned"))
 
+    def build_project(self, path):
+        """«Собрать» в меню проекта обозревателя решений: файл проекта (.csproj…) — как файл этого проекта."""
+        ctx, active = self._toolchains()
+        for tc in active:
+            jobs = tc.build_jobs_for_file(ctx, path)
+            if jobs:
+                self._start(jobs)
+                return
+        self.win.status(tr("build.no_project_for_file"))
+
     def run_job(self, job, header, done=None):
         """Не сборка, а другая задача через тот же «Вывод» (создание проекта и т. п.): свой заголовок,
         без сохранения файлов и итоговой строки сборки; done(итог) — когда закончится."""

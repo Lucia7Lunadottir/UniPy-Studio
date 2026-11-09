@@ -84,7 +84,10 @@ class VcsController(QObject):
                 branch, status = repo.branch(), repo.status()
             except VcsError:
                 branch, status = "", {}
-            self._status_ready.emit(repo, branch, status, generation)
+            try:
+                self._status_ready.emit(repo, branch, status, generation)
+            except RuntimeError:        # окно закрыли, пока git считал статус, — ответ больше некому отдавать
+                pass
         threading.Thread(target=work, daemon=True).start()
 
     def _apply_status(self, repo, branch, status, generation):
