@@ -19,7 +19,8 @@ NOT_KEYS = {"main.py", "refactor.extract", "refactor.inline", "refactor.rewrite"
 
 
 def code_files():
-    return [FOLDER.parent.parent / "main.py", *sorted(FOLDER.parent.glob("*.py"))]
+    # rglob: модули в подпакетах (studio/toolchains/…) тоже обязаны переводить свои строки
+    return [FOLDER.parent.parent / "main.py", *sorted(FOLDER.parent.rglob("*.py"))]
 
 
 def string_constants(path):

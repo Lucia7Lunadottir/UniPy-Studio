@@ -293,6 +293,101 @@ class PythonCheck(BuildJob):
         self._stop.set()
 
 
+class CommandSequence(BuildJob):
+    """Несколько команд по очереди (создание проекта: dotnet new, dotnet sln add…). Первая ошибка останавливает.
+    result — что добавить в итог (например, {"root": …, "open": […]}), когда всё прошло."""
+
+    def __init__(self, title, commands, result=None, parent=None):
+        super().__init__(parent)
+        self.title = title
+        self.commands = list(commands)          # [(программа, [аргументы], папка)]
+        self.result = dict(result or {})
+        self.proc = None
+        self._started = 0.0
+        self._cancelled = False
+
+    def start(self):
+        self._started = time.monotonic()
+        self._next()
+
+    def _next(self):
+        if not self.commands:
+            self.finished.emit(dict(self.result, ok=True, errors=0, warnings=0,
+                                    seconds=time.monotonic() - self._started))
+            return
+        program, args, cwd = self.commands.pop(0)
+        exe = shutil.which(program) or program
+        os.makedirs(cwd, exist_ok=True)
+        self.output.emit(" ".join('"%s"' % a if " " in a else a for a in [program, *args]), "dim")
+        self.proc = QProcess(self)
+        self.proc.setWorkingDirectory(cwd)
+        self.proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        env = QProcessEnvironment.systemEnvironment()
+        for key in ("DOTNET_NOLOGO", "DOTNET_CLI_TELEMETRY_OPTOUT", "DOTNET_SKIP_FIRST_TIME_EXPERIENCE"):
+            env.insert(key, "1")
+        self.proc.setProcessEnvironment(env)
+        self.proc.readyReadStandardOutput.connect(
+            lambda: [self.output.emit(line, "text") for line in
+                     bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace").splitlines() if line.strip()])
+        self.proc.finished.connect(self._step_done)
+        self.proc.errorOccurred.connect(lambda e: e == QProcess.ProcessError.FailedToStart and self._fail(
+            tr("build.could_not_start") % self.proc.errorString()))
+        self.proc.start(exe, args)
+
+    def _step_done(self, code, _status):
+        if code != 0 or self._cancelled:
+            self._fail(None)
+            return
+        self._next()
+
+    def _fail(self, message):
+        if message:
+            self.output.emit(message, "error")
+        self.commands = []
+        self.finished.emit({"ok": False, "errors": 1, "warnings": 0, "cancelled": self._cancelled,
+                            "seconds": time.monotonic() - self._started})
+
+    def cancel(self):
+        self._cancelled = True
+        if self.proc is not None and self.proc.state() != QProcess.ProcessState.NotRunning:
+            self.proc.kill()
+
+
+class WriteFiles(BuildJob):
+    """Создать файлы с текстом (шаблоны проектов без внешних программ). Существующие файлы не перезаписываются."""
+
+    def __init__(self, title, files, result=None, parent=None):
+        super().__init__(parent)
+        self.title = title
+        self.files = dict(files)                # путь → текст
+        self.result = dict(result or {})
+
+    def start(self):
+        QTimer.singleShot(0, self._write)
+
+    def _write(self):
+        started = time.monotonic()
+        for path, text in self.files.items():
+            if os.path.exists(path):
+                self.output.emit(tr("build.file_exists") % path, "error")
+                self.finished.emit({"ok": False, "errors": 1, "warnings": 0, "seconds": 0})
+                return
+        try:
+            for path, text in self.files.items():
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+                self.output.emit(path, "text")
+        except OSError as e:
+            self.output.emit(str(e), "error")
+            self.finished.emit({"ok": False, "errors": 1, "warnings": 0, "seconds": 0})
+            return
+        self.finished.emit(dict(self.result, ok=True, errors=0, warnings=0, seconds=time.monotonic() - started))
+
+    def cancel(self):
+        pass
+
+
 # ---------------------------------------------------------------- в окне
 class BuildController(QObject):
     """Сборка из окна: что собирать, вывод в «Вывод → Сборка», ошибки в «Список ошибок», итог в строке состояния.
@@ -308,57 +403,52 @@ class BuildController(QObject):
         self._summaries = []
         self._diags = {}            # путь → [(строка, столбец, текст, вид, проект)]
         self._flush = QTimer(self, singleShot=True, interval=200, timeout=self._push_errors)
+        self._custom = False
 
     def running(self):
         return bool(self.jobs)
 
-    def _jobs_for_solution(self, rebuild):
-        win = self.win
-        jobs = []
-        target = dotnet_target(win.root)
-        if target:
-            unity = is_unity_folder(os.path.dirname(target))
-            jobs.append(DotnetBuild(target, "rebuild" if rebuild else "build", use_cache=unity and win.options["build/unity_cache"],
-                                    shared_compiler=win.options["build/shared_compiler"], parent=self))
-        py = [p for p in getattr(win.explorer, "files", []) if p.endswith(".py")]
-        if py:
-            jobs.append(PythonCheck(py, {ed.path: ed.toPlainText() for ed in win.editors()}, parent=self))
-        return jobs
+    def _toolchains(self):
+        from . import toolchains
+        ctx = self.win.project_context()
+        return ctx, toolchains.active(ctx)
 
     def build_solution(self, rebuild=False):
+        """Ctrl+Shift+B: сборка от каждого набора инструментов, который узнал решение (C#, Python…)."""
         if not self.win.root:
             return
-        self._start(self._jobs_for_solution(rebuild))
+        ctx, active = self._toolchains()
+        self._start([job for tc in active for job in tc.build_jobs(ctx, rebuild)])
 
     def build_current_project(self):
-        """Shift+F6: проект, в который входит текущий файл (C#) или сам файл (Python)."""
+        """Shift+F6: проект, в который входит текущий файл."""
         ed = self.win.editor()
         if ed is None:
             return
-        if ed.lang == "python":
-            self._start([PythonCheck([ed.path], {ed.path: ed.toPlainText()}, parent=self)])
-            return
-        target = dotnet_target(self.win.root)
-        proj = project_for_file(ed.path, os.path.dirname(target)) if target else None
-        if proj is None:
-            self.win.status(tr("build.no_project_for_file"))
-            return
-        unity = is_unity_folder(os.path.dirname(proj))
-        self._start([DotnetBuild(proj, use_cache=unity and self.win.options["build/unity_cache"],
-                                 shared_compiler=self.win.options["build/shared_compiler"], parent=self)])
+        ctx, active = self._toolchains()
+        for tc in active:
+            jobs = tc.build_jobs_for_file(ctx, ed.path)
+            if jobs:
+                self._start(jobs)
+                return
+        self.win.status(tr("build.no_project_for_file"))
 
     def clean_solution(self):
-        """Очистить: для Unity — папку кэша сборки; для обычных проектов — dotnet clean."""
-        target = dotnet_target(self.win.root)
-        if not target:
-            return
-        if is_unity_folder(os.path.dirname(target)):
-            shutil.rmtree(cache_dir_for(target), ignore_errors=True)
+        ctx, active = self._toolchains()
+        jobs = [job for job in (tc.clean(ctx) for tc in active) if job is not None]
+        if jobs:
+            self._start(jobs)
+        else:
             self.win.status(tr("build.cleaned"))
-            return
-        self._start([DotnetBuild(target, "clean", parent=self)])
 
-    def _start(self, jobs):
+    def run_job(self, job, header, done=None):
+        """Не сборка, а другая задача через тот же «Вывод» (создание проекта и т. п.): свой заголовок,
+        без сохранения файлов и итоговой строки сборки; done(итог) — когда закончится."""
+        if done is not None:
+            job.finished.connect(done)
+        self._start([job], header=header, save=False)
+
+    def _start(self, jobs, header=None, save=True):
         win = self.win
         if self.running():
             win.status(tr("build.already_running"))
@@ -366,13 +456,14 @@ class BuildController(QObject):
         if not jobs:
             win.status(tr("build.nothing_to_build"))
             return
-        if win.options["documents/save_before_run"]:
+        if save and win.options["documents/save_before_run"]:
             win.save_all()
+        self._custom = header is not None
         win.errors.clear_source(self.SOURCE)
         self._diags.clear()
         self._summaries = []
         win.output.clear()
-        win.output.write(tr("build.started") % time.strftime("%H:%M:%S"), self.SOURCE, C["link"])
+        win.output.write(header or tr("build.started") % time.strftime("%H:%M:%S"), self.SOURCE, C["link"])
         win.show_dock(win.d_output)
         self.jobs = list(jobs)
         self.started.emit()
@@ -407,6 +498,9 @@ class BuildController(QObject):
         cancelled = any(s.get("cancelled") for _t, s in self._summaries)
         ok = not cancelled and all(s["ok"] for _t, s in self._summaries)
         win = self.win
+        if self._custom:                    # итог сообщит тот, кто запускал (run_job → done)
+            self.stopped.emit()
+            return
         line = (tr("build.cancelled") if cancelled else tr("build.succeeded") if ok else tr("build.failed")) \
             % (errors, warnings, seconds)
         win.output.write(line, self.SOURCE, C["ok"] if ok else C["warning"] if cancelled else C["error"])

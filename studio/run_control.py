@@ -1,11 +1,14 @@
-"""Запуск Python-файла (F5 / Ctrl+F5 / Shift+F5): процесс, вывод, ошибка с переходом к строке."""
+"""Запуск (F5 / Ctrl+F5 / Shift+F5): процесс, вывод в «Вывод», после падения — переход к строке.
+
+Что и как запускать, решает набор инструментов (toolchains): Python — файл интерпретатором, .NET — `dotnet run`,
+Unity — открыть проект в Unity. Здесь только общий процесс по RunCommand.
+"""
 import os
-import re
-import sys
 
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment
 from PyQt6.QtWidgets import QMessageBox
 
+from . import toolchains
 from .i18n import tr
 from .theme import C
 
@@ -13,36 +16,52 @@ APP_NAME = "UniPy Studio"
 
 
 class RunController(QObject):
-    """Один запускаемый процесс. Из окна берёт: выбор «Запуск» и интерпретатора, панели вывода и ошибок,
-    панель Unity (C# запускается в Unity), сохранение и параметры."""
+    """Один запускаемый процесс. Из окна берёт: выбор «Запуск», project_context(), панели вывода и ошибок."""
 
     def __init__(self, window):
         super().__init__(window)
         self.win = window
         self.proc = None
-        self.path = None            # что запущено — относительные пути в выводе считаются от него
+        self.command = None
+        self.path = None            # папка запущенного — относительные пути в выводе считаются от неё
         self.stderr = ""
 
     def running(self):
         return self.proc is not None and self.proc.state() != QProcess.ProcessState.NotRunning
 
+    # --- что запускать
     def run_selected(self):
+        """F5: выбранное в списке «Запуск» или, при «Текущий файл», то, что узнал первый набор."""
         win = self.win
-        target = win.startup.currentData()
-        if target:
-            self.run_file(target)
-            return
+        ctx = win.project_context()
+        choice = win.startup.currentData()
+        if choice:                          # «набор::цель» — см. MainWindow._fill_run_targets
+            tc_id, _, target_id = choice.partition("::")
+            tc = toolchains.by_id(tc_id)
+            target = next((t for t in tc.run_targets(ctx) if t.id == target_id), None) if tc else None
+            if target is not None:
+                tc.launch(ctx, target, self)
+                return
         ed = win.editor()
-        if ed and ed.lang == "python":
-            self.run_file(ed.path)
-        elif ed and ed.lang == "csharp":
-            win.output.write(tr("mainwindow.c_scripts_run_unity_opening"), "Unity", C["warning"])
-            win.show_dock(win.d_output)
-            win.unity.open_in_unity()
-        else:
+        if ed is None or not self.run_path(ed.path, ctx):
             win.status(tr("mainwindow.open_file_python_select_boot"))
 
-    def run_file(self, path):
+    def run_path(self, path, ctx=None):
+        """Запустить то, что относится к файлу (обозреватель → «Запустить», «Текущий файл»). False — нечего."""
+        ctx = ctx or self.win.project_context()
+        for tc in toolchains.TOOLCHAINS:
+            target = tc.target_for_file(ctx, path)
+            if target is not None:
+                ok, hint = tc.available()
+                if not ok:
+                    self.win.status(tr("run.tool_missing") % (tc.name, hint), 15000)
+                    return True
+                tc.launch(ctx, target, self)
+                return True
+        return False
+
+    # --- процесс
+    def start(self, command):
         win = self.win
         if self.running():
             if QMessageBox.question(win, APP_NAME, tr("mainwindow.program_already_running")) \
@@ -52,28 +71,27 @@ class RunController(QObject):
             self.proc.waitForFinished(2000)
         if win.options["documents/save_before_run"]:
             win.save_all()
-        self.path = path
+        self.command = command
+        self.path = command.cwd
         self.stderr = ""
         win.errors.clear_source("common.run")
-        interp = win.interp.currentData() or sys.executable
         win.output.clear()
-        win.output.write(tr("mainwindow.running") % os.path.relpath(path, win.root or os.path.dirname(path)),
-                         "common.run", C["link"])
-        win.output.write("%s %s" % (interp, path), "common.run", C["dim"])
+        win.output.write(tr("mainwindow.running") % command.title, "common.run", C["link"])
+        win.output.write(command.command_line(), "common.run", C["dim"])
         win.show_dock(win.d_output)
         if self.proc is not None:
             self.proc.deleteLater()
         self.proc = QProcess(self)
-        self.proc.setWorkingDirectory(os.path.dirname(path))
+        self.proc.setWorkingDirectory(command.cwd)
         env = QProcessEnvironment.systemEnvironment()
-        env.insert("PYTHONUNBUFFERED", "1")
-        env.insert("PYTHONIOENCODING", "utf-8")
+        for key, value in command.env.items():
+            env.insert(key, value)
         self.proc.setProcessEnvironment(env)
         self.proc.readyReadStandardOutput.connect(self._read_out)
         self.proc.readyReadStandardError.connect(self._read_err)
         self.proc.finished.connect(self._finished)
         self.proc.errorOccurred.connect(self._failed)
-        self.proc.start(interp, ["-u", path])
+        self.proc.start(command.program, command.args)
         win.a_stop.setEnabled(True)
         win.status_label.setText(tr("mainwindow.running_ellipsis"))
 
@@ -94,14 +112,11 @@ class RunController(QObject):
         win.output.write(tr("mainwindow.process_exited_with_code") % code, "common.run",
                          C["dim"] if code == 0 else C["warning"])
         win.status(tr("common.ready") if code == 0 else tr("mainwindow.program_ended_with_error_code") % code, 0)
-        if self.stderr and "Traceback" in self.stderr:
-            frames = re.findall(r'File "(.+?)", line (\d+)', self.stderr)
-            last = self.stderr.strip().splitlines()[-1]
-            if frames:
-                own = [f for f in frames if win.root and os.path.abspath(f[0]).startswith(win.root)] or frames
-                path, line = own[-1]
-                win.errors.set_group("common.run", os.path.abspath(path), [(int(line), 1, last, "error")])
-                win.show_dock(win.d_errors)
+        if code != 0 and self.command is not None and self.stderr:
+            for path, line, col, message in self.command.problem_matcher(self.stderr):
+                if os.path.isfile(path):
+                    win.errors.set_group("common.run", path, [(line, col, message, "error")])
+                    win.show_dock(win.d_errors)
 
     def stop(self):
         if self.running():

@@ -49,7 +49,7 @@
 | `mainwindow.py` | ~1230 | Главное окно: связывает части — вкладки, панели, меню, параметры |
 | `commands.py` | ~330 | Реестр команд (id как в VS: `Edit.Undo`) и страница «Параметры → Клавиатура» |
 | `navigation.py` | ~45 | «Назад / Вперёд» (`NavigationHistory`) |
-| `run_control.py` | ~120 | Запуск Python-файла по F5 (`RunController`) |
+| `run_control.py` | ~130 | Запуск по F5: процесс по `RunCommand` от набора инструментов (`RunController`) |
 | `build_check.py` | ~40 | Ctrl+F7 — проверка текущего файла (`FileCheck`), `check_text` |
 | `build.py` | ~420 | Сборка: `dotnet build` (Unity — в кэш, проект не трогается), проверка Python в потоке, разбор вывода MSBuild (`BuildController`) |
 | `unity_log.py` | ~200 | Editor.log Unity: разбор на записи и слежение за хвостом файла (без виджетов) |
@@ -58,6 +58,8 @@
 | `project_actions.py` | ~150 | Новые файлы, шаблоны, Unity, PyQt-дизайнер (`ProjectActions`) |
 | `analyzer_control.py` | ~95 | Состояние, перезапуск, обновление анализаторов (`AnalyzerControl`) |
 | `document_safety.py` | ~120 | Связь `documents.py` с окном: слежение за вкладками, восстановление (`DocumentSafety`) |
+| `toolchains/` | ~600 | Наборы инструментов: Python, .NET, Unity — запуск, сборка, шаблоны (см. раздел 8.1) |
+| `new_project.py` | ~200 | «Файл → Создать проект…» (Ctrl+Shift+N) по шаблонам всех наборов |
 | `indentation.py` | ~260 | Отступы: `IndentStyle`, `.editorconfig`, определение по файлу, правила сохранения (без Qt) |
 | `folding.py` | ~400 | Сворачивание: `fold_ranges` (без Qt) и `Folding` у каждого редактора |
 | `symbols.py` | ~170 | Символы файла/решения (`Symbol`) из documentSymbol, workspace/symbol и разбора текста (без Qt) |
@@ -125,7 +127,7 @@
 |---|---|---|
 | `commands` | `commands.CommandRegistry` | Все команды и их клавиши; `_build_actions` только регистрирует |
 | `nav` | `navigation.NavigationHistory` | «Назад / Вперёд» |
-| `runner` | `run_control.RunController` | F5 / Shift+F5 |
+| `runner` | `run_control.RunController` | F5 / Shift+F5 (что именно — решает набор из `toolchains/`) |
 | `builder` | `build.BuildController` | Ctrl+Shift+B, Ctrl+Alt+F7, Shift+F6, Ctrl+Break |
 | `checker` | `build_check.FileCheck` | Ctrl+F7 |
 | `refactoring` | `refactor_actions.RefactorActions` | Shift+F12, F2, Ctrl+R Ctrl+F, лампочка |
@@ -252,6 +254,36 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 
 Чтобы подключить **новый анализатор**: написать класс службы в `lsp.py`, добавить фабрику в
 `SERVICE_FACTORIES` — окно подключит все сигналы само, цикл по `services_by_key`.
+
+### 8.1. Наборы инструментов (`toolchains/`) — запуск, сборка, новые проекты
+
+Язык в `languages.py` — это то, как файл **редактируется** (подсветка, отступы, анализатор).
+Набор инструментов — то, что с проектом **делают**: запускают, собирают, создают. Окно не знает,
+что такое Python, .NET или Unity: оно спрашивает каждый зарегистрированный набор.
+
+| Набор | Узнаёт решение | Запуск (F5) | Сборка | Новые проекты |
+|---|---|---|---|---|
+| `toolchains/unity.py` | есть `Assets/` + `ProjectSettings/` | открыть проект в Unity | `dotnet build` в кэш UniPy | — (Unity Hub) |
+| `toolchains/python.py` | есть `.py` | файл выбранным интерпретатором | проверка синтаксиса в потоке | консольное, PyQt6 |
+| `toolchains/dotnet.py` | `.sln`/`.csproj` (не Unity) | `dotnet run --project` (Exe/WinExe/веб) | `dotnet build` | всё из `dotnet new list` (Avalonia и др.) |
+
+Интерфейс — `toolchains/base.py` (`Toolchain`): `applies`, `run_targets`, `target_for_file`, `run_command`/`launch`,
+`build_jobs`, `build_jobs_for_file`, `clean`, `load_templates`, `create_project`, плюс `file_extensions`/`file_names`
+(какие файлы показывать в обозревателе). Всё, что набор знает о решении, приходит в `ProjectContext` —
+набор не трогает окно, поэтому его можно проверить тестом без интерфейса.
+
+**Как добавить язык или платформу (например, Rust):**
+1. `languages.py` — `Language("rust", "Rust", (".rs",), "//", braces=True, service="rust")` (редактор, подсветка).
+2. По желанию — анализатор: класс службы в `lsp.py` (rust-analyzer) и строка в `SERVICE_FACTORIES`.
+3. `toolchains/rust.py` — `class RustToolchain(Toolchain)`: `applies` (есть `Cargo.toml`), `run_targets`
+   (бинарники из Cargo.toml), `run_command` (`cargo run`), `build_jobs` (`CommandSequence` с `cargo build`;
+   свой разбор ошибок — подкласс `BuildJob`), `load_templates`/`create_project` (`cargo new`),
+   `file_extensions = (".rs",)`, `file_names = ("Cargo.toml",)`.
+4. `toolchains/__init__.py` — `register(RustToolchain())`.
+5. Строки интерфейса — ключи в `locales/*.json` (тест `test_i18n` проверит и подпапки).
+
+Список «Запуск», F5, «Собрать решение», «Создать проект» и обозреватель подхватят новый набор сами —
+это проверяет тест `tests/test_toolchains.py::Extensibility` (игрушечный набор Echo).
 
 ---
 

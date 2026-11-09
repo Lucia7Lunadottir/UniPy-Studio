@@ -37,7 +37,13 @@ ROLE_LINE = Qt.ItemDataRole.UserRole + 1
 
 
 def is_code_file(name):
-    return name in CODE_NAMES or os.path.splitext(name)[1].lower() in CODE_EXT
+    """Код или файл проекта: общий список, реестр языков и файлы наборов инструментов (toolchains)."""
+    ext = os.path.splitext(name)[1].lower()
+    if name in CODE_NAMES or ext in CODE_EXT:
+        return True
+    from . import toolchains
+    exts, names = toolchains.known_files()
+    return ext in exts or name in names
 
 
 def mini_button(icon_name, tip, slot):

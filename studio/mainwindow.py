@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QDockWidget, QWidget, QVBo
                              QInputDialog, QCompleter, QFrame, QCheckBox, QApplication, QToolBar,
                              QSizePolicy, QPushButton, QDialog, QMenu)
 
-from . import theme, templates, intellisense, lsp, indentation, symbols
+from . import theme, templates, intellisense, lsp, indentation, symbols, toolchains
 from .goto_all import GoToAll
 from .analyzer_control import AnalyzerControl
 from .build import BuildController
@@ -363,7 +363,7 @@ class MainWindow(QMainWindow):
         self.setCorner(Qt.Corner.BottomRightCorner, Qt.DockWidgetArea.RightDockWidgetArea)
         self.explorer = SolutionExplorer()
         self.explorer.open_file.connect(self.open_path)
-        self.explorer.run_file.connect(lambda p: self.runner.run_file(p))
+        self.explorer.run_file.connect(lambda p: self.runner.run_path(p))
         self.explorer.changed.connect(self._solution_changed)
         self.d_explorer = self._dock("mainwindow.solution_explorer", self.explorer,
                                      Qt.DockWidgetArea.LeftDockWidgetArea, "explorer")
@@ -422,6 +422,7 @@ class MainWindow(QMainWindow):
         self.a_open_file = A("File.OpenFile", "mainwindow.open_file_2", self.open_file_dialog, "Ctrl+O")
         self.a_open_solution = A("File.OpenProject", "mainwindow.open_project_solution_2", self.open_solution_dialog,
                                  "Ctrl+Shift+O", "open", "mainwindow.open_project_solution_ctrl_shift")
+        self.a_new_project = A("File.NewProject", "mainwindow.new_project", self.new_project_dialog, "Ctrl+Shift+N")
         self.a_open = A("File.OpenFolder", "mainwindow.open_folder", self.open_folder_dialog, "Ctrl+Shift+Alt+O")
         self.a_sample = A("File.OpenSampleSolution", "mainwindow.open_sample_solution", self.open_sample)
         self.a_save = A("File.SaveSelectedItems", "mainwindow.save", self.save_current, "Ctrl+S", "save", "mainwindow.save_ctrl_s")
@@ -529,7 +530,7 @@ class MainWindow(QMainWindow):
     def _build_menus(self):
         mb = self.menuBar()
         m = bind_text(mb.addMenu(""), "common.file", "setTitle")
-        for a in (self.a_new, self.a_open_solution, self.a_open, self.a_open_file, self.a_sample):
+        for a in (self.a_new_project, self.a_new, self.a_open_solution, self.a_open, self.a_open_file, self.a_sample):
             m.addAction(a)
         self.recent_menu = bind_text(m.addMenu(""), "mainwindow.recent_folders", "setTitle")
         self.recent_menu.aboutToShow.connect(self._fill_recent)
@@ -733,7 +734,15 @@ class MainWindow(QMainWindow):
         self.refactoring.apply_code_action(edit, title)
 
     def run_file(self, path):
-        self.runner.run_file(path)
+        self.runner.run_path(path)
+
+    def project_context(self):
+        """Что знают наборы инструментов (toolchains) о текущем решении — без доступа к самому окну."""
+        return toolchains.ProjectContext(
+            root=self.root, files=getattr(self.explorer, "files", []),
+            buffers={ed.path: ed.toPlainText() for ed in self.editors()},
+            interpreter=self.interp.currentData() if hasattr(self, "interp") else None,
+            options=self.options, open_in_unity=self.unity.open_in_unity, status=self.status)
 
     def zoom(self, delta):
         self.options.set("editor/font_size", self.font_size + delta)
@@ -850,28 +859,23 @@ class MainWindow(QMainWindow):
         files = self.explorer.files
         rels = [os.path.relpath(p, self.root) for p in files]
         self.quick_completer.model().setStringList(rels)
+        self._fill_run_targets()
+        self._fill_interpreters()
+
+    def _fill_run_targets(self):
+        """Список «Запуск»: «Текущий файл» и то, что предлагает каждый набор инструментов решения."""
         current = self.startup.currentData()
+        ctx = self.project_context()
         self.startup.blockSignals(True)
         self.startup.clear()
-        self.startup.addItem(theme.badge("py", "#3572A5", "#FFD43B"), tr("mainwindow.current_file"), "")
-        mains = []
-        for p in files:
-            if not p.endswith(".py"):
-                continue
-            if os.path.basename(p) == "main.py":
-                mains.insert(0, p)
-                continue
-            try:
-                if os.path.getsize(p) < 200000 and "__main__" in open(p, encoding="utf-8", errors="ignore").read():
-                    mains.append(p)
-            except OSError:
-                pass
-        for p in mains[:40]:
-            self.startup.addItem(theme.file_icon(p), os.path.relpath(p, self.root), p)
-        idx = self.startup.findData(current) if current else (1 if mains else 0)
+        self.startup.addItem(theme.tool_icon("run"), tr("mainwindow.current_file"), None)
+        for tc in toolchains.active(ctx):
+            icon = theme.badge(*tc.badge)
+            for target in tc.run_targets(ctx):
+                self.startup.addItem(icon, target.label, "%s::%s" % (tc.id, target.id))
+        idx = self.startup.findData(current) if current else (1 if self.startup.count() > 1 else 0)
         self.startup.setCurrentIndex(max(0, idx))
         self.startup.blockSignals(False)
-        self._fill_interpreters()
 
     def _fill_interpreters(self):
         cur = self.interp.currentData()
@@ -1204,6 +1208,37 @@ class MainWindow(QMainWindow):
             tr("mainwindow.resolutions_projects_sln_slnx_csproj"))
         if p:
             self.set_root(os.path.dirname(os.path.abspath(p)))
+
+    def new_project_dialog(self):
+        """«Файл → Создать проект…»: шаблоны всех наборов инструментов (Python, .NET…)."""
+        from .new_project import NewProjectDialog
+        dialog = NewProjectDialog(self, toolchains.TOOLCHAINS, self._projects_folder())
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        template, folder, name, choices = dialog.result_values()
+        self.settings.setValue("projects/folder", folder)
+        job = template.toolchain.create_project(template, folder, name, choices)
+        self.builder.run_job(job, tr("new_project.creating") % name, self._project_created)
+
+    def _projects_folder(self):
+        saved = self.settings.value("projects/folder")
+        if saved and os.path.isdir(saved):
+            return saved
+        if self.root:
+            return os.path.dirname(self.root.rstrip(os.sep))
+        return os.path.expanduser("~")
+
+    def _project_created(self, result):
+        if not result.get("ok"):
+            self.output.write(tr("new_project.failed"), "common.build", C["error"])
+            self.status(tr("new_project.failed"), 15000)
+            return
+        root = result["root"]
+        self.output.write(tr("new_project.created") % root, "common.build", C["ok"])
+        if self.set_root(root):
+            opened = next((p for p in result.get("open", []) if os.path.isfile(p)), None)
+            if opened:
+                self.open_path(opened)
 
     def open_folder_dialog(self):
         d = QFileDialog.getExistingDirectory(self, tr("mainwindow.open_folder_solution"), self.root or os.path.expanduser("~"))
