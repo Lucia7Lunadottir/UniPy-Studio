@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "タブのピン留め/解除",
   "tabs.close_all_but_pinned": "ピン留め以外をすべて閉じる",
   "multicursor.next_match": "次に一致するキャレットを挿入",
-  "multicursor.all_matches": "一致するすべての位置にキャレットを挿入"
+  "multicursor.all_matches": "一致するすべての位置にキャレットを挿入",
+  "insights.page": "コード内ヒント",
+  "insights.intro": "コード内に直接表示する内容。C# のデータは Roslyn、Python は jedi（pyright は提供しません）から取得し、参照数は言語アナライザーから取得します。",
+  "insights.semantic": "セマンティック カラー化 (クラス、インターフェイス、フィールド、パラメーター)",
+  "insights.semantic_hint": "名前の書き方だけでなく、それが何であるかによって色が決まります",
+  "insights.codelens": "CodeLens: クラスとメソッドの参照数",
+  "insights.codelens_hint": "宣言行の末尾に表示され、クリックすると参照の一覧が表示されます",
+  "insights.inlay_parameters": "呼び出し引数のパラメーター名",
+  "insights.inlay_hint": "引数がすでにパラメーターと同じ名前の場合は表示しません",
+  "insights.inlay_types": "変数の型 (var、注釈のない代入)",
+  "insights.references": "参照: %d",
+  "insights.unity_message": "Unity メッセージ"
 }

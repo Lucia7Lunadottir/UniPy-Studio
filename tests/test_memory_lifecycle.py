@@ -123,7 +123,8 @@ class MemoryLifecycleTests(unittest.TestCase):
             try:
                 self.assertTrue(conn.start(sys.executable, ["-c", program, str(pidfile)], tmp))
                 deadline = time.monotonic() + 3
-                while not pidfile.exists() and time.monotonic() < deadline:
+                # файл появляется раньше, чем в него записано число, — ждём содержимое, а не сам файл
+                while not (pidfile.exists() and pidfile.read_text().strip()) and time.monotonic() < deadline:
                     self.app.processEvents()
                     time.sleep(.01)
                 self.assertTrue(pidfile.exists())

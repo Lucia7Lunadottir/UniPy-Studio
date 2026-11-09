@@ -43,7 +43,27 @@ class AttributeState(QTextBlockUserData):
         self.depth = depth
 
 
-class Highlighter(QSyntaxHighlighter):
+class OverlayHighlighter(QSyntaxHighlighter):
+    """Подсветка + слой поверх неё: семантическая раскраска и места под подсказки в строке (studio/insights).
+    overlay(номер строки) → [(начало UTF-16, длина, change(QTextCharFormat))] — формат меняется, а не заменяется,
+    так что курсив комментария или жирный шрифт остаются. Слой меняет только вид: не текст и не стек отмены."""
+    overlay = None
+
+    def highlightBlock(self, text):
+        self._highlight(text)
+        if self.overlay is not None:
+            self._apply_overlay(text)
+
+    def _apply_overlay(self, text):
+        size = len(text.encode("utf-16-le")) // 2 if not text.isascii() else len(text)
+        for start, length, change in self.overlay(self.currentBlock().blockNumber()):
+            for pos in range(max(0, start), min(size, start + length)):
+                fmt = QTextCharFormat(self.format(pos))
+                change(fmt)
+                self.setFormat(pos, 1, fmt)
+
+
+class Highlighter(OverlayHighlighter):
     # состояния многострочных конструкций
     ST_TRIPLE_D, ST_TRIPLE_S, ST_BLOCK, ST_XML_COMMENT, ST_VERBATIM = 1, 2, 3, 4, 5
 
@@ -118,7 +138,7 @@ class Highlighter(QSyntaxHighlighter):
         self.json_key = _fmt(C["param"])
 
     # ------------------------------------------------------------------
-    def highlightBlock(self, text):
+    def _highlight(self, text):
         n = len(text)
         self.offsets = [0]
         for ch in text:
@@ -324,7 +344,7 @@ class Highlighter(QSyntaxHighlighter):
 
 
 # ====================================================================== Pygments: остальные языки
-class PygmentsHighlighter(QSyntaxHighlighter):
+class PygmentsHighlighter(OverlayHighlighter):
     """Подсветка любого языка, который знает Pygments (HLSL/шейдеры Unity, C++, JS, Rust…).
 
     Pygments разбирает текст целиком (многострочные комментарии и строки), поэтому документ
@@ -410,7 +430,7 @@ class PygmentsHighlighter(QSyntaxHighlighter):
         self._spans = spans
         self.rehighlight()
 
-    def highlightBlock(self, text):
+    def _highlight(self, text):
         for start, length, role in self._spans.get(self.currentBlock().blockNumber(), ()):
             self.setFormat(start, length, self._formats[role])
 

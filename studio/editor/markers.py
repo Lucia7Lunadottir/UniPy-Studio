@@ -74,6 +74,8 @@ class MarkersMixin:
         if not self.navbar.isHidden():
             self.navbar.set_symbols(self.symbols)
         self.refresh_views()
+        if self.insights is not None:
+            self.insights.symbols_changed()         # CodeLens стоит у тех же символов
 
     def _on_cursor(self):
         c = self.textCursor()

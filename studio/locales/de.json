@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "Registerkarte anheften/lösen",
   "tabs.close_all_but_pinned": "Alle außer angehefteten schließen",
   "multicursor.next_match": "Nächste übereinstimmende Einfügemarke einfügen",
-  "multicursor.all_matches": "Einfügemarken bei allen Übereinstimmungen einfügen"
+  "multicursor.all_matches": "Einfügemarken bei allen Übereinstimmungen einfügen",
+  "insights.page": "Code-Hinweise",
+  "insights.intro": "Was direkt im Code angezeigt wird. Für C# liefert Roslyn die Daten, für Python jedi (pyright kann das nicht); Verweiszahlen kommen vom Sprachanalysator.",
+  "insights.semantic": "Semantische Einfärbung (Klassen, Schnittstellen, Felder, Parameter)",
+  "insights.semantic_hint": "Die Farbe hängt davon ab, was ein Name ist, nicht nur davon, wie er geschrieben ist",
+  "insights.codelens": "CodeLens: Anzahl der Verweise bei Klassen und Methoden",
+  "insights.codelens_hint": "Am Ende der Deklarationszeile; Klick zeigt die Verweise",
+  "insights.inlay_parameters": "Parameternamen bei Aufrufargumenten",
+  "insights.inlay_hint": "Ausgeblendet, wenn das Argument bereits wie der Parameter heißt",
+  "insights.inlay_types": "Variablentypen (var, Zuweisungen ohne Annotation)",
+  "insights.references": "Verweise: %d",
+  "insights.unity_message": "Unity-Nachricht"
 }

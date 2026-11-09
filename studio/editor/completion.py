@@ -253,6 +253,9 @@ class CompletionMixin:
 
     def on_worker_result(self, res):
         kind, data = res["kind"], res["data"]
+        if self.insights is not None and self.insights.handles(kind):     # семантика, подсказки в строке, CodeLens
+            self.insights.on_result(res)
+            return
         if kind == "complete" and res["req"] == self._req:
             if self._completion_location != (self.document().revision(), self.textCursor().position()):
                 return

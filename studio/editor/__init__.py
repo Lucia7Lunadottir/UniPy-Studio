@@ -14,4 +14,5 @@ from .navigation import NavigationMixin  # noqa: F401
 from .hover import HoverMixin  # noqa: F401
 from .visual_aids import VisualAidsMixin, guide_levels, indent_columns  # noqa: F401
 from .multi_cursor import MultiCursorMixin  # noqa: F401
+from .insights_view import InsightsMixin  # noqa: F401
 from .code_editor import CodeEditor  # noqa: F401

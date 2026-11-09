@@ -49,6 +49,7 @@ class AnalyzerControl:
             for ed in self.win.editors():
                 if ed.language.service == key:
                     ed.run_diagnostics()
+                    ed.insights.refresh()       # семантика и подсказки — теперь от анализатора
             self.win.refresh_outline()      # структура и панель навигации — теперь от анализатора
 
     def refresh_label(self):

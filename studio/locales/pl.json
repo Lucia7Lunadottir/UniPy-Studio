@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "Przypnij lub odepnij kartę",
   "tabs.close_all_but_pinned": "Zamknij wszystkie oprócz przypiętych",
   "multicursor.next_match": "Wstaw kursor przy następnym dopasowaniu",
-  "multicursor.all_matches": "Wstaw kursory przy wszystkich dopasowaniach"
+  "multicursor.all_matches": "Wstaw kursory przy wszystkich dopasowaniach",
+  "insights.page": "Podpowiedzi w kodzie",
+  "insights.intro": "Co pokazywać bezpośrednio w kodzie. Dla C# dane daje Roslyn, dla Pythona jedi (pyright tego nie potrafi); liczbę odwołań — analizator języka.",
+  "insights.semantic": "Kolorowanie semantyczne (klasy, interfejsy, pola, parametry)",
+  "insights.semantic_hint": "Kolor zależy od tego, czym jest nazwa, a nie tylko od tego, jak jest zapisana",
+  "insights.codelens": "CodeLens: liczba odwołań przy klasach i metodach",
+  "insights.codelens_hint": "Na końcu wiersza deklaracji; kliknięcie pokazuje listę odwołań",
+  "insights.inlay_parameters": "Nazwy parametrów przy argumentach wywołania",
+  "insights.inlay_hint": "Ukryte, gdy argument już nazywa się jak parametr",
+  "insights.inlay_types": "Typy zmiennych (var, przypisania bez adnotacji)",
+  "insights.references": "Odwołania: %d",
+  "insights.unity_message": "Komunikat Unity"
 }

@@ -10,7 +10,7 @@ from .code_editor import CodeEditor
 # поля «про файл»: читаются и пишутся у основного редактора
 SHARED = ("path", "encoding", "newline", "disk", "missing_on_disk", "indent", "lsp_diagnostics", "diagnostics",
           "faded", "vcs_markers", "symbols", "breakpoints", "bookmarks", "execution_line", "execution_is_top",
-          "debug_hover")
+          "debug_hover", "insights")
 
 
 def _shared(name):
@@ -34,6 +34,7 @@ class SplitView(CodeEditor):
         super().__init__(primary.path, primary.services, primary.font(), shared=primary)
         self._primary = primary
         primary.split_views.append(self)
+        primary.insights.watch_view(self)            # прокрутка второго окна — подсказки и для его строк
         # ошибки считает основной редактор: правка в любом окне меняет общий документ, а его textChanged
         # срабатывает и у основного
         self.textChanged.disconnect(self._diag_timer.start)

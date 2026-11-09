@@ -124,6 +124,8 @@ class JediWorker(QObject):
         self.available = jedi is not None
         self._stopped = False
         self._thread = None     # поток (и загрузка модулей PyQt6, ~100 МБ) — только при первом запросе
+        self._import_kinds = {}     # (модуль, имя) → роль для семантической подсветки (insights.python_semantic)
+        self._signatures_cache = {}     # (путь, вызов) → [(имя параметра, только позиционный)]
 
     def _ensure_started(self):
         """Запуск по первому запросу: при работе только с C# (Unity) jedi не тратит память."""
@@ -145,6 +147,12 @@ class JediWorker(QObject):
             self.project_path = path
             self.environment_path = environment_path
             self._project = None
+            self._import_kinds = {}
+            self._signatures_cache = {}
+
+    def _interrupted(self):
+        """Долгая задача (подсказки в строке, семантика) уступает очереди: пришёл запрос — отдаём, что успели."""
+        return bool(self._pending) or self._stopped
 
     def submit(self, kind, **kw):
         if not self.available:
@@ -239,6 +247,87 @@ class JediWorker(QObject):
         """Новый текст каждого изменённого файла (jedi сам находит все места в проекте)."""
         ref = script.rename(line, col, new_name=new_name)
         return {"files": {str(path): changed.get_new_code() for path, changed in ref.get_changed_files().items()}}
+
+    # --- подсказки в коде (insights): долгие, поэтому прерываются, если в очереди есть другой запрос
+    JEDI_ROLES = {"module": "namespace", "class": "type", "function": "function", "instance": "local",
+                  "statement": "local", "param": "param"}
+
+    def _semantic_tokens(self, script, line, col, code="", **_):
+        from .insights import python_semantic
+        partial = False
+        for module, name, ln, cl in python_semantic.from_imports(code):
+            key = (module, name)
+            if key in self._import_kinds:
+                continue
+            if self._interrupted():
+                partial = True
+                break
+            try:
+                found = script.goto(ln, cl, follow_imports=True)
+                self._import_kinds[key] = self.JEDI_ROLES.get(found[0].type) if found else None
+            except Exception:       # noqa: BLE001 — jedi не разобрал импорт: имя просто не раскрасится
+                self._import_kinds[key] = None
+        kinds = {k: v for k, v in self._import_kinds.items() if v}
+        return {"tokens": python_semantic.analyze(code, kinds), "partial": partial}
+
+    def _inlay_hints(self, script, line, col, code="", first=0, last=0, params=True, types=False, **_):
+        from .insights import python_inlay
+        hints, partial = [], False
+        path = str(script.path or "")
+        if params:
+            for site in python_inlay.call_sites(code, first, last):
+                if self._interrupted():
+                    return {"hints": hints, "partial": True}
+                key = (path, site.callee)
+                names = self._signatures_cache.get(key)
+                if names is None:
+                    names = []
+                    try:
+                        sigs = script.get_signatures(site.line, site.col)
+                        if sigs:
+                            names = [(p.name, p.kind.name == "POSITIONAL_ONLY",
+                                      p.kind.name in ("VAR_POSITIONAL", "VAR_KEYWORD")) for p in sigs[0].params]
+                    except Exception:   # noqa: BLE001
+                        names = []
+                    self._signatures_cache[key] = names
+                for index, line0, col16, text in site.args:
+                    if index >= len(names):
+                        break
+                    name, positional_only, star = names[index]
+                    if star:
+                        break
+                    if not positional_only and python_inlay.needs_param_hint(name, text):
+                        hints.append((line0, col16, name + ":", "parameter"))
+        if types:
+            for a in python_inlay.assignments(code, first, last):
+                if a.obvious:
+                    continue
+                if self._interrupted():
+                    partial = True
+                    break
+                try:
+                    found = script.infer(a.line, a.col)
+                except Exception:       # noqa: BLE001
+                    found = []
+                names = {n.name for n in found if n.type in ("instance", "class", "module", "function")}
+                if len(names) == 1:
+                    hints.append((a.line0, a.end16, ": " + names.pop(), "type"))
+        return {"hints": hints, "partial": partial}
+
+    def _code_lens(self, script, line, col, symbols=(), **_):
+        """Число ссылок на символы — запасной путь, пока языковой сервер не готов."""
+        counts = {}
+        for key, ln, cl in symbols:
+            if self._interrupted():
+                return {"counts": counts, "partial": True}
+            try:
+                refs = script.get_references(ln, cl, include_builtins=False)
+                counts[key] = {"count": sum(1 for r in refs if not r.is_definition()),
+                               "locations": [{"path": str(r.module_path), "line": r.line, "col": r.column + 1}
+                                             for r in refs if not r.is_definition() and r.module_path and r.line]}
+            except Exception:           # noqa: BLE001
+                pass
+        return {"counts": counts, "partial": False}
 
     @staticmethod
     def _definition(script, line, col, **_):

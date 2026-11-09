@@ -63,10 +63,15 @@ VS_LIGHT = {
 # подсветка кода: цвета Visual Studio (Dark+ / Light+), подстраиваются под контраст фона
 SYNTAX_DARK = {"keyword": "#569CD6", "control": "#C586C0", "type": "#4EC9B0", "string": "#D69D85",
                "comment": "#57A64A", "number": "#B5CEA8", "function": "#DCDCAA", "param": "#9CDCFE",
-               "decorator": "#4EC9B0", "tag": "#569CD6", "attr": "#9CDCFE", "preproc": "#9B9B9B"}
+               "decorator": "#4EC9B0", "tag": "#569CD6", "attr": "#9CDCFE", "preproc": "#9B9B9B",
+               # семантическая подсветка (studio/insights) — цвета Visual Studio 2022
+               "interface": "#B8D7A3", "struct": "#86C691", "enum": "#B8D7A3", "type_param": "#B8D7A3",
+               "namespace": "#C8C8C8", "member": "#DADADA", "local": "#9CDCFE", "enum_member": "#DADADA"}
 SYNTAX_LIGHT = {"keyword": "#0000FF", "control": "#8F08C4", "type": "#2B91AF", "string": "#A31515",
                 "comment": "#008000", "number": "#098658", "function": "#795E26", "param": "#001080",
-                "decorator": "#2B91AF", "tag": "#800000", "attr": "#E50000", "preproc": "#808080"}
+                "decorator": "#2B91AF", "tag": "#800000", "attr": "#E50000", "preproc": "#808080",
+                "interface": "#2B91AF", "struct": "#2B91AF", "enum": "#2B91AF", "type_param": "#2B91AF",
+                "namespace": "#1E1E1E", "member": "#1E1E1E", "local": "#1F377F", "enum_member": "#1E1E1E"}
 
 C = dict(VS_DARK, **SYNTAX_DARK)    # текущие роли; меняются на месте при смене темы
 

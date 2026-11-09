@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "Fixar ou desafixar guia",
   "tabs.close_all_but_pinned": "Fechar tudo, exceto fixados",
   "multicursor.next_match": "Inserir próximo cursor correspondente",
-  "multicursor.all_matches": "Inserir cursores em todas as correspondências"
+  "multicursor.all_matches": "Inserir cursores em todas as correspondências",
+  "insights.page": "Dicas no código",
+  "insights.intro": "O que mostrar diretamente no código. Para C#, os dados vêm do Roslyn; para Python, do jedi (o pyright não os fornece); a contagem de referências vem do analisador da linguagem.",
+  "insights.semantic": "Colorização semântica (classes, interfaces, campos, parâmetros)",
+  "insights.semantic_hint": "A cor depende do que o nome é, não só de como está escrito",
+  "insights.codelens": "CodeLens: número de referências em classes e métodos",
+  "insights.codelens_hint": "Exibido no fim da linha da declaração; clique para listar as referências",
+  "insights.inlay_parameters": "Nomes de parâmetros nos argumentos de chamada",
+  "insights.inlay_hint": "Ocultos quando o argumento já tem o nome do parâmetro",
+  "insights.inlay_types": "Tipos de variáveis (var, atribuições sem anotação)",
+  "insights.references": "Referências: %d",
+  "insights.unity_message": "Mensagem do Unity"
 }

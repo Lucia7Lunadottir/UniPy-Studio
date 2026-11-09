@@ -318,6 +318,12 @@ PAGES = (
                    hint="options.unimported_hint"),
         BoolOption("intellisense/alpha", False, "options.completion_alpha"),
     )),
+    Page(("options.text_editor", "insights.page"), (
+        BoolOption("insights/semantic", True, "insights.semantic", hint="insights.semantic_hint"),
+        BoolOption("insights/codelens", True, "insights.codelens", hint="insights.codelens_hint"),
+        BoolOption("insights/inlay_parameters", True, "insights.inlay_parameters", hint="insights.inlay_hint"),
+        BoolOption("insights/inlay_types", False, "insights.inlay_types"),
+    ), intro="insights.intro"),
     Page(("options.environment", "options.documents"), (
         BoolOption("documents/detect_external", True, "options.detect_external"),
         BoolOption("documents/reload_unmodified", True, "options.reload_unmodified",

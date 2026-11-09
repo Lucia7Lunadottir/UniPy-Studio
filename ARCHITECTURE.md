@@ -63,6 +63,7 @@
 | `debug/` | ~900 | Отладка по DAP: `dap.py` (транспорт), `session.py` (сеанс: остановки, шаги, стек, переменные), `breakpoints.py`, `panels.py`, `controller.py` |
 | `line_marks.py` | ~170 | Отметки на строках (общее для точек останова и закладок): `LineMarkStore` (по решению, в QSettings, сдвиг строк), `LineAnchors` (держит отметки открытого файла за строки) |
 | `bookmarks/` | ~250 | Закладки как в VS: `store.py`, `panel.py` (окно «Закладки»), `controller.py` (Ctrl+K, Ctrl+K / N / P / L / W) |
+| `insights/` | ~900 | Подсказки в коде: `base.py` (`Insight`, `InsightController` у основного редактора), `semantic.py` (семантическая подсветка), `inlay.py` (имена параметров и типы в строке), `codelens.py` («Ссылок: N»); для Python без pyright — `python_semantic.py` (области видимости по ast), `python_inlay.py` (места для подсказок), jedi в `JediWorker._semantic_tokens/_inlay_hints/_code_lens`; `positions.py` — UTF-8/символы/UTF-16 |
 | `document_tabs.py` | ~230 | Вкладки документов: `DocumentPage` (редактор + второе окно при «Окно → Разделить»), `DocumentTabs` (закрепление, порядок, какое окно активно). Окно работает с вкладками только через `win.documents` |
 | `framing.py` | ~30 | Рамка `Content-Length` — общая для LSP и DAP |
 | `lsp_features.py` | ~140 | Возможности анализатора для редактора (подсказки, справка, параметры, ссылки, переименование, F12): одна возможность — один класс; `LanguageServer.submit` общий, объявления для `initialize` собираются отсюда |
@@ -449,7 +450,8 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 |---|---|
 | Добавить язык | `languages.py` — одна запись в `LANGUAGES` |
 | Добавить анализатор языка | `lsp.py` (новая служба) + `SERVICE_FACTORIES` |
-| Новая функция анализатора (CodeLens, inlay hints…) | класс в `lsp_features.py` + строка в `FEATURES`; обработка результата — в редакторе |
+| Новая функция анализатора для курсора (подсказки, F12…) | класс в `lsp_features.py` + строка в `FEATURES`; обработка результата — в редакторе |
+| Новая подсказка в коде (как CodeLens, inlay hints) | класс-наследник `insights.base.Insight` + строка в `insights.INSIGHTS`; запрос — вид в `lsp_features.FEATURES` и/или метод `_<вид>` у `JediWorker`; параметр — в `options.py` и `MainWindow.INSIGHT_OPTIONS` |
 | Изменить перенос типа в файл | `refactor.py` (логика) и `MainWindow.move_type_to_file` (применение к редактору) |
 | Добавить вид подсказок для кнопок-фильтров | `intellisense.KIND_GROUPS` |
 | Новый флажок вида редактора (как «Показать пробелы») | `BoolOption` в `options.py` + строка в `MainWindow.EDITOR_VIEW_OPTIONS`; рисование — миксин в `editor/` |
@@ -498,3 +500,20 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 - В `studio/__pycache__/` лежат кэши Python 3.12 и 3.14 — в архив/репозиторий их класть не нужно.
 - Часть комментариев и имён в `launch.py`, `instance.py`, `search.py`, `log_limits.py` — на английском,
   остальной код — на русском. Если нужен единый стиль, это стоит выровнять.
+
+### Подсказки в коде (studio/insights) — как устроено
+
+- **Слой поверх подсветки.** `highlighter.OverlayHighlighter`: сначала обычная подсветка строки (`_highlight`), потом
+  `overlay(строка)` — список «начало, длина, изменить формат». Так семантика меняет цвет, не трогая курсив/жирный,
+  а inlay hints добавляют символу перед подсказкой межбуквенный интервал — получается место, где `paint()` рисует плашку.
+  Текст, курсор, стек отмены и «изменён» не меняются (проверено тестом).
+- **Перекраска шлёт textChanged** (не `contentsChange`): `InsightController.rehighlight` глушит сигналы документа,
+  а обновление подсказок ждёт `contentsChange` с настоящей правкой — иначе получилась бы петля и лишние проверки ошибок.
+- **Ответы** приходят обычным путём (окно → `editor.on_worker_result`), `req` — ревизия документа: ответ на старый
+  текст отбрасывается и запрашивается снова. Долгие задачи jedi уступают очереди (`JediWorker._interrupted`) и
+  возвращают `partial` — контроллер повторит позже.
+- **Слоты таймеров и сигналов — методы, не lambda**: lambda на контроллере, который сборщик мусора уже разбирает
+  (цикл редактор ↔ контроллер), роняет процесс (SIGSEGV при срабатывании таймера).
+- **CodeLens в конце строки**, а не над объявлением: `QPlainTextEdit` не умеет показывать строки, которых нет в тексте
+  (`QTextBlockFormat.topMargin` его разметка игнорирует, и это правка со своим шагом отмены).
+

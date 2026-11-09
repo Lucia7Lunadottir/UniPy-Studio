@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "탭 고정/해제",
   "tabs.close_all_but_pinned": "고정된 탭 외 모두 닫기",
   "multicursor.next_match": "다음 일치 항목에 캐럿 삽입",
-  "multicursor.all_matches": "일치하는 모든 위치에 캐럿 삽입"
+  "multicursor.all_matches": "일치하는 모든 위치에 캐럿 삽입",
+  "insights.page": "코드 내 힌트",
+  "insights.intro": "코드에 바로 표시할 항목입니다. C#은 Roslyn, Python은 jedi(pyright는 제공하지 않음)에서 데이터를 가져오며, 참조 수는 언어 분석기에서 가져옵니다.",
+  "insights.semantic": "의미 체계 색 지정(클래스, 인터페이스, 필드, 매개 변수)",
+  "insights.semantic_hint": "이름의 표기 방식뿐 아니라 그 이름이 무엇인지에 따라 색이 정해집니다",
+  "insights.codelens": "CodeLens: 클래스와 메서드의 참조 수",
+  "insights.codelens_hint": "선언 줄 끝에 표시되며 클릭하면 참조 목록이 열립니다",
+  "insights.inlay_parameters": "호출 인수의 매개 변수 이름",
+  "insights.inlay_hint": "인수 이름이 매개 변수와 같으면 표시하지 않습니다",
+  "insights.inlay_types": "변수 형식(var, 주석 없는 할당)",
+  "insights.references": "참조: %d",
+  "insights.unity_message": "Unity 메시지"
 }

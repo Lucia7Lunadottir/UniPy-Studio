@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "Закрепить или открепить вкладку",
   "tabs.close_all_but_pinned": "Закрыть все, кроме закреплённых",
   "multicursor.next_match": "Добавить курсор на следующее совпадение",
-  "multicursor.all_matches": "Курсоры на все совпадения"
+  "multicursor.all_matches": "Курсоры на все совпадения",
+  "insights.page": "Подсказки в коде",
+  "insights.intro": "Что показывать прямо в тексте кода. Для C# данные даёт Roslyn, для Python — jedi (pyright этого не умеет), число ссылок — анализатор языка.",
+  "insights.semantic": "Раскраска по смыслу (классы, интерфейсы, поля, параметры)",
+  "insights.semantic_hint": "Цвет зависит от того, что это за имя, а не только от того, как оно написано",
+  "insights.codelens": "CodeLens: число ссылок у классов и методов",
+  "insights.codelens_hint": "Подпись в конце строки объявления; щелчок открывает список ссылок",
+  "insights.inlay_parameters": "Имена параметров у аргументов вызова",
+  "insights.inlay_hint": "Не показываются, если аргумент и так называется как параметр",
+  "insights.inlay_types": "Типы переменных (var, присваивания без аннотации)",
+  "insights.references": "Ссылок: %d",
+  "insights.unity_message": "Сообщение Unity"
 }

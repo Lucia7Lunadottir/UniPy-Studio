@@ -106,8 +106,86 @@ class Implementation(Definition):
     capability = {"implementation": {"linkSupport": True}}
 
 
+# --- подсказки в коде (insights): ответ — данные для студии/insights, не для курсора
+
+# роли тем UniPy для типов семантических токенов (LSP SemanticTokenTypes и расширения Roslyn)
+SEMANTIC_ROLES = {
+    "namespace": "namespace", "class": "type", "record": "type", "recordClass": "type", "delegate": "type",
+    "type": "type", "struct": "struct", "recordStruct": "struct", "interface": "interface", "enum": "enum",
+    "typeParameter": "type_param", "method": "function", "function": "function", "extensionMethod": "function",
+    "property": "member", "field": "member", "event": "member", "enumMember": "enum_member",
+    "constant": "enum_member", "parameter": "param", "variable": "local", "local": "local",
+    "excludedCode": "excluded",
+}
+
+
+class SemanticTokens(Feature):
+    """Раскраска по смыслу (класс / интерфейс / поле / параметр…) — целиком для файла."""
+    kind, method = "semantic_tokens", "textDocument/semanticTokens/full"
+    capability = {"semanticTokens": {"requests": {"full": True}, "formats": ["relative"],
+                                     "tokenTypes": list(SEMANTIC_ROLES), "tokenModifiers": ["static", "readonly"],
+                                     "overlappingTokenSupport": False, "multilineTokenSupport": False}}
+
+    def params(self, server, position, request):
+        return {"textDocument": position["textDocument"]}
+
+    def convert(self, server, result, request, reply):
+        legend = ((server.server_capabilities or {}).get("semanticTokensProvider") or {}).get("legend") or {}
+        reply({"tokens": decode_semantic_tokens((result or {}).get("data") or [], legend.get("tokenTypes") or [])})
+
+
+def decode_semantic_tokens(data, token_types):
+    """Пятёрки LSP (Δстрока, Δначало, длина, тип, модификаторы) → [(строка, столбец, длина, роль)];
+    типы без роли (ключевые слова, строки, числа — их красит обычная подсветка) пропускаются."""
+    out, line, start = [], 0, 0
+    for i in range(0, len(data) - 4, 5):
+        d_line, d_start, length, ttype = data[i], data[i + 1], data[i + 2], data[i + 3]
+        line += d_line
+        start = start + d_start if d_line == 0 else d_start
+        name = token_types[ttype] if 0 <= ttype < len(token_types) else ""
+        role = SEMANTIC_ROLES.get(name)
+        if role:
+            out.append((line, start, length, role))
+    return out
+
+
+class InlayHints(Feature):
+    """Имена параметров и типы прямо в строке — для видимых строк extra["first"]..extra["last"] (с 0)."""
+    kind, method = "inlay_hints", "textDocument/inlayHint"
+    capability = {"inlayHint": {"resolveSupport": {"properties": []}}}
+
+    def params(self, server, position, request):
+        return {"textDocument": position["textDocument"],
+                "range": {"start": {"line": request.extra.get("first", 0), "character": 0},
+                          "end": {"line": request.extra.get("last", 0) + 1, "character": 0}}}
+
+    def convert(self, server, result, request, reply):
+        hints = []
+        for h in result or []:
+            label = h.get("label")
+            if isinstance(label, list):
+                label = "".join(part.get("value", "") for part in label)
+            pos = h.get("position") or {}
+            text = (" " if h.get("paddingLeft") else "") + (label or "").strip() + (" " if h.get("paddingRight") else "")
+            hints.append((pos.get("line", 0), pos.get("character", 0), text.strip(),
+                          "type" if h.get("kind") == 1 else "parameter"))
+        reply({"hints": hints})
+
+
+class ReferenceCount(Feature):
+    """Сколько раз используется символ (CodeLens «Ссылок: N»); без самого объявления."""
+    kind, method = "reference_count", "textDocument/references"
+
+    def params(self, server, position, request):
+        return dict(position, context={"includeDeclaration": False})
+
+    def convert(self, server, result, request, reply):
+        locations = server._locations(result)
+        reply({"key": request.extra.get("key"), "count": len(result or []), "locations": locations})
+
+
 FEATURES = {f.kind: f for f in (Completion(), SignatureHelp(), Hover(), References(), Rename(), Definition(),
-                                Implementation())}
+                                Implementation(), SemanticTokens(), InlayHints(), ReferenceCount())}
 
 
 def text_document_capabilities():

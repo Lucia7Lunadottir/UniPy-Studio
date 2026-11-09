@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "Anclar o desanclar pestaña",
   "tabs.close_all_but_pinned": "Cerrar todo excepto lo anclado",
   "multicursor.next_match": "Insertar siguiente símbolo de intercalación coincidente",
-  "multicursor.all_matches": "Insertar símbolos de intercalación en todas las coincidencias"
+  "multicursor.all_matches": "Insertar símbolos de intercalación en todas las coincidencias",
+  "insights.page": "Sugerencias en el código",
+  "insights.intro": "Qué mostrar directamente en el código. En C# los datos vienen de Roslyn, en Python de jedi (pyright no los proporciona); el número de referencias, del analizador del lenguaje.",
+  "insights.semantic": "Coloreado semántico (clases, interfaces, campos, parámetros)",
+  "insights.semantic_hint": "El color depende de lo que es un nombre, no solo de cómo está escrito",
+  "insights.codelens": "CodeLens: número de referencias en clases y métodos",
+  "insights.codelens_hint": "Se muestra al final de la línea de la declaración; haga clic para ver las referencias",
+  "insights.inlay_parameters": "Nombres de parámetros en los argumentos de llamada",
+  "insights.inlay_hint": "Se ocultan si el argumento ya se llama como el parámetro",
+  "insights.inlay_types": "Tipos de variables (var, asignaciones sin anotación)",
+  "insights.references": "Referencias: %d",
+  "insights.unity_message": "Mensaje de Unity"
 }

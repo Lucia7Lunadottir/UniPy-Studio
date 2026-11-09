@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "Закріпити або відкріпити вкладку",
   "tabs.close_all_but_pinned": "Закрити всі, крім закріплених",
   "multicursor.next_match": "Додати курсор на наступний збіг",
-  "multicursor.all_matches": "Курсори на всі збіги"
+  "multicursor.all_matches": "Курсори на всі збіги",
+  "insights.page": "Підказки в коді",
+  "insights.intro": "Що показувати просто в тексті коду. Для C# дані дає Roslyn, для Python — jedi (pyright цього не вміє), кількість посилань — аналізатор мови.",
+  "insights.semantic": "Розфарбування за змістом (класи, інтерфейси, поля, параметри)",
+  "insights.semantic_hint": "Колір залежить від того, що це за ім'я, а не лише від того, як воно написане",
+  "insights.codelens": "CodeLens: кількість посилань у класів і методів",
+  "insights.codelens_hint": "Підпис у кінці рядка оголошення; клацання відкриває список посилань",
+  "insights.inlay_parameters": "Імена параметрів біля аргументів виклику",
+  "insights.inlay_hint": "Не показуються, якщо аргумент і так названий як параметр",
+  "insights.inlay_types": "Типи змінних (var, присвоєння без анотації)",
+  "insights.references": "Посилань: %d",
+  "insights.unity_message": "Повідомлення Unity"
 }

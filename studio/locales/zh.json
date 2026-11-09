@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "固定/取消固定选项卡",
   "tabs.close_all_but_pinned": "关闭除固定项外的所有项",
   "multicursor.next_match": "在下一个匹配项插入插入点",
-  "multicursor.all_matches": "在所有匹配项插入插入点"
+  "multicursor.all_matches": "在所有匹配项插入插入点",
+  "insights.page": "代码内提示",
+  "insights.intro": "直接在代码中显示的内容。C# 的数据来自 Roslyn，Python 来自 jedi（pyright 不提供）；引用数来自语言分析器。",
+  "insights.semantic": "语义着色（类、接口、字段、参数）",
+  "insights.semantic_hint": "颜色取决于名称是什么，而不仅是它的写法",
+  "insights.codelens": "CodeLens：类和方法的引用数",
+  "insights.codelens_hint": "显示在声明行末尾；单击可列出引用",
+  "insights.inlay_parameters": "调用参数上的参数名",
+  "insights.inlay_hint": "如果参数已与形参同名，则不显示",
+  "insights.inlay_types": "变量类型（var、无注解的赋值）",
+  "insights.references": "引用: %d",
+  "insights.unity_message": "Unity 消息"
 }

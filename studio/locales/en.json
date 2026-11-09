@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "Pin or Unpin Tab",
   "tabs.close_all_but_pinned": "Close All But Pinned",
   "multicursor.next_match": "Insert Next Matching Caret",
-  "multicursor.all_matches": "Insert Carets at All Matching"
+  "multicursor.all_matches": "Insert Carets at All Matching",
+  "insights.page": "Code Insights",
+  "insights.intro": "What to show right in the code. For C# the data comes from Roslyn, for Python from jedi (pyright does not provide it); reference counts come from the language analyzer.",
+  "insights.semantic": "Semantic colorization (classes, interfaces, fields, parameters)",
+  "insights.semantic_hint": "The color depends on what a name is, not only on how it is written",
+  "insights.codelens": "CodeLens: reference counts on classes and methods",
+  "insights.codelens_hint": "Shown at the end of the declaration line; click to list the references",
+  "insights.inlay_parameters": "Parameter names on call arguments",
+  "insights.inlay_hint": "Hidden when the argument is already named like the parameter",
+  "insights.inlay_types": "Variable types (var, unannotated assignments)",
+  "insights.references": "References: %d",
+  "insights.unity_message": "Unity Message"
 }

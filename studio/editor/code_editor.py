@@ -21,9 +21,11 @@ from .navigation import NavigationMixin
 from .hover import HoverMixin
 from .visual_aids import VisualAidsMixin
 from .multi_cursor import MultiCursorMixin
+from .insights_view import InsightsMixin
+from ..insights import controller_for
 
 
-class CodeEditor(DocumentMixin, GutterMixin, MarkersMixin, QuickActionsMixin, DiagnosticsMixin, AppearanceMixin, MultiCursorMixin, TypingMixin, CompletionMixin, NavigationMixin, VisualAidsMixin, HoverMixin, QPlainTextEdit):
+class CodeEditor(DocumentMixin, GutterMixin, MarkersMixin, QuickActionsMixin, DiagnosticsMixin, AppearanceMixin, MultiCursorMixin, TypingMixin, CompletionMixin, NavigationMixin, InsightsMixin, VisualAidsMixin, HoverMixin, QPlainTextEdit):
     cursor_moved = pyqtSignal(int, int)
     diagnostics_changed = pyqtSignal()
     goto_requested = pyqtSignal(str, int)
@@ -126,6 +128,8 @@ class CodeEditor(DocumentMixin, GutterMixin, MarkersMixin, QuickActionsMixin, Di
         self.textChanged.connect(self._diag_timer.start)
         self.textChanged.connect(self._bulb_timer.start)
         self.setMouseTracking(True)
+        # семантика, подсказки в строке, CodeLens — у основного редактора; второе окно берёт его (split_view.SHARED)
+        self.insights = controller_for(self) if shared is None else None
         self._on_cursor()
 
     @property

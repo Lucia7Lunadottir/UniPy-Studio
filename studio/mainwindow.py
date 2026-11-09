@@ -45,6 +45,9 @@ from .i18n import (LANGUAGE_NAMES, LANGUAGE_SETTING, bind_text, change_language,
 APP_NAME = "UniPy Studio"
 # флажки вида редактора: параметр → свойство CodeEditor (ed.set_view_option); новый флажок — одна строка здесь
 EDITOR_VIEW_OPTIONS = {"editor/show_whitespace": "show_whitespace", "editor/indent_guides": "indent_guides"}
+# подсказки в коде (studio/insights): параметр → ключ настроек контроллера редактора
+INSIGHT_OPTIONS = {"insights/semantic": "semantic", "insights/codelens": "codelens",
+                   "insights/inlay_parameters": "inlay_parameters", "insights/inlay_types": "inlay_types"}
 INDENT_OPTIONS = {"editor/indent_style", "editor/indent_size", "editor/tab_width", "editor/use_editorconfig",
                   "editor/adapt_indent", "editor/trim_trailing"}
 
@@ -226,6 +229,8 @@ class MainWindow(QMainWindow):
         # подсказки: сортировка, раньше выбранные одинаковые имена, подсказки из неподключённых пространств имён
         self.completion_alpha = self.options["intellisense/alpha"]
         lsp.OPTIONS["unimported"] = self.options["intellisense/unimported"]
+        lsp.OPTIONS["inlay_parameters"] = self.options["insights/inlay_parameters"]
+        lsp.OPTIONS["inlay_types"] = self.options["insights/inlay_types"]
         try:
             saved = json.loads(self.settings.value("intellisense/choices", "{}", type=str))
         except ValueError:
@@ -290,6 +295,13 @@ class MainWindow(QMainWindow):
             for ed in self.editors():
                 ed.folding.set_enabled(value)
                 ed._update_gutter_width()
+        elif key in INSIGHT_OPTIONS:
+            if key in ("insights/inlay_parameters", "insights/inlay_types"):
+                lsp.OPTIONS[INSIGHT_OPTIONS[key]] = value
+                for svc in self.language_services:
+                    svc.configuration_changed()         # Roslyn перечитает настройки подсказок
+            for ed in self.editors():
+                ed.insights.apply_settings(self.insight_settings())
         elif key in EDITOR_VIEW_OPTIONS:
             for ed in self.editors():
                 ed.set_view_option(EDITOR_VIEW_OPTIONS[key], value)
@@ -1103,6 +1115,9 @@ class MainWindow(QMainWindow):
         """Окно редактора, где сейчас работают (во разделённой вкладке — то, где был курсор)."""
         return self.documents.current_view()
 
+    def insight_settings(self):
+        return {name: self.options[key] for key, name in INSIGHT_OPTIONS.items()}
+
     def split_window(self):
         """Окно → Разделить: второе окно того же файла сверху; ещё раз — убрать."""
         if self.documents.current_page() is not None:
@@ -1142,6 +1157,7 @@ class MainWindow(QMainWindow):
         ed.set_navigation_bar(self.options["editor/navigation_bar"])
         for key, name in EDITOR_VIEW_OPTIONS.items():
             ed.set_view_option(name, self.options[key])
+        ed.insights.apply_settings(self.insight_settings())
         if lsp.is_metadata_path(path):
             ed.setReadOnly(True)        # исходник из сборки (UnityEngine.dll и т.п.)
         self._connect_view(ed)
@@ -1187,6 +1203,7 @@ class MainWindow(QMainWindow):
         self._update_title()
         self.refresh_outline()
         if ed:
+            ed.insights.ensure_fresh()          # фоновая вкладка, пока была скрыта, подсказки не спрашивала
             c = ed.textCursor()
             self._cursor_moved(c.blockNumber() + 1, c.positionInBlock() + 1)
             self.lang_label.setText(ed.language.name)

@@ -1293,5 +1293,16 @@
   "tabs.pin_toggle": "Épingler ou désépingler l'onglet",
   "tabs.close_all_but_pinned": "Fermer tout sauf les éléments épinglés",
   "multicursor.next_match": "Insérer le point d'insertion correspondant suivant",
-  "multicursor.all_matches": "Insérer des points d'insertion à toutes les correspondances"
+  "multicursor.all_matches": "Insérer des points d'insertion à toutes les correspondances",
+  "insights.page": "Indications dans le code",
+  "insights.intro": "Ce qui s'affiche directement dans le code. Pour C#, les données viennent de Roslyn, pour Python de jedi (pyright ne les fournit pas) ; le nombre de références vient de l'analyseur du langage.",
+  "insights.semantic": "Colorisation sémantique (classes, interfaces, champs, paramètres)",
+  "insights.semantic_hint": "La couleur dépend de ce qu'est un nom, pas seulement de sa forme",
+  "insights.codelens": "CodeLens : nombre de références sur les classes et méthodes",
+  "insights.codelens_hint": "Affiché en fin de ligne de déclaration ; cliquez pour lister les références",
+  "insights.inlay_parameters": "Noms des paramètres sur les arguments d'appel",
+  "insights.inlay_hint": "Masqués si l'argument porte déjà le nom du paramètre",
+  "insights.inlay_types": "Types des variables (var, affectations sans annotation)",
+  "insights.references": "Références : %d",
+  "insights.unity_message": "Message Unity"
 }
