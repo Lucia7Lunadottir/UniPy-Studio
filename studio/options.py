@@ -295,6 +295,15 @@ PAGES = (
                      kind=float, hint="options.hint_size_hint"),
         BoolOption("editor/word_wrap", False, "mainwindow.wrap_long_lines"),
     )),
+    Page(("options.text_editor", "options.indentation"), (
+        ChoiceOption("editor/indent_style", "spaces", "options.indent_style",
+                     (("spaces", "options.spaces"), ("tabs", "options.tabs"))),
+        NumberOption("editor/indent_size", 4, "options.indent_size", 1, 16),
+        NumberOption("editor/tab_width", 4, "options.tab_width", 1, 16),
+        BoolOption("editor/use_editorconfig", True, "options.use_editorconfig", hint="options.use_editorconfig_hint"),
+        BoolOption("editor/adapt_indent", True, "options.adapt_indent", hint="options.adapt_indent_hint"),
+        BoolOption("editor/trim_trailing", False, "options.trim_trailing"),
+    ), intro="options.indentation_intro"),
     Page(("options.text_editor", "IntelliSense"), (
         BoolOption("intellisense/unimported", True, "mainwindow.suggestions_from_unimported_namespaces",
                    hint="options.unimported_hint"),

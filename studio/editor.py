@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (QPlainTextEdit, QWidget, QTextEdit, QCompleter, QLa
 from .highlighter import Highlighter, PygmentsHighlighter
 from . import languages, refactor
 from .documents import DiskState, atomic_write
+from .indentation import IndentStyle, apply_save_rules
 from .lsp import markdown_to_html as lsp_markdown_to_html, line_diff_edits
 from .intellisense import (CSharpProvider, signature_html, hover_html, word_items,
                            KIND_GROUPS, arrange, present_groups)
@@ -243,6 +244,7 @@ class CodeEditor(QPlainTextEdit):
         self.newline = "\n"
         self.disk = DiskState(path)    # что было на диске при открытии/сохранении — чтобы заметить чужие изменения
         self.missing_on_disk = False   # файл удалили вне редактора; сохранение создаст его заново
+        self.indent = IndentStyle()    # пробелы/табы и размер; окно ставит итог .editorconfig/файла/параметров
         self._link = None              # слово под мышью при зажатом Ctrl — подчёркнуто, как ссылка в VS
         self.find_text = ""
         self._completion_items = {}
@@ -344,8 +346,14 @@ class CodeEditor(QPlainTextEdit):
 
     def save(self):
         """Сохраняет в той же кодировке и с теми же переводами строк, что были у файла (как Visual Studio).
-        Запись атомарная; если файл успели изменить вне редактора — сначала спрашивает."""
+        Запись атомарная; если файл успели изменить вне редактора — сначала спрашивает.
+        Правила .editorconfig (пробелы в конце строк, перевод строки в конце) применяются и к тексту
+        во вкладке — одной правкой, Ctrl+Z её вернёт."""
         text = self.toPlainText()
+        ruled = apply_save_rules(text, self.indent)
+        if ruled != text:
+            self.set_text_as_edit(ruled)
+            text = self.toPlainText()
         if self.newline != "\n":
             text = text.replace("\n", self.newline)
         try:
@@ -649,9 +657,18 @@ class CodeEditor(QPlainTextEdit):
         иначе перекрывает setFont() при каждом показе вкладки."""
         self.setStyleSheet('CodeEditor { font-family: "%s"; font-size: %gpt; }' % (font.family(), font.pointSizeF()))
         self.setFont(font)
-        self.setTabStopDistance(QFontMetrics(font).horizontalAdvance(" ") * 4)
+        self._update_tab_stops(font)
         if hasattr(self, "gutter"):
             self._update_gutter_width()
+
+    def _update_tab_stops(self, font):
+        width = getattr(self, "indent", None).tab_width if hasattr(self, "indent") else 4
+        self.setTabStopDistance(QFontMetrics(font).horizontalAdvance(" ") * width)
+
+    def set_indent_style(self, style):
+        """Стиль отступа файла (indentation.resolve). Ширина таба на экране — из него же."""
+        self.indent = style
+        self._update_tab_stops(self.font())
 
     def _make_highlighter(self):
         """Своя подсветка для основных языков, Pygments — для остальных (если он знает язык)."""
@@ -674,7 +691,7 @@ class CodeEditor(QPlainTextEdit):
         # иначе оно наезжает на первые символы строк
         if e.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
             self._update_gutter_width()
-            self.setTabStopDistance(QFontMetrics(self.font()).horizontalAdvance(" ") * 4)
+            self._update_tab_stops(self.font())
         super().changeEvent(e)
 
     def apply_theme(self):
@@ -810,9 +827,9 @@ class CodeEditor(QPlainTextEdit):
         stripped = before.rstrip()
         extra = ""
         if self.language.colon_blocks and stripped.endswith(":"):
-            extra = "    "
+            extra = self.indent.unit()
         elif stripped.endswith(("{", "[", "(")):
-            extra = "    "
+            extra = self.indent.unit()
         c.beginEditBlock()
         if extra and after.strip()[:1] in ("}", "]", ")") and not self.language.colon_blocks:
             c.insertText("\n" + indent + extra + "\n" + indent)
@@ -827,7 +844,7 @@ class CodeEditor(QPlainTextEdit):
         c = self.textCursor()
         if not c.hasSelection():
             if direction > 0:
-                c.insertText(" " * (4 - c.positionInBlock() % 4))
+                c.insertText(self.indent.tab_insertion(c.block().text()[:c.positionInBlock()]))
             else:
                 self._dedent_lines(c.blockNumber(), c.blockNumber())
             return
@@ -839,7 +856,7 @@ class CodeEditor(QPlainTextEdit):
             for n in range(start, end + 1):
                 b = self.document().findBlockByNumber(n)
                 cur.setPosition(b.position())
-                cur.insertText("    ")
+                cur.insertText(self.indent.unit())
             cur.endEditBlock()
         else:
             self._dedent_lines(start, end)
@@ -849,9 +866,9 @@ class CodeEditor(QPlainTextEdit):
         cur.beginEditBlock()
         for n in range(start, end + 1):
             b = self.document().findBlockByNumber(n)
-            spaces = len(b.text()) - len(b.text().lstrip(" "))
-            k = min(4, spaces)
-            if k:
+            leading = b.text()[:len(b.text()) - len(b.text().lstrip(" \t"))]
+            k = self.indent.dedent(leading)
+            if leading and k:
                 cur.setPosition(b.position())
                 cur.setPosition(b.position() + k, QTextCursor.MoveMode.KeepAnchor)
                 cur.removeSelectedText()
@@ -867,9 +884,12 @@ class CodeEditor(QPlainTextEdit):
             c.deleteChar()
             c.deletePreviousChar()
             return True
-        if before and not before.strip(" ") and len(before) % 4 == 0 and len(before) >= 4:
-            for _ in range(4):
+        width = self.indent.backspace_width(before)
+        if width > 1:
+            c.beginEditBlock()
+            for _ in range(width):
                 c.deletePreviousChar()
+            c.endEditBlock()
             return True
         return False
 
@@ -906,7 +926,7 @@ class CodeEditor(QPlainTextEdit):
     def _dedent_brace(self):
         c = self.textCursor()
         line = c.block().text()
-        if line.strip() == "}" and line.startswith("    "):
+        if line.strip() == "}" and line[:1] in (" ", "\t"):
             # выравниваем по открывающей скобке
             depth, b = 0, c.block().previous()
             target = None
@@ -1208,7 +1228,7 @@ class CodeEditor(QPlainTextEdit):
                 if re.search(r"\bvoid\s+" + re.escape(prefix) + r"$", before):
                     signature = re.sub(r"^void\s+", "", signature)
                 indent = re.match(r"[ \t]*", before).group()
-                insertion = signature + "\n" + indent + "{\n" + indent + "    \n" + indent + "}"
+                insertion = signature + "\n" + indent + "{\n" + indent + self.indent.unit() + "\n" + indent + "}"
                 move_back = len(indent) + 2
         c.beginEditBlock()
         c.insertText(insertion)

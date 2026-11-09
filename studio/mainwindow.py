@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QDockWidget, QWidget, QVBo
                              QInputDialog, QCompleter, QFrame, QCheckBox, QApplication, QToolBar,
                              QSizePolicy, QPushButton, QDialog, QMenu)
 
-from . import theme, templates, intellisense, lsp
+from . import theme, templates, intellisense, lsp, indentation
 from .analyzer_control import AnalyzerControl
 from .build_check import SolutionCheck
 from .commands import CommandRegistry, KeyboardPage
@@ -31,6 +31,8 @@ from .i18n import (LANGUAGE_NAMES, LANGUAGE_SETTING, bind_text, change_language,
                    refresh_text, selected_language, tr)
 
 APP_NAME = "UniPy Studio"
+INDENT_OPTIONS = {"editor/indent_style", "editor/indent_size", "editor/tab_width", "editor/use_editorconfig",
+                  "editor/adapt_indent", "editor/trim_trailing"}
 
 
 class FindBar(QFrame):
@@ -257,6 +259,33 @@ class MainWindow(QMainWindow):
                 svc.restart_mb = value
         elif key.startswith(("documents/", "recovery/")):
             self.safety.option_changed(key)
+        elif key in INDENT_OPTIONS:
+            for ed in self.editors():
+                self.apply_indent(ed)
+            self._show_indent(self.editor())
+
+    # ------------------------------------------------------------ отступы
+    def indent_defaults(self):
+        o = self.options
+        return indentation.IndentStyle(o["editor/indent_style"] == "tabs", o["editor/indent_size"],
+                                       o["editor/tab_width"], trim_trailing=o["editor/trim_trailing"])
+
+    def apply_indent(self, ed):
+        """Отступ файла: .editorconfig → содержимое файла → параметры (indentation.resolve)."""
+        ed.set_indent_style(indentation.resolve(ed.path, ed.toPlainText(), self.indent_defaults(),
+                                                self.options["editor/use_editorconfig"],
+                                                self.options["editor/adapt_indent"]))
+
+    INDENT_SOURCES = {"editorconfig": "mainwindow.indent_from_editorconfig",
+                      "file": "mainwindow.indent_from_file", "options": "mainwindow.indent_from_options"}
+
+    def _show_indent(self, ed):
+        if ed is None:
+            self.indent_label.setText("")
+            return
+        kind, width = ed.indent.label()
+        self.indent_label.setText(tr("mainwindow.indent_tabs" if kind == "tabs" else "mainwindow.indent_spaces") % width)
+        self.indent_label.setToolTip(tr(self.INDENT_SOURCES[ed.indent.source]))
 
     # ------------------------------------------------------------ сборка интерфейса
     def _build_central(self):
@@ -539,6 +568,7 @@ class MainWindow(QMainWindow):
             cursor = ed.textCursor()
             self._cursor_moved(cursor.blockNumber() + 1, cursor.positionInBlock() + 1)
             self.enc_label.setText(ed.encoding_label())
+            self._show_indent(ed)
             ed.completer.popup().hide()
             ed.doc_tip.hide()
             ed.calltip.hide()
@@ -607,7 +637,9 @@ class MainWindow(QMainWindow):
         self.jedi_label = QLabel()
         self.analyzers.refresh_label()
         self.pos_label = bind_text(QLabel(), "mainwindow.ln_1_col_1")
-        self.indent_label = bind_text(QLabel(), "mainwindow.spaces_4")
+        self.indent_label = QLabel()
+        self.indent_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.indent_label.mousePressEvent = lambda e: self.show_settings(("options.text_editor", "options.indentation"))
         self.enc_label = QLabel("UTF-8")
         self.lang_label = QLabel("")
         self.busy_bar = BusyBar()
@@ -850,6 +882,7 @@ class MainWindow(QMainWindow):
         ed = CodeEditor(path, self, self.font)
         ed.setLineWrapMode(ed.LineWrapMode.WidgetWidth if self.word_wrap else ed.LineWrapMode.NoWrap)
         ed.load()
+        self.apply_indent(ed)
         if lsp.is_metadata_path(path):
             ed.setReadOnly(True)        # исходник из сборки (UnityEngine.dll и т.п.)
         ed.cursor_moved.connect(self._cursor_moved)
@@ -892,6 +925,8 @@ class MainWindow(QMainWindow):
             self._cursor_moved(c.blockNumber() + 1, c.positionInBlock() + 1)
             self.lang_label.setText(ed.language.name)
             self.enc_label.setText(ed.encoding_label())
+            self.apply_indent(ed)               # .editorconfig мог измениться, пока вкладка была в фоне
+            self._show_indent(ed)
             self.explorer.select_path(ed.path)
             self.errors.current = ed.path
             self.errors.render()
@@ -899,6 +934,7 @@ class MainWindow(QMainWindow):
                 self.findbar.update_matches()
         else:
             self.lang_label.setText("")
+            self._show_indent(None)
         for e in self.editors():
             if e is not ed:
                 e.find_text = ""

@@ -83,13 +83,13 @@ class ProjectActions:
             return
         c = ed.textCursor()
         line = c.block().text()
-        indent = re.match(r"[ \t]*", line).group(0) or "    "
+        indent = re.match(r"[ \t]*", line).group(0) or ed.indent.unit()
         if line.strip():
             c.movePosition(c.MoveOperation.EndOfBlock)
             c.insertText("\n\n" + indent)
         elif c.positionInBlock() < len(indent):
             c.movePosition(c.MoveOperation.EndOfBlock)
-        body = "%s\n%s{\n%s    \n%s}" % (sig, indent, indent, indent)
+        body = "%s\n%s{\n%s%s\n%s}" % (sig, indent, indent, ed.indent.unit(), indent)
         c.insertText(body)
         c.movePosition(c.MoveOperation.Up)
         c.movePosition(c.MoveOperation.EndOfBlock)
