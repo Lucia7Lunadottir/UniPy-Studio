@@ -3,10 +3,11 @@ import os
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem,
+from PyQt6.QtWidgets import (QHeaderView, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem,
                              QVBoxLayout, QWidget)
 
 from .. import theme
+from ..panels.common import FlowRow
 from ..i18n import tr
 from .base import MISMATCH, MISSING, OK, UNKNOWN
 
@@ -28,7 +29,7 @@ class DependenciesPanel(QWidget):
         self.env = QLabel()
         self.env.setWordWrap(True)
         lay.addWidget(self.env)
-        bar = QHBoxLayout()
+        bar = FlowRow()                             # узкая панель — кнопки переносятся
         self.install_button = QPushButton()
         self.install_button.clicked.connect(self.install)
         self.venv_button = QPushButton()
@@ -37,7 +38,6 @@ class DependenciesPanel(QWidget):
         self.refresh_button.clicked.connect(self.refresh)
         for b in (self.install_button, self.venv_button, self.refresh_button):
             bar.addWidget(b)
-        bar.addStretch(1)
         lay.addLayout(bar)
         self.tree = QTreeWidget()
         self.tree.setRootIsDecorated(False)

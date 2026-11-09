@@ -1,9 +1,9 @@
 """Общее для панелей: что считать кодом, скрытые папки, роли данных в деревьях, маленькие кнопки, BusyBar,
-поиск Unity-проектов."""
+ряд кнопок с переносом (FlowRow), поиск Unity-проектов."""
 import os
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QRect, QSize, QPoint
 from PyQt6.QtGui import QColor, QPainter
-from PyQt6.QtWidgets import QWidget, QToolButton
+from PyQt6.QtWidgets import QWidget, QToolButton, QLayout
 from .. import theme, languages
 from ..theme import C
 from ..i18n import bind_text
@@ -54,6 +54,102 @@ def mini_button(icon_name, tip, slot):
     b.setAutoRaise(True)
     b.clicked.connect(slot)
     return b
+
+
+class FlowRow(QLayout):
+    """Ряд кнопок панели, который переносится на следующую строку, когда панели не хватает ширины.
+    Обычный QHBoxLayout требует ширину всех кнопок сразу — а вкладки дока не бывают уже самой широкой
+    панели группы, и окно переставало сужаться."""
+
+    def __init__(self, parent=None, spacing=4, margins=(0, 0, 0, 0)):
+        super().__init__(parent)
+        self._items = []
+        self._fill = set()                  # виджеты, которые забирают остаток своей строки
+        self._height = None                 # высота при текущей ширине — минимум для родителя
+        self.setSpacing(spacing)
+        self.setContentsMargins(*margins)
+
+    def add(self, widget, fill=False):
+        self.addWidget(widget)
+        if fill:
+            self._fill.add(id(widget))
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index):
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._arrange(QRect(0, 0, width, 0), apply=False)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        height = self._arrange(rect, apply=True)
+        if height != self._height:
+            # строк стало больше/меньше — родитель должен выделить другую высоту, иначе
+            # перенесённые кнопки наедут на соседние виджеты
+            self._height = height
+            self.invalidate()
+
+    def _visible(self):
+        return [i for i in self._items if not i.isEmpty()]
+
+    def sizeHint(self):
+        items = self._visible()
+        m = self.contentsMargins()
+        width = sum(i.sizeHint().width() for i in items) + self.spacing() * max(0, len(items) - 1)
+        height = max((i.sizeHint().height() for i in items), default=0)
+        return QSize(width + m.left() + m.right(), height + m.top() + m.bottom())
+
+    def minimumSize(self):
+        m = self.contentsMargins()
+        width = max((i.minimumSize().width() for i in self._visible()), default=0)
+        height = max((i.minimumSize().height() for i in self._visible()), default=0) + m.top() + m.bottom()
+        return QSize(width + m.left() + m.right(), max(height, self._height or 0))
+
+    def _lines(self, width):
+        lines, used = [[]], 0
+        for item in self._visible():
+            w = item.sizeHint().width()
+            if lines[-1] and used + self.spacing() + w > width:
+                lines.append([])
+                used = 0
+            used += (self.spacing() if lines[-1] else 0) + w
+            lines[-1].append(item)
+        return [line for line in lines if line]
+
+    def _arrange(self, rect, apply):
+        m = self.contentsMargins()
+        area = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        y = area.y()
+        for line in self._lines(area.width()):
+            height = max(i.sizeHint().height() for i in line)
+            if apply:
+                widths = [min(i.sizeHint().width(), area.width()) for i in line]
+                free = area.width() - sum(widths) - self.spacing() * (len(line) - 1)
+                fill = [n for n, i in enumerate(line) if i.widget() is not None and id(i.widget()) in self._fill]
+                for n in fill:
+                    widths[n] += max(0, free) // len(fill)
+                x = area.x()
+                for item, w in zip(line, widths):
+                    item.setGeometry(QRect(QPoint(x, y + (height - item.sizeHint().height()) // 2),
+                                           QSize(w, item.sizeHint().height())))
+                    x += w + self.spacing()
+            y += height + self.spacing()
+        return max(0, y - self.spacing() - rect.y()) + m.bottom()
 
 
 def is_unity_project(path):

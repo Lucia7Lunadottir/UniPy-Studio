@@ -6,10 +6,11 @@ import re
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QSplitter, QTextBrowser, QToolButton, QTreeWidget,
+from PyQt6.QtWidgets import (QLabel, QLineEdit, QSplitter, QTextBrowser, QToolButton, QTreeWidget,
                              QTreeWidgetItem, QVBoxLayout, QWidget, QAbstractItemView, QMenu)
 
 from .. import theme
+from ..panels.common import FlowRow
 from ..i18n import tr
 from ..theme import C
 from .base import ERROR, FAILED, NOT_RUN, PASSED, RUNNING, SKIPPED
@@ -34,7 +35,7 @@ class TestExplorer(QWidget):
         self._items = {}
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 2, 4, 2)
-        bar = QHBoxLayout()
+        bar = FlowRow()                             # узкая панель — кнопки переносятся
         self.buttons = {}
         for key, signal in (("run_all", self.run_all), ("run_failed", self.run_failed),
                             ("run_selected", None), ("debug_selected", None), ("refresh", self.refresh)):
@@ -45,13 +46,13 @@ class TestExplorer(QWidget):
             bar.addWidget(b)
         self.buttons["run_selected"].clicked.connect(lambda: self.run_ids.emit(self.selected_ids()))
         self.buttons["debug_selected"].clicked.connect(lambda: self.debug_ids.emit(self.selected_ids()))
-        bar.addStretch(1)
         lay.addLayout(bar)
         self.filter = QLineEdit()                   # своей строкой: рядом с кнопками ему не хватало места
         self.filter.setClearButtonEnabled(True)
         self.filter.textChanged.connect(self._apply_filter)
         lay.addWidget(self.filter)
         self.summary = QLabel()
+        self.summary.setWordWrap(True)
         theme.style(self.summary, "color:@dim@;")
         lay.addWidget(self.summary)
         split = QSplitter(Qt.Orientation.Vertical)

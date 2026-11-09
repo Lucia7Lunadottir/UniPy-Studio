@@ -4,10 +4,11 @@ import os
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QToolButton, QPlainTextEdit, QPushButton,
+from PyQt6.QtWidgets import (QWidget, QSizePolicy, QVBoxLayout, QLabel, QToolButton, QPlainTextEdit, QPushButton,
                              QTreeWidget, QTreeWidgetItem, QCheckBox, QMenu, QAbstractItemView, QMessageBox)
 
 from .. import theme
+from ..panels.common import FlowRow
 from ..i18n import tr
 from .base import ADDED, CONFLICT, DELETED, MODIFIED, RENAMED, UNTRACKED
 
@@ -40,10 +41,11 @@ class GitChangesPanel(QWidget):
         self.status = {}
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 4, 6, 4)
-        top = QHBoxLayout()
-        self.branch = QToolButton()
+        self.branch = QToolButton()                 # своей строкой: длинное имя ветки не распирает панель
         self.branch.clicked.connect(self.switch_branch)
-        top.addWidget(self.branch, 1)
+        self.branch.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        lay.addWidget(self.branch)
+        top = FlowRow()
         self.buttons = {}
         for action in ("fetch", "pull", "push"):
             b = QToolButton()
@@ -60,12 +62,12 @@ class GitChangesPanel(QWidget):
         self.message = QPlainTextEdit()
         self.message.setMaximumHeight(80)
         lay.addWidget(self.message)
-        row = QHBoxLayout()
+        row = FlowRow()
         self.commit_button = QPushButton()
         self.commit_button.clicked.connect(self._commit)
         self.amend = QCheckBox()
-        row.addWidget(self.commit_button, 1)
-        row.addWidget(self.amend)
+        row.add(self.commit_button, fill=True)
+        row.add(self.amend)
         lay.addLayout(row)
 
         self.tree = QTreeWidget()

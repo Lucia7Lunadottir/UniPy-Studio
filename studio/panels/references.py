@@ -19,6 +19,7 @@ class ReferencesPanel(QWidget):
         self.title = QLabel()
         self.summary = None
         self.title.setContentsMargins(8, 4, 8, 4)
+        self.title.setWordWrap(True)
         lay.addWidget(self.title)
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["", ""])

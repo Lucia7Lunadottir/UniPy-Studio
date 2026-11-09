@@ -1,6 +1,6 @@
 """Панели окна — по модулю на панель. Здесь только реэкспорт: `from .panels import SolutionExplorer` и т. п.
 работает как раньше, когда всё лежало в одном panels.py."""
-from .common import BusyBar, CODE_EXT, CODE_HIDDEN_DIRS, CODE_NAMES, HIDDEN_DIRS, ROLE_LINE, ROLE_PATH, find_unity_projects, is_code_file, is_unity_project, mini_button  # noqa: F401
+from .common import BusyBar, FlowRow, CODE_EXT, CODE_HIDDEN_DIRS, CODE_NAMES, HIDDEN_DIRS, ROLE_LINE, ROLE_PATH, find_unity_projects, is_code_file, is_unity_project, mini_button  # noqa: F401
 from .solution_explorer import SolutionExplorer  # noqa: F401
 from .outline import OutlinePanel, outline  # noqa: F401
 from .output import OutputPanel  # noqa: F401

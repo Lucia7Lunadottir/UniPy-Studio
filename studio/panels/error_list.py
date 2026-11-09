@@ -2,10 +2,10 @@
 import os
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QToolButton, QTableWidget, QTableWidgetItem, QHeaderView, QComboBox, QAbstractItemView
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QToolButton, QTableWidget, QTableWidgetItem, QHeaderView, QComboBox, QAbstractItemView
 from ..theme import C
 from ..i18n import tr
-from .common import ROLE_LINE, ROLE_PATH
+from .common import ROLE_LINE, ROLE_PATH, FlowRow
 
 
 class ErrorList(QWidget):
@@ -16,8 +16,7 @@ class ErrorList(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        bar = QHBoxLayout()
-        bar.setContentsMargins(6, 2, 6, 2)
+        bar = FlowRow(margins=(6, 2, 6, 2))         # узкое окно — фильтры переносятся
         self.scope = QComboBox()
         self.scope.addItems([tr("panels.entire_solution"), tr("panels.open_documents"), tr("panels.current_document")])
         self.scope.currentIndexChanged.connect(lambda *_: self.refresh())
@@ -27,7 +26,6 @@ class ErrorList(QWidget):
         for b in (self.btn_err, self.btn_warn):
             b.toggled.connect(lambda *_: self.refresh())
             bar.addWidget(b)
-        bar.addStretch(1)
         lay.addLayout(bar)
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["", tr("panels.description"), tr("common.project"), tr("common.file"), tr("panels.line")])

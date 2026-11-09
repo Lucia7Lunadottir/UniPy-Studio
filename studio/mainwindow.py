@@ -34,7 +34,7 @@ from .unity_console import UnityConsole
 from .editor import CodeEditor
 from . import languages
 from .terminal.panel import TerminalPanel
-from .panels import (SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, UnityPanel,
+from .panels import (FlowRow, SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, UnityPanel,
                      PyQtDesigner, BusyBar, ReferencesPanel, find_unity_projects, outline)
 from .theme import C
 from .i18n import (LANGUAGE_NAMES, LANGUAGE_SETTING, bind_text, change_language,
@@ -50,12 +50,10 @@ class FindBar(QFrame):
         super().__init__()
         self.setObjectName("findBar")
         self.win = window
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(8, 4, 8, 4)
-        lay.setSpacing(4)
+        lay = FlowRow(self, margins=(8, 4, 8, 4))   # узкое окно — поле замены уходит на вторую строку
         self.find = QLineEdit()
         bind_text(self.find, "mainwindow.find", "setPlaceholderText")
-        self.find.setMinimumWidth(220)
+        self.find.setMinimumWidth(180)
         self.find.textChanged.connect(self.update_matches)
         self.find.returnPressed.connect(lambda: self.step(True))
         self.case = bind_text(QCheckBox(), "mainwindow.match_case_button")
@@ -65,7 +63,7 @@ class FindBar(QFrame):
         self.count.setObjectName("hint")
         self.replace = QLineEdit()
         bind_text(self.replace, "mainwindow.replace_with", "setPlaceholderText")
-        self.replace.setMinimumWidth(180)
+        self.replace.setMinimumWidth(150)
         lay.addWidget(self.find)
         lay.addWidget(self.case)
         for text, tip, slot in (("↑", "mainwindow.previous_shift_f3", lambda: self.step(False)),
@@ -76,7 +74,6 @@ class FindBar(QFrame):
             b.clicked.connect(slot)
             lay.addWidget(b)
         lay.addWidget(self.count)
-        lay.addSpacing(10)
         lay.addWidget(self.replace)
         self.rep_one = bind_text(QPushButton(), "mainwindow.replace")
         self.rep_one.clicked.connect(self.replace_one)
@@ -84,7 +81,6 @@ class FindBar(QFrame):
         self.rep_all.clicked.connect(self.replace_all)
         lay.addWidget(self.rep_one)
         lay.addWidget(self.rep_all)
-        lay.addStretch(1)
         close = QToolButton()
         close.setIcon(theme.tool_icon("clear"))
         close.setProperty("tool_icon", "clear")
@@ -335,6 +331,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.tabs, 1)
         self.empty = bind_text(QLabel(), "mainwindow.open_file_solution_explorer_ctrl")
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty.setWordWrap(True)
         self.empty.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.empty.customContextMenuRequested.connect(lambda pos: self._tab_menu(self.empty.mapToGlobal(pos), -1))
         theme.style(self.empty, "color:@dim@; background:@editor@; font-size:12pt;")

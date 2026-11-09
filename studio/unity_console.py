@@ -10,10 +10,11 @@ import re
 
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QToolButton, QLineEdit, QListWidget,
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QToolButton, QLineEdit, QListWidget,
                              QListWidgetItem, QSplitter, QTextBrowser, QLabel)
 
 from . import theme
+from .panels.common import FlowRow
 from .i18n import tr
 from .theme import C
 from .unity_log import ERROR, WARNING, LOG, INFO, UnityLogWatcher, log_path_for
@@ -40,19 +41,18 @@ class UnityConsole(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        bar = QHBoxLayout()
-        bar.setContentsMargins(6, 2, 6, 2)
+        bar = FlowRow(margins=(6, 2, 6, 2))         # узкое окно — кнопки переносятся
         self.clear_button = QToolButton()
         self.clear_button.clicked.connect(self.clear)
         self.collapse = QToolButton(checkable=True)
         self.collapse.toggled.connect(lambda *_: self.refresh())
         bar.addWidget(self.clear_button)
         bar.addWidget(self.collapse)
-        bar.addSpacing(8)
         self.search = QLineEdit()
+        self.search.setMinimumWidth(120)
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(lambda *_: self._render_timer.start())
-        bar.addWidget(self.search, 1)
+        bar.add(self.search, fill=True)
         self.kind_buttons = {}
         for kind in (ERROR, WARNING, LOG, INFO):
             b = QToolButton(checkable=True, checked=kind != INFO)
@@ -62,6 +62,7 @@ class UnityConsole(QWidget):
         lay.addLayout(bar)
         self.where = QLabel()
         self.where.setContentsMargins(8, 0, 8, 2)
+        self.where.setWordWrap(True)
         theme.style(self.where, "color:@dim@;")
         lay.addWidget(self.where)
         split = QSplitter(Qt.Orientation.Vertical)
