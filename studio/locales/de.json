@@ -1203,5 +1203,6 @@
   "options.run_in_terminal": "Programme im integrierten Terminal ausführen",
   "options.run_in_terminal_hint": "Tastatureingabe (input(), Console.ReadLine()), Farben und Strg+C funktionieren — auch beim Debuggen. Ausschalten, um die Ausgabe ins Ausgabefenster zu leiten (schneller bei riesiger Ausgabe, aber ohne Eingabe).",
   "terminal.exited": "Prozess beendet mit Code %s",
-  "terminal.new": "Neues Terminal"
+  "terminal.new": "Neues Terminal",
+  "terminal.needs_pyte": "Das integrierte Terminal benötigt das Paket python-pyte (offizielles Arch-Repository):\nsudo pacman -S python-pyte\n\nBis dahin laufen Programme mit Ausgabe im Ausgabefenster."
 }

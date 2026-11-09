@@ -1203,5 +1203,6 @@
   "options.run_in_terminal": "Exécuter les programmes dans le terminal intégré",
   "options.run_in_terminal_hint": "La saisie au clavier (input(), Console.ReadLine()), les couleurs et Ctrl+C fonctionnent — en débogage aussi. Désactivez pour envoyer la sortie dans Sortie (plus rapide pour une sortie énorme, mais sans saisie).",
   "terminal.exited": "Le processus s'est terminé avec le code %s",
-  "terminal.new": "Nouveau terminal"
+  "terminal.new": "Nouveau terminal",
+  "terminal.needs_pyte": "Le terminal intégré nécessite le paquet python-pyte (dépôt officiel Arch) :\nsudo pacman -S python-pyte\n\nEn attendant, les programmes s'exécutent avec leur sortie dans Sortie."
 }

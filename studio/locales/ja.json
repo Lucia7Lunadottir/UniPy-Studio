@@ -1203,5 +1203,6 @@
   "options.run_in_terminal": "統合ターミナルでプログラムを実行する",
   "options.run_in_terminal_hint": "キーボード入力 (input()、Console.ReadLine())、色、Ctrl+C がデバッグ中も使えます。オフにすると出力は [出力] に送られます (大量の出力では速いが入力不可)。",
   "terminal.exited": "プロセスはコード %s で終了しました",
-  "terminal.new": "新しいターミナル"
+  "terminal.new": "新しいターミナル",
+  "terminal.needs_pyte": "統合ターミナルには python-pyte パッケージ (Arch 公式リポジトリ) が必要です:\nsudo pacman -S python-pyte\n\nそれまでは、プログラムの出力は [出力] に表示されます。"
 }

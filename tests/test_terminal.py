@@ -82,6 +82,32 @@ class Pty(unittest.TestCase):
         self.assertNotEqual(done[0], 0)
 
 
+class WithoutPyte(unittest.TestCase):
+    def test_ide_starts_and_runs_into_output(self):
+        """Без python-pyte окно работает: терминал подсказывает, что поставить, программы идут в «Вывод»."""
+        import subprocess
+        root = Path(tempfile.mkdtemp())
+        (root / "main.py").write_text("print('from output')\n")
+        code = (
+            "import sys, time; sys.modules['pyte'] = None\n"
+            "sys.path.insert(0, %r)\n"
+            "from PyQt6.QtWidgets import QApplication; app = QApplication([])\n"
+            "from studio.mainwindow import MainWindow\n"
+            "w = MainWindow(screenshot=True); w.set_root(%r); w.open_path(%r)\n"
+            "print('available', w.terminal.available, w.terminal.missing.isHidden())\n"
+            "w.a_run2.trigger()\n"
+            "end = time.monotonic() + 10\n"
+            "while 'from output' not in w.output.view.toPlainText() and time.monotonic() < end:\n"
+            "    app.processEvents(); time.sleep(0.02)\n"
+            "print('output', 'from output' in w.output.view.toPlainText())\n"
+            "w.jedi.stop(); w.csharp_index.stop(); [s.stop() for s in w.language_services]\n"
+        ) % (str(Path(__file__).parent.parent), str(root), str(root / "main.py"))
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60,
+                             env={**os.environ, "QT_QPA_PLATFORM": "offscreen"}).stdout
+        self.assertIn("available False False", out)
+        self.assertIn("output True", out)
+
+
 class WindowRun(unittest.TestCase):
     def window(self):
         from studio.mainwindow import MainWindow

@@ -66,7 +66,7 @@ class RunController(QObject):
         self.command = command
         self.path = command.cwd
         win.errors.clear_source("common.run")
-        kind = TerminalLaunch if win.options["run/in_terminal"] else OutputLaunch
+        kind = TerminalLaunch if win.options["run/in_terminal"] and win.terminal.available else OutputLaunch
         self.launch = kind(win, command, self._finished)
         self.launch.start()
         win.update_run_actions()

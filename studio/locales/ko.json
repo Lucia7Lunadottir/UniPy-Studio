@@ -1203,5 +1203,6 @@
   "options.run_in_terminal": "통합 터미널에서 프로그램 실행",
   "options.run_in_terminal_hint": "키보드 입력(input(), Console.ReadLine()), 색, Ctrl+C가 디버깅 중에도 작동합니다. 끄면 출력이 출력 창으로 갑니다(대량 출력에 더 빠르지만 입력 불가).",
   "terminal.exited": "프로세스가 코드 %s(으)로 종료되었습니다",
-  "terminal.new": "새 터미널"
+  "terminal.new": "새 터미널",
+  "terminal.needs_pyte": "통합 터미널에는 python-pyte 패키지(Arch 공식 저장소)가 필요합니다:\nsudo pacman -S python-pyte\n\n그 전까지 프로그램 출력은 출력 창에 표시됩니다."
 }

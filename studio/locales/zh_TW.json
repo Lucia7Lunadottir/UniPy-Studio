@@ -1203,5 +1203,6 @@
   "options.run_in_terminal": "在整合式終端機中執行程式",
   "options.run_in_terminal_hint": "可使用鍵盤輸入（input()、Console.ReadLine()）、色彩和 Ctrl+C——偵錯時也可以。關閉後輸出會送到「輸出」（大量輸出時較快，但無法輸入）。",
   "terminal.exited": "處理序已結束，代碼為 %s",
-  "terminal.new": "新增終端機"
+  "terminal.new": "新增終端機",
+  "terminal.needs_pyte": "整合式終端機需要 python-pyte 套件（Arch 官方套件庫）：\nsudo pacman -S python-pyte\n\n在此之前，程式輸出會顯示在「輸出」中。"
 }

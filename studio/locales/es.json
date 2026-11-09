@@ -1203,5 +1203,6 @@
   "options.run_in_terminal": "Ejecutar programas en el terminal integrado",
   "options.run_in_terminal_hint": "Funcionan la entrada de teclado (input(), Console.ReadLine()), los colores y Ctrl+C, también al depurar. Desactívelo para enviar la salida a Salida (más rápido con salidas enormes, pero sin entrada).",
   "terminal.exited": "El proceso terminó con el código %s",
-  "terminal.new": "Nuevo terminal"
+  "terminal.new": "Nuevo terminal",
+  "terminal.needs_pyte": "El terminal integrado necesita el paquete python-pyte (repositorio oficial de Arch):\nsudo pacman -S python-pyte\n\nMientras tanto, los programas se ejecutan con la salida en Salida."
 }

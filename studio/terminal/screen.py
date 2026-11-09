@@ -1,6 +1,11 @@
 """Экран терминала: текст, цвета, курсор, история прокрутки. Разбор управляющих последовательностей — pyte
 (пакет python-pyte); здесь только то, что нужно виджету. Без Qt-виджетов."""
-import pyte
+try:                        # python-pyte — зависимость пакета; без него IDE работает, а терминал подсказывает, что поставить
+    import pyte
+except ImportError:
+    pyte = None
+
+AVAILABLE = pyte is not None
 
 HISTORY = 5000
 APP_CURSOR = 1 << 5                 # DECCKM (?1h): стрелки в «режиме приложения» (vim, less)

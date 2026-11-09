@@ -1203,5 +1203,6 @@
   "options.run_in_terminal": "Run programs in the integrated terminal",
   "options.run_in_terminal_hint": "Keyboard input (input(), Console.ReadLine()), colours and Ctrl+C work — while debugging too. Turn off to send output to Output (faster for huge output, but no input).",
   "terminal.exited": "Process exited with code %s",
-  "terminal.new": "New Terminal"
+  "terminal.new": "New Terminal",
+  "terminal.needs_pyte": "The integrated terminal needs the python-pyte package (official Arch repository):\nsudo pacman -S python-pyte\n\nUntil then, programs run with their output in Output."
 }

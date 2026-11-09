@@ -1203,5 +1203,6 @@
   "options.run_in_terminal": "Uruchamiaj programy we wbudowanym terminalu",
   "options.run_in_terminal_hint": "Działa wprowadzanie z klawiatury (input(), Console.ReadLine()), kolory i Ctrl+C — także podczas debugowania. Wyłącz, aby dane wyjściowe trafiały do Danych wyjściowych (szybciej przy ogromnej ilości, ale bez wprowadzania).",
   "terminal.exited": "Proces zakończył się kodem %s",
-  "terminal.new": "Nowy terminal"
+  "terminal.new": "Nowy terminal",
+  "terminal.needs_pyte": "Wbudowany terminal wymaga pakietu python-pyte (oficjalne repozytorium Arch):\nsudo pacman -S python-pyte\n\nDo tego czasu programy działają z wyjściem w Danych wyjściowych."
 }

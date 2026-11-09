@@ -1203,5 +1203,6 @@
   "options.run_in_terminal": "在集成终端中运行程序",
   "options.run_in_terminal_hint": "可使用键盘输入（input()、Console.ReadLine()）、颜色和 Ctrl+C——调试时也可以。关闭后输出发送到“输出”（大量输出时更快，但无法输入）。",
   "terminal.exited": "进程已退出，代码为 %s",
-  "terminal.new": "新建终端"
+  "terminal.new": "新建终端",
+  "terminal.needs_pyte": "集成终端需要 python-pyte 软件包（Arch 官方仓库）：\nsudo pacman -S python-pyte\n\n在此之前，程序输出显示在“输出”中。"
 }

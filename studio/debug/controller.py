@@ -88,7 +88,9 @@ class DebugController(QObject):
             win.save_all()
         self._last = (tc, target)
         self.store.reset_verified()
-        self.session = DebugSession(config, self.store, run_in_terminal=self._run_in_terminal, parent=self)
+        in_terminal = self.win.terminal.available and self.win.options["run/in_terminal"]
+        self.session = DebugSession(config, self.store, run_in_terminal=self._run_in_terminal if in_terminal else None,
+                                    parent=self)
         self.session.state_changed.connect(self._state)
         self.session.stopped.connect(self._stopped)
         self.session.output.connect(self._output)

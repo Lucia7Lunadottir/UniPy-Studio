@@ -6,12 +6,14 @@ import re
 import time
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import QTabWidget, QToolButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QLabel, QTabWidget, QToolButton, QVBoxLayout, QWidget
 
 from .. import theme
 from ..i18n import tr
 from .pty_process import PtyProcess
-from .widget import TerminalView
+from .screen import AVAILABLE
+if AVAILABLE:
+    from .widget import TerminalView
 
 _ANSI = re.compile(rb"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][0-9A-Za-z]|\x1b[=>]")
 CAPTURE_LIMIT = 256_000
@@ -115,10 +117,22 @@ class TerminalPanel(QWidget):
         self.new_button.clicked.connect(lambda: self.new_shell())
         self.tabs.setCornerWidget(self.new_button, Qt.Corner.TopRightCorner)
         lay.addWidget(self.tabs)
+        self.missing = QLabel()
+        self.missing.setWordWrap(True)
+        self.missing.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        theme.style(self.missing, "color:@dim@;")
+        lay.addWidget(self.missing)
+        self.tabs.setVisible(AVAILABLE)
+        self.missing.setVisible(not AVAILABLE)
         self.retranslate()
+
+    @property
+    def available(self):
+        return AVAILABLE
 
     def retranslate(self):
         self.new_button.setToolTip(tr("terminal.new"))
+        self.missing.setText(tr("terminal.needs_pyte"))
 
     def set_cwd(self, path):
         """Папка для новых терминалов (корень решения)."""
@@ -196,5 +210,5 @@ class TerminalPanel(QWidget):
 
     def showEvent(self, e):
         super().showEvent(e)
-        if not self.tabs.count():
+        if AVAILABLE and not self.tabs.count():
             self.new_shell()                # открыли панель — сразу оболочка, как в VS

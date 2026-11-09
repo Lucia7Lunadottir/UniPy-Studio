@@ -11,6 +11,11 @@ from .base import ProjectTemplate, RunCommand, RunTarget, Toolchain
 MAX_SCAN_BYTES = 200_000
 
 
+def terminal_available():
+    from ..terminal.screen import AVAILABLE
+    return AVAILABLE
+
+
 def traceback_problems(text, root=None):
     """Traceback → [(путь, строка, 1, последняя строка ошибки)]: последний кадр из кода проекта
     (а не из библиотек), если такой есть."""
@@ -118,7 +123,8 @@ class PythonToolchain(Toolchain):
             "name": os.path.basename(target.path), "type": "python", "request": "launch",
             "program": target.path, "cwd": os.path.dirname(target.path), "python": [program],
             # во встроенном терминале работает input(); иначе — вывод в «Вывод» через сам отладчик
-            "console": "integratedTerminal" if ctx.option("run/in_terminal", True) else "internalConsole",
+            "console": "integratedTerminal" if ctx.option("run/in_terminal", True) and terminal_available()
+                       else "internalConsole",
             "redirectOutput": True, "justMyCode": True, "showReturnValue": True,
             "env": {"PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}},
             adapter_id="debugpy", cwd=os.path.dirname(target.path), title=os.path.basename(target.path))
