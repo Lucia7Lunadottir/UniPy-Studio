@@ -13,7 +13,8 @@ from PyQt6.QtWidgets import (QPlainTextEdit, QWidget, QTextEdit, QCompleter, QLa
 
 from .highlighter import Highlighter, PygmentsHighlighter
 from . import languages, refactor
-from .lsp import markdown_to_html as lsp_markdown_to_html
+from .documents import DiskState, atomic_write
+from .lsp import markdown_to_html as lsp_markdown_to_html, line_diff_edits
 from .intellisense import (CSharpProvider, signature_html, hover_html, word_items,
                            KIND_GROUPS, arrange, present_groups)
 from . import theme
@@ -228,6 +229,7 @@ class CodeEditor(QPlainTextEdit):
     busy_changed = pyqtSignal(str)     # текст «идёт работа» для строки состояния; "" — закончили
     references_found = pyqtSignal(str, object)   # слово, [{"path", "line", "col"}]
     rename_ready = pyqtSignal(str, object)       # новое имя, {"edits": …} | {"files": …} | {"error": …}
+    saved = pyqtSignal(str)                      # путь; файл записан на диск
 
     def __init__(self, path, services, font):
         super().__init__()
@@ -239,6 +241,8 @@ class CodeEditor(QPlainTextEdit):
         self.lsp_diagnostics = None    # ошибки от языкового сервера (Roslyn); None — сервера нет
         self.encoding = "utf-8"
         self.newline = "\n"
+        self.disk = DiskState(path)    # что было на диске при открытии/сохранении — чтобы заметить чужие изменения
+        self.missing_on_disk = False   # файл удалили вне редактора; сохранение создаст его заново
         self._link = None              # слово под мышью при зажатом Ctrl — подчёркнуто, как ссылка в VS
         self.find_text = ""
         self._completion_items = {}
@@ -308,14 +312,39 @@ class CodeEditor(QPlainTextEdit):
     def load(self):
         with open(self.path, "rb") as f:
             raw = f.read()
+        self.disk.remember(raw)
         self.encoding, text = decode_source(raw)
         self.newline = "\r\n" if "\r\n" in text else "\n"
         self.setPlainText(text.replace("\r\n", "\n").replace("\r", "\n"))
         self.document().setModified(False)
         self.run_diagnostics()
 
+    def reload_from(self, raw):
+        """Новая версия файла с диска (изменили вне редактора). Меняются только отличающиеся строки,
+        одним шагом отмены: курсор и прокрутка остаются на месте, Ctrl+Z вернёт прежний текст."""
+        self.disk.remember(raw)
+        self.missing_on_disk = False
+        self.encoding, text = decode_source(raw)
+        self.newline = "\r\n" if "\r\n" in text else "\n"
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        bar = self.verticalScrollBar()
+        scroll = bar.value()
+        edits = line_diff_edits(self.toPlainText(), text)
+        if edits:
+            self.apply_edits(edits)
+        bar.setValue(scroll)
+        self.document().setModified(False)
+        self.run_diagnostics()
+
+    def set_text_as_edit(self, text):
+        """Подменить весь текст как обычную правку (Ctrl+Z вернёт прежний) — для восстановленных копий."""
+        edits = line_diff_edits(self.toPlainText(), text)
+        if edits:
+            self.apply_edits(edits)
+
     def save(self):
-        """Сохраняет в той же кодировке и с теми же переводами строк, что были у файла (как Visual Studio)."""
+        """Сохраняет в той же кодировке и с теми же переводами строк, что были у файла (как Visual Studio).
+        Запись атомарная; если файл успели изменить вне редактора — сначала спрашивает."""
         text = self.toPlainText()
         if self.newline != "\n":
             text = text.replace("\n", self.newline)
@@ -330,9 +359,24 @@ class CodeEditor(QPlainTextEdit):
                 return False
             self.encoding = "utf-8-sig"
             data = text.encode(self.encoding)
-        with open(self.path, "wb") as f:
-            f.write(data)
+        on_disk = self.disk.check()
+        if on_disk is not None and on_disk is not DiskState.MISSING:
+            r = QMessageBox.question(self, tr("documents.changed_outside_title"),
+                                     tr("documents.overwrite_changed") % os.path.basename(self.path),
+                                     QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel,
+                                     QMessageBox.StandardButton.Cancel)
+            if r != QMessageBox.StandardButton.Save:
+                return False
+        try:
+            atomic_write(self.path, data)
+        except OSError as e:
+            QMessageBox.warning(self, tr("documents.save_failed_title"),
+                                tr("documents.save_failed") % (self.path, e.strerror or e))
+            return False
+        self.disk.remember(data)
+        self.missing_on_disk = False
         self.document().setModified(False)
+        self.saved.emit(self.path)
         self.run_diagnostics()
         return True
 

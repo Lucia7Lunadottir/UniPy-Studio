@@ -11,9 +11,10 @@ from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QLineEdit, QToolButton, QComboBox, QFileDialog, QMessageBox,
                              QInputDialog, QCompleter, QFrame, QCheckBox, QApplication, QToolBar,
-                             QSizePolicy, QPushButton, QDialog, QFormLayout, QSpinBox, QDialogButtonBox, QMenu)
+                             QSizePolicy, QPushButton, QDialog, QMenu)
 
-from . import theme, templates, intellisense, lsp, updates, refactor
+from . import theme, templates, intellisense, lsp, updates, refactor, documents
+from .options import Options, OptionsDialog, RESTART_THRESHOLDS
 from .editor import CodeEditor, lang_for, check_csharp, decode_source
 from . import languages
 from .panels import (SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, TerminalPanel, UnityPanel,
@@ -157,12 +158,15 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.screenshot_mode = bool(screenshot)
         self.settings = QSettings("UniPyStudio", "UniPyStudio")
-        self.font_size = int(self.settings.value("editor/font_size", 11))
+        # параметры из «Средства → Параметры»; меню и клавиши меняют их тем же путём (options.set)
+        self.options = Options(self.settings, parent=self)
+        self.options.changed.connect(self._option_changed)
+        self.font_size = self.options["editor/font_size"]
         self.font = theme.code_font(self.font_size)
-        self.hint_size = float(self.settings.value("editor/hint_size", 11))
+        self.hint_size = self.options["editor/hint_size"]
         self._nav_back = []         # история переходов: (путь, строка, столбец), как «Назад» в Visual Studio
         self._nav_fwd = []
-        self.word_wrap = self.settings.value("editor/word_wrap", False, type=bool)
+        self.word_wrap = self.options["editor/word_wrap"]
         self.root = None
         self.proc = None
         self.run_path = None
@@ -187,11 +191,11 @@ class MainWindow(QMainWindow):
             svc.diagnostics.connect(self._lsp_diagnostics)
             svc.status.connect(lambda text, state, k=key: self._lsp_status(text, state, k))
             svc.restarted.connect(lambda reason, k=key: self._lsp_restarted(k, reason))
-            svc.restart_mb = int(self.settings.value("analyzers/restart_mb", 1024))
+            svc.restart_mb = self.options["analyzers/restart_mb"]
 
         # подсказки: сортировка, раньше выбранные одинаковые имена, подсказки из неподключённых пространств имён
-        self.completion_alpha = self.settings.value("intellisense/alpha", False, type=bool)
-        lsp.OPTIONS["unimported"] = self.settings.value("intellisense/unimported", True, type=bool)
+        self.completion_alpha = self.options["intellisense/alpha"]
+        lsp.OPTIONS["unimported"] = self.options["intellisense/unimported"]
         try:
             saved = json.loads(self.settings.value("intellisense/choices", "{}", type=str))
         except ValueError:
@@ -212,6 +216,109 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_status()
         self.outline_timer = QTimer(self, singleShot=True, interval=400, timeout=self._refresh_outline)
+        self._build_document_safety()
+
+    def _build_document_safety(self):
+        """Изменения открытых файлов вне редактора и копии несохранённых правок (documents.py)."""
+        self.disk_watcher = documents.DiskWatcher(self)
+        self.disk_watcher.enabled = self.options["documents/detect_external"] and not self.screenshot_mode
+        self.external = documents.ExternalChanges(self, self._editor_for_path,
+                                                  lambda: self.options["documents/reload_unmodified"])
+        self.disk_watcher.changed.connect(self.external.on_changed)
+        self.external.reloaded.connect(lambda ed: self.status(tr("documents.reloaded") % os.path.basename(ed.path)))
+        self.external.deleted.connect(self._file_deleted_outside)
+        self.recovery = documents.RecoveryStore()
+        self.recovery_timer = QTimer(self, timeout=self._snapshot_recovery)
+        self._apply_recovery_options()
+
+    def _editor_for_path(self, path):
+        return next((ed for ed in self.editors() if ed.path == path), None)
+
+    def _file_deleted_outside(self, ed):
+        msg = tr("documents.deleted_outside") % os.path.basename(ed.path)
+        self.status(msg, 12000)
+        self.output.write(msg, "common.build", C["warning"])
+
+    def _recovery_on(self):
+        return self.options["recovery/enabled"] and not self.screenshot_mode
+
+    def _apply_recovery_options(self):
+        if self._recovery_on():
+            self.recovery_timer.start(self.options["recovery/interval_sec"] * 1000)
+        else:
+            self.recovery_timer.stop()
+            self.recovery.discard_mine()
+
+    def _snapshot_recovery(self):
+        self.recovery.snapshot(self.editors())
+
+    def _offer_recovery(self):
+        """После падения: копии несохранённых правок файлов этого проекта — восстановить?"""
+        if not self.root or not self._recovery_on():
+            return
+        drafts = self.recovery.orphans(self.root, self.options["recovery/keep_days"])
+        if not drafts:
+            return
+        dialog = documents.RecoveryDialog(self, drafts, self.root)
+        result = dialog.exec()
+        if result == documents.DISCARD:
+            for draft in drafts:
+                self.recovery.discard(draft.path)
+            return
+        if result != documents.RESTORE:
+            return                          # «Позже» — копии остаются до следующего открытия
+        restored = 0
+        for draft in dialog.chosen():
+            if not os.path.exists(draft.path):
+                try:
+                    os.makedirs(os.path.dirname(draft.path), exist_ok=True)
+                    documents.atomic_write(draft.path, b"")
+                except OSError as e:
+                    self.output.write(tr("documents.recovery_failed") % (draft.path, e), "common.build", C["error"])
+                    continue
+            ed = self.open_path(draft.path)
+            if ed is None:
+                continue
+            ed.set_text_as_edit(draft.text)     # Ctrl+Z вернёт версию с диска
+            ed.document().setModified(True)
+            self.recovery.discard(draft.path)
+            self.recovery.save(ed)              # копия теперь принадлежит этому окну
+            restored += 1
+        self.status(tr("documents.recovered") % restored, 10000)
+
+    # ------------------------------------------------------------ параметры
+    def _option_changed(self, key):
+        """Один путь для окна «Параметры», меню и горячих клавиш."""
+        value = self.options[key]
+        if key == "editor/font_size":
+            self.font_size = value
+            self.font = theme.code_font(value)
+            for ed in self.editors():
+                ed.set_code_font(self.font)
+        elif key == "editor/hint_size":
+            self.hint_size = value
+            for ed in self.editors():
+                ed.apply_hint_size()
+        elif key == "editor/word_wrap":
+            self.word_wrap = value
+            for ed in self.editors():
+                ed.setLineWrapMode(ed.LineWrapMode.WidgetWidth if value else ed.LineWrapMode.NoWrap)
+        elif key == "intellisense/unimported":
+            lsp.OPTIONS["unimported"] = value
+            self.a_unimported.setChecked(value)
+            for svc in self.language_services:
+                svc.configuration_changed()
+        elif key == "intellisense/alpha":
+            self.completion_alpha = value
+        elif key == "analyzers/restart_mb":
+            for svc in self.language_services:
+                svc.restart_mb = value
+        elif key == "documents/detect_external":
+            self.disk_watcher.enabled = value and not self.screenshot_mode
+            if self.disk_watcher.enabled:
+                self.disk_watcher.check_all()
+        elif key.startswith("recovery/"):
+            self._apply_recovery_options()
 
     # ------------------------------------------------------------ сборка интерфейса
     def _build_central(self):
@@ -584,11 +691,7 @@ class MainWindow(QMainWindow):
                 tr("mainwindow.running_ellipsis") if self._running() else tr("common.ready")))
 
     def zoom(self, delta):
-        self.font_size = max(7, min(32, self.font_size + delta))
-        self.settings.setValue("editor/font_size", self.font_size)
-        self.font = theme.code_font(self.font_size)
-        for ed in self.editors():
-            ed.set_code_font(self.font)
+        self.options.set("editor/font_size", self.font_size + delta)
         self.status(tr("mainwindow.font_size") % self.font_size)
 
     # ------------------------------------------------------------ навигация (Ctrl+− / Ctrl+Shift+−)
@@ -704,8 +807,11 @@ class MainWindow(QMainWindow):
                 except (OSError, UnicodeEncodeError) as e:
                     failed.append("%s (%s)" % (os.path.basename(path), e))
                     continue
-                with open(path, "wb") as f:
-                    f.write(data_out)
+                try:
+                    documents.atomic_write(path, data_out)
+                except OSError as e:
+                    failed.append("%s (%s)" % (os.path.basename(path), e))
+                    continue
             changed_files += 1
             changed_places += len(items)
             self.output.write(tr("mainwindow.rename") % (os.path.relpath(path, self.root or "/"), len(items)),
@@ -742,8 +848,7 @@ class MainWindow(QMainWindow):
 
     def set_completion_alpha(self, alpha):
         """Кнопка «A→Z» в списке подсказок: по алфавиту или по релевантности (запоминается)."""
-        self.completion_alpha = bool(alpha)
-        self.settings.setValue("intellisense/alpha", self.completion_alpha)
+        self.options.set("intellisense/alpha", bool(alpha))
 
     def remember_completion(self, name, namespace):
         """Из одинаковых имён выбрали это (Debug из UnityEngine, а не из System.Diagnostics) —
@@ -759,19 +864,13 @@ class MainWindow(QMainWindow):
     def toggle_unimported(self):
         """Подсказки из ещё не подключённых пространств имён: удобно (using добавится сам), но Roslyn
         ищет по всем сборкам Unity и отвечает дольше. Применяется сразу, без перезапуска."""
-        lsp.OPTIONS["unimported"] = self.a_unimported.isChecked()
-        self.settings.setValue("intellisense/unimported", lsp.OPTIONS["unimported"])
-        for svc in self.language_services:
-            svc.configuration_changed()
+        self.options.set("intellisense/unimported", self.a_unimported.isChecked())
         self.status(tr("mainwindow.suggestions_from_unimported_namespaces_2") +
                     (tr("mainwindow.on") if lsp.OPTIONS["unimported"] else tr("mainwindow.off_faster")))
 
     def zoom_hints(self, delta):
         """Размер подсказок — отдельно от размера кода."""
-        self.hint_size = max(7.0, min(24.0, self.hint_size + delta))
-        self.settings.setValue("editor/hint_size", self.hint_size)
-        for ed in self.editors():
-            ed.apply_hint_size()
+        self.options.set("editor/hint_size", self.hint_size + delta)
         self.status(tr("mainwindow.tooltip_font_size") % self.hint_size)
 
     def copy_text(self, text):
@@ -835,6 +934,7 @@ class MainWindow(QMainWindow):
         if unity:
             self.output.write(tr("mainwindow.found_unity_project") % ", ".join(os.path.relpath(u, root) or "." for u in unity),
                               "Unity", C["dim"])
+        QTimer.singleShot(0, self._offer_recovery)     # после того как откроются запомненные вкладки
         return True
 
     def _solution_changed(self):
@@ -947,6 +1047,8 @@ class MainWindow(QMainWindow):
         ed.rename_ready.connect(self._apply_rename)
         ed.textChanged.connect(self.outline_timer.start)
         ed.document().modificationChanged.connect(lambda _m, e=ed: self._modified(e))
+        ed.saved.connect(self.recovery.discard)
+        self.disk_watcher.watch(path)
         i = self.tabs.addTab(ed, theme.file_icon(path), os.path.basename(path))
         self.tabs.setTabToolTip(i, path)
         self.tabs.setCurrentIndex(i)
@@ -1003,6 +1105,8 @@ class MainWindow(QMainWindow):
                 return False
         self.errors.set_group("mainwindow.editor", ed.path, [])
         self.errors.open_paths.discard(ed.path)
+        self.disk_watcher.unwatch(ed.path)
+        self.recovery.discard(ed.path)          # сохранили или сознательно отказались от правок
         for svc in self.language_services:
             svc.close(ed.path)
         self.tabs.removeTab(i)
@@ -1067,11 +1171,17 @@ class MainWindow(QMainWindow):
             self.status(tr("mainwindow.saved") + os.path.basename(ed.path))
 
     def save_all(self):
+        """Сохраняет все изменённые вкладки. False — хотя бы одну сохранить не удалось (или отменили)."""
         n = 0
+        ok = True
         for ed in self.editors():
-            if ed.document().isModified() and ed.save():
-                n += 1
+            if ed.document().isModified():
+                if ed.save():
+                    n += 1
+                else:
+                    ok = False
         self.status(tr("mainwindow.saved_files") % n)
+        return ok
 
     def move_type_to_file(self):
         """Тип под курсором → в новый файл <Имя>.cs рядом (как «Move type to …cs» в Visual Studio).
@@ -1173,8 +1283,7 @@ class MainWindow(QMainWindow):
         except UnicodeEncodeError:
             raw = data.encode("utf-8-sig")
         try:
-            with open(target, "wb") as f:
-                f.write(raw)
+            documents.atomic_write(target, raw)
         except OSError as exc:
             QMessageBox.warning(self, APP_NAME, tr("mainwindow.could_not_create_file") + str(exc))
             return
@@ -1215,8 +1324,7 @@ class MainWindow(QMainWindow):
                         enc, old = decode_source(f.read())
                     newline = "\r\n" if "\r\n" in old else "\n"
                     new = lsp.apply_text_edits(old.replace("\r\n", "\n"), items)
-                    with open(path, "wb") as f:
-                        f.write(new.replace("\n", newline).encode(enc))
+                    documents.atomic_write(path, new.replace("\n", newline).encode(enc))
                 except (OSError, UnicodeError) as exc:
                     failed.append("%s (%s)" % (os.path.basename(path), exc))
                     continue
@@ -1269,7 +1377,7 @@ class MainWindow(QMainWindow):
         return self.services_by_key.get(language.service) if language.service else None
 
     # ------------------------------------------------------------ перезапуск анализаторов
-    RESTART_THRESHOLDS = ((0, "mainwindow.do_not_restart"), (800, "mainwindow.800_mb"), (1024, "mainwindow.1_gb"), (1536, "mainwindow.1_5_gb"), (2048, "mainwindow.2_gb"))
+    RESTART_THRESHOLDS = RESTART_THRESHOLDS
 
     def restart_analyzers(self):
         for svc in self.language_services:
@@ -1278,16 +1386,14 @@ class MainWindow(QMainWindow):
     def _fill_restart_menu(self):
         m = self.restart_menu
         m.clear()
-        current = int(self.settings.value("analyzers/restart_mb", 1024))
+        current = self.options["analyzers/restart_mb"]
         for mb, label in self.RESTART_THRESHOLDS:
             a = m.addAction(tr(label), lambda v=mb: self._set_restart_mb(v))
             a.setCheckable(True)
             a.setChecked(mb == current)
 
     def _set_restart_mb(self, mb):
-        self.settings.setValue("analyzers/restart_mb", mb)
-        for svc in self.language_services:
-            svc.restart_mb = mb
+        self.options.set("analyzers/restart_mb", mb)
         self.status(tr("mainwindow.restarting_analyzer") + tr(dict(self.RESTART_THRESHOLDS)[mb]) +
                     (tr("mainwindow.idle_2_minutes") if mb else ""))
 
@@ -1637,7 +1743,8 @@ class MainWindow(QMainWindow):
                 return
             self.stop_run()
             self.proc.waitForFinished(2000)
-        self.save_all()
+        if self.options["documents/save_before_run"]:
+            self.save_all()
         self.run_path = path
         self.run_stderr = ""
         self.errors.clear_source("common.run")
@@ -1769,9 +1876,12 @@ class MainWindow(QMainWindow):
                 if r == QMessageBox.StandardButton.Cancel:
                     e.ignore()
                     return
-                if r == QMessageBox.StandardButton.SaveAll:
-                    self.save_all()
+                if r == QMessageBox.StandardButton.SaveAll and not self.save_all():
+                    e.ignore()          # что-то не сохранилось — не закрываемся, иначе правки пропадут
+                    return
                 break
+        self.recovery_timer.stop()
+        self.recovery.discard_mine()    # обычный выход: копии на случай падения больше не нужны
         self.settings.setValue("window/geometry", self.saveGeometry())
         self.settings.setValue("window/state", self.saveState())
         if self._running():
@@ -1799,32 +1909,5 @@ class MainWindow(QMainWindow):
         self.search_dialog.raise_()
         self.search_dialog.query.setFocus()
 
-    def show_settings(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle(tr("mainwindow.editor_settings"))
-        form = QFormLayout(dialog)
-        font = QSpinBox()
-        font.setRange(7, 32)
-        font.setValue(self.font_size)
-        hints = QSpinBox()
-        hints.setRange(7, 24)
-        hints.setValue(round(self.hint_size))
-        wrap = QCheckBox(tr("mainwindow.wrap_long_lines"))
-        wrap.setChecked(self.word_wrap)
-        form.addRow(tr("mainwindow.code_font_size"), font)
-        form.addRow(tr("mainwindow.completion_font_size"), hints)
-        form.addRow(wrap)
-        form.addRow(QLabel(tr("mainwindow.settings_hint")))
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        form.addRow(buttons)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.zoom(font.value() - self.font_size)
-            self.zoom_hints(hints.value() - self.hint_size)
-            self.word_wrap = wrap.isChecked()
-            self.settings.setValue("editor/word_wrap", self.word_wrap)
-            for ed in self.editors():
-                ed.setLineWrapMode(ed.LineWrapMode.WidgetWidth if self.word_wrap else ed.LineWrapMode.NoWrap)
-
-
+    def show_settings(self, page=None):
+        OptionsDialog(self.options, self, page).exec()
