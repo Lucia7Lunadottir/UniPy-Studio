@@ -294,6 +294,8 @@ PAGES = (
         NumberOption("editor/hint_size", 11.0, "mainwindow.completion_font_size", 7, 24, suffix="options.pt",
                      kind=float, hint="options.hint_size_hint"),
         BoolOption("editor/word_wrap", False, "mainwindow.wrap_long_lines"),
+        BoolOption("editor/folding", True, "options.folding", hint="options.folding_hint"),
+        BoolOption("editor/navigation_bar", True, "options.navigation_bar", hint="options.navigation_bar_hint"),
     )),
     Page(("options.text_editor", "options.indentation"), (
         ChoiceOption("editor/indent_style", "spaces", "options.indent_style",
@@ -304,6 +306,11 @@ PAGES = (
         BoolOption("editor/adapt_indent", True, "options.adapt_indent", hint="options.adapt_indent_hint"),
         BoolOption("editor/trim_trailing", False, "options.trim_trailing"),
     ), intro="options.indentation_intro"),
+    Page(("options.text_editor", "options.formatting"), (
+        ChoiceOption("formatting/python_tool", "auto", "options.python_formatter",
+                     (("auto", "options.formatter_auto"), ("ruff", "ruff"), ("black", "black")),
+                     hint="options.python_formatter_hint"),
+    ), intro="options.formatting_intro"),
     Page(("options.text_editor", "IntelliSense"), (
         BoolOption("intellisense/unimported", True, "mainwindow.suggestions_from_unimported_namespaces",
                    hint="options.unimported_hint"),

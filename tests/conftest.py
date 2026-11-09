@@ -10,6 +10,8 @@ _SANDBOX = tempfile.mkdtemp(prefix="unipy-tests-")
 os.environ["XDG_CONFIG_HOME"] = os.path.join(_SANDBOX, "config")
 os.environ["XDG_STATE_HOME"] = os.path.join(_SANDBOX, "state")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.makedirs(os.path.join(_SANDBOX, "tmp"))
+tempfile.tempdir = os.path.join(_SANDBOX, "tmp")      # временные файлы тестов — тоже в песочнице, не в /tmp
 
 from PyQt6.QtCore import QSettings  # noqa: E402
 

@@ -29,7 +29,8 @@ class Detect(unittest.TestCase):
 
 class EditorConfig(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp())
+        # своя папка-родитель: .editorconfig «выше root» пишется в неё, а не в общий /tmp
+        self.root = Path(tempfile.mkdtemp()) / "project"
         (self.root / "Assets" / "Scripts").mkdir(parents=True)
 
     def test_sections_root_and_precedence(self):

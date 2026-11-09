@@ -15,6 +15,8 @@ from .highlighter import Highlighter, PygmentsHighlighter
 from . import languages, refactor
 from .documents import DiskState, atomic_write
 from .indentation import IndentStyle, apply_save_rules
+from .folding import Folding
+from .navbar import NavigationBar
 from .lsp import markdown_to_html as lsp_markdown_to_html, line_diff_edits
 from .intellisense import (CSharpProvider, signature_html, hover_html, word_items,
                            KIND_GROUPS, arrange, present_groups)
@@ -66,10 +68,16 @@ class LineNumberArea(QWidget):
 
     def mousePressEvent(self, e):
         ed = self.editor
-        if e.button() == Qt.MouseButton.LeftButton and ed._bulb_line is not None \
-                and e.position().x() >= self.width() - 18:
+        if e.button() == Qt.MouseButton.LeftButton:
             block = ed.cursorForPosition(QPoint(1, int(e.position().y()))).block()
-            if block.blockNumber() == ed._bulb_line:
+            x = e.position().x()
+            fold = ed.folding.COLUMN if ed.folding.enabled else 0
+            if fold and x >= self.width() - fold:          # +/− — свернуть или развернуть блок
+                if ed.folding.range_at(block.blockNumber()) is not None:
+                    ed.folding.toggle(block.blockNumber())
+                    return
+            elif ed._bulb_line is not None and x >= self.width() - fold - 18 \
+                    and block.blockNumber() == ed._bulb_line:
                 ed.show_bulb_menu()
                 return
         super().mousePressEvent(e)
@@ -268,6 +276,11 @@ class CodeEditor(QPlainTextEdit):
         self._apply_palette()
         self.highlighter = self._make_highlighter()
         self.gutter = LineNumberArea(self)
+        self.folding = Folding(self)    # сворачивание блоков (Ctrl+M, Ctrl+M …)
+        self.symbols = []               # символы файла (symbols.Symbol) — для структуры, панели навигации, Ctrl+T
+        self.navbar = NavigationBar(self)
+        self.navbar.goto.connect(lambda line: (self.go_to_line(line), self.setFocus()))
+        self.navbar.hide()
         self.blockCountChanged.connect(self._update_gutter_width)
         self.updateRequest.connect(self._update_gutter)
         self.cursorPositionChanged.connect(self._on_cursor)
@@ -319,6 +332,7 @@ class CodeEditor(QPlainTextEdit):
         self.newline = "\r\n" if "\r\n" in text else "\n"
         self.setPlainText(text.replace("\r\n", "\n").replace("\r", "\n"))
         self.document().setModified(False)
+        self.folding.recompute()            # +/− сразу, а не через четверть секунды
         self.run_diagnostics()
 
     def reload_from(self, raw):
@@ -394,10 +408,35 @@ class CodeEditor(QPlainTextEdit):
     # ------------------------------------------------------------ поле номеров строк
     def gutter_width(self):
         digits = max(3, len(str(self.blockCount())))
-        return 22 + self.fontMetrics().horizontalAdvance("9") * digits
+        fold = self.folding.COLUMN if getattr(self, "folding", None) is not None and self.folding.enabled else 0
+        return 22 + fold + self.fontMetrics().horizontalAdvance("9") * digits
+
+    def _top_margin(self):
+        bar = getattr(self, "navbar", None)
+        return bar.bar_height() if bar is not None and not bar.isHidden() else 0
 
     def _update_gutter_width(self, *_):
-        self.setViewportMargins(self.gutter_width(), 0, 0, 0)
+        self.setViewportMargins(self.gutter_width(), self._top_margin(), 0, 0)
+        self._place_side_widgets()
+
+    def _place_side_widgets(self):
+        if not hasattr(self, "gutter"):         # смена шрифта/стиля ещё в конструкторе
+            return
+        cr = self.contentsRect()
+        top = self._top_margin()
+        self.gutter.setGeometry(QRect(cr.left(), cr.top() + top, self.gutter_width(), cr.height() - top))
+        if top:
+            self.navbar.setGeometry(QRect(cr.left(), cr.top(), cr.width(), top))
+
+    def set_navigation_bar(self, on):
+        """Панель «тип / член» над кодом — для языков, где есть символы."""
+        self.navbar.setVisible(bool(on) and self.lang in ("python", "csharp"))
+        self._update_gutter_width()
+
+    def set_symbols(self, items):
+        self.symbols = items or []
+        if not self.navbar.isHidden():
+            self.navbar.set_symbols(self.symbols)
 
     def _update_gutter(self, rect, dy):
         if dy:
@@ -407,8 +446,7 @@ class CodeEditor(QPlainTextEdit):
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
-        cr = self.contentsRect()
-        self.gutter.setGeometry(QRect(cr.left(), cr.top(), self.gutter_width(), cr.height()))
+        self._place_side_widgets()
 
     def paint_gutter(self, event):
         p = QPainter(self.gutter)
@@ -419,7 +457,8 @@ class CodeEditor(QPlainTextEdit):
         bottom = top + round(self.blockBoundingRect(block).height())
         current = self.textCursor().blockNumber()
         err_lines = {d[0] - 1: d[3] for d in self.diagnostics}
-        w = self.gutter.width()
+        fold = self.folding.COLUMN if self.folding.enabled else 0
+        w = self.gutter.width() - fold          # справа — колонка +/− сворачивания
         h = self.fontMetrics().height()
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
@@ -427,6 +466,8 @@ class CodeEditor(QPlainTextEdit):
                 p.drawText(0, top, w - 14, h, Qt.AlignmentFlag.AlignRight, str(num + 1))
                 if num == self._bulb_line:
                     self._draw_bulb(p, w - 15, top + h / 2 - 7)
+                if fold:
+                    self.folding.paint_marker(p, num, w, top, h, C["gutter_num"])
                 if num in err_lines:
                     p.setPen(Qt.PenStyle.NoPen)
                     p.setBrush(QColor(C["error"] if err_lines[num] == "error" else C["warning"]))
@@ -1416,6 +1457,10 @@ class CodeEditor(QPlainTextEdit):
         if e.button() in (Qt.MouseButton.BackButton, Qt.MouseButton.ForwardButton):
             self.services.navigate(-1 if e.button() == Qt.MouseButton.BackButton else 1)
             return
+        line = self.folding.box_at(e.position()) if e.button() == Qt.MouseButton.LeftButton else None
+        if line is not None:                    # щелчок по «…» — развернуть
+            self.folding.set_collapsed(line, False)
+            return
         # Ctrl+клик — перейти к определению, как в Visual Studio
         if e.button() == Qt.MouseButton.LeftButton and e.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.setTextCursor(self.cursorForPosition(e.position().toPoint()))
@@ -1424,8 +1469,25 @@ class CodeEditor(QPlainTextEdit):
             return
         super().mousePressEvent(e)
 
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        if self.folding.collapsed_lines():
+            p = QPainter(self.viewport())
+            self.folding.paint_boxes(p, {"border": C["gutter_num"], "back": C["editor"], "text": C["dim"]})
+            p.end()
+
+    def mouseDoubleClickEvent(self, e):
+        line = self.folding.box_at(e.position()) if e.button() == Qt.MouseButton.LeftButton else None
+        if line is not None:                    # двойной щелчок по «…» — развернуть
+            self.folding.set_collapsed(line, False)
+            return
+        super().mouseDoubleClickEvent(e)
+
     def mouseMoveEvent(self, e):
         self._update_link(e.position().toPoint(), bool(e.modifiers() & Qt.KeyboardModifier.ControlModifier))
+        line = self.folding.box_at(e.position()) if self.folding.collapsed_lines() else None
+        if line is not None:                    # над «…» — показать свёрнутый текст, как VS
+            QToolTip.showText(e.globalPosition().toPoint(), self.folding.hidden_text(line), self)
         super().mouseMoveEvent(e)
         self._hover_pos = e.position().toPoint()
         self._hover_timer.start()

@@ -510,6 +510,7 @@ KIND_ICON = {
     "module": ("M", "#555555"), "keyword": ("k", "#4D4D4D"), "path": ("/", "#555555"),
     "event": ("e", "#A8571F"), "const": ("c", "#B5730F"), "snippet": ("…", "#4D4D4D"),
     "type": ("T", "#2B7A78"), "word": ("w", "#4D4D4D"),
+    "interface": ("I", "#2B7A78"), "namespace": ("N", "#555555"),
 }
 
 

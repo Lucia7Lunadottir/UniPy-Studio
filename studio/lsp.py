@@ -199,6 +199,7 @@ class LanguageServer(QObject):
         self.conn.exited.connect(self._on_exit)
         self._docs = {}                 # uri → (версия, текст)
         self._pending = {}              # (редактор, вид) → id запроса, чтобы отменять устаревшие
+        self.server_capabilities = {}   # что сервер объявил в ответ на initialize
         self._progress = set()
         self.pull_diagnostics_ids = []  # группы ошибок, которые сервер отдаёт по запросу (textDocument/diagnostic)
         self.pull_supported = False
@@ -261,6 +262,9 @@ class LanguageServer(QObject):
                     "documentationFormat": ["markdown", "plaintext"],
                     "parameterInformation": {"labelOffsetSupport": True}}},
                 "definition": {"linkSupport": True},
+                "documentSymbol": {"hierarchicalDocumentSymbolSupport": True},
+                "formatting": {"dynamicRegistration": False},
+                "rangeFormatting": {"dynamicRegistration": False},
                 "implementation": {"linkSupport": True},
                 "publishDiagnostics": {"relatedInformation": False},
                 "diagnostic": {"dynamicRegistration": True, "relatedDocumentSupport": False},
@@ -271,7 +275,7 @@ class LanguageServer(QObject):
                                "dataSupport": True, "isPreferredSupport": True,
                                "resolveSupport": {"properties": ["edit"]}},
             },
-            "workspace": {"configuration": True, "workspaceFolders": True,
+            "workspace": {"configuration": True, "workspaceFolders": True, "symbol": {"dynamicRegistration": False},
                           "workspaceEdit": {"documentChanges": True, "resourceOperations": ["create"]}},
             "window": {"workDoneProgress": True},
         }
@@ -286,6 +290,7 @@ class LanguageServer(QObject):
             self.log.emit(tr("lsp.initialization_error") % error.get("message"))
             return
         caps = (result or {}).get("capabilities", {})
+        self.server_capabilities = caps
         self.pull_supported = bool(caps.get("diagnosticProvider"))
         sync = caps.get("textDocumentSync")
         # 2 = Incremental: сервер принимает только изменённый кусок текста (как шлют VS Code и Visual Studio)
@@ -568,6 +573,70 @@ class LanguageServer(QObject):
             done(None)
             return
         self.conn.request("codeAction/resolve", item, lambda r, e: done(None if e or not r else r.get("edit")))
+
+    # ---- символы и форматирование
+    def supports(self, provider):
+        """Объявил ли сервер возможность (documentFormattingProvider, workspaceSymbolProvider…)."""
+        return bool(getattr(self, "server_capabilities", {}).get(provider))
+
+    def _keyed_request(self, key, method, params, callback):
+        """Запрос, который отменяет предыдущий такой же (новые буквы в Ctrl+T, новая правка для структуры)."""
+        old = self._pending.pop(key, None)
+        if old is not None:
+            self.conn.cancel(old)
+
+        def reply(result, error):
+            self._pending.pop(key, None)
+            callback(None if error else result)
+        self._pending[key] = self.conn.request(method, params, reply)
+
+    def document_symbols(self, path, text, callback):
+        """callback([symbols.Symbol] | None)."""
+        from . import symbols
+        if self.state != "ready" or not self.supports("documentSymbolProvider"):
+            callback(None)
+            return
+        self.sync(path, text)
+        uri = path_to_uri(path)
+        self._keyed_request((uri, "documentSymbol"), "textDocument/documentSymbol", {"textDocument": {"uri": uri}},
+                            lambda r: callback(None if r is None else symbols.from_document_symbols(r, path)))
+
+    def workspace_symbols(self, query, callback):
+        """callback([symbols.Symbol с путём] | None)."""
+        from . import symbols
+        if self.state != "ready" or not self.supports("workspaceSymbolProvider"):
+            callback(None)
+            return
+        self.last_activity = time.monotonic()
+        self._keyed_request(("workspace", "symbol"), "workspace/symbol", {"query": query},
+                            lambda r: callback(None if r is None else symbols.from_workspace_symbols(r)))
+
+    def format(self, path, text, style, callback, selection=None):
+        """Форматировать документ или строки selection=(строка, строка2) с 0. callback([правки] | None)."""
+        provider = "documentRangeFormattingProvider" if selection else "documentFormattingProvider"
+        if self.state != "ready" or not self.supports(provider):
+            callback(None)
+            return
+        self.last_activity = time.monotonic()
+        self.sync(path, text)
+        uri = path_to_uri(path)
+        options = {"tabSize": style.size, "insertSpaces": not style.use_tabs,
+                   "trimTrailingWhitespace": bool(style.trim_trailing)}
+        if style.final_newline is not None:
+            options["insertFinalNewline"] = style.final_newline
+        params = {"textDocument": {"uri": uri}, "options": options}
+        method = "textDocument/formatting"
+        if selection:
+            last = split_lines(text)
+            end_line = min(selection[1], max(0, len(last) - 1))
+            params["range"] = {"start": {"line": selection[0], "character": 0},
+                               "end": {"line": end_line, "character": _utf16_len(last[end_line].rstrip("\n")) if last else 0}}
+            method = "textDocument/rangeFormatting"
+        self._keyed_request((uri, "format"), method, params,
+                            lambda r: callback(None if r is None else [
+                                (e["range"]["start"]["line"], e["range"]["start"]["character"],
+                                 e["range"]["end"]["line"], e["range"]["end"]["character"], e.get("newText", ""))
+                                for e in r]))
 
     def close(self, path):
         uri = path_to_uri(path)

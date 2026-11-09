@@ -383,27 +383,43 @@ class OutlinePanel(QWidget):
             items += 1
 
     def update_for(self, path, text, lang):
+        """Запасной путь без анализатора: разбор текста (outline)."""
+        from . import symbols
+        self.show_symbols(path, symbols.from_outline(outline(text, lang), path=path) if path else [])
+
+    def show_symbols(self, path, items):
+        """Дерево символов (symbols.Symbol): от анализатора (documentSymbol) или из разбора текста.
+        Раскрытые узлы и прокрутка сохраняются, если файл тот же."""
+        same = path == self.path
+        collapsed = set()
+        if same:
+            it = QTreeWidgetItemIterator(self.tree)
+            while (item := it.value()) is not None:
+                if item.childCount() and not item.isExpanded():
+                    collapsed.add((item.text(0), item.data(0, ROLE_LINE)))
+                it += 1
+        scroll = self.tree.verticalScrollBar().value()
         self.path = path
         self.tree.clear()
         if not path:
             self.title.setText(tr("panels.no_open_file"))
             return
         self.title.setText("  " + os.path.basename(path))
-        entries = outline(text, lang)
-        stack = []
-        for depth, kind, name, line in entries:
-            it = QTreeWidgetItem([name])
-            it.setIcon(0, theme.kind_icon(kind))
-            it.setData(0, ROLE_LINE, line)
-            it.setToolTip(0, tr("panels.line_2") % line)
-            while stack and stack[-1][0] >= depth:
-                stack.pop()
-            if stack:
-                stack[-1][1].addChild(it)
-            else:
-                self.tree.addTopLevelItem(it)
-            stack.append((depth, it))
-        self.tree.expandAll()
+
+        def add(parent, sym):
+            it = QTreeWidgetItem([sym.name])
+            it.setIcon(0, theme.kind_icon(sym.kind))
+            it.setData(0, ROLE_LINE, sym.start)
+            it.setToolTip(0, (sym.detail + "\n" if sym.detail else "") + tr("panels.line_2") % sym.start)
+            (parent.addChild if parent is not None else self.tree.addTopLevelItem)(it)
+            for ch in sym.children:
+                if ch.kind not in ("variable",):        # локальные переменные в структуре не нужны
+                    add(it, ch)
+            it.setExpanded((sym.name, sym.start) not in collapsed)
+        for sym in items:
+            add(None, sym)
+        if same:
+            self.tree.verticalScrollBar().setValue(scroll)
 
 
 def outline(text, lang):

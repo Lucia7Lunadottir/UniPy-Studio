@@ -12,11 +12,13 @@ from PyQt6.QtWidgets import (QMainWindow, QTabWidget, QDockWidget, QWidget, QVBo
                              QInputDialog, QCompleter, QFrame, QCheckBox, QApplication, QToolBar,
                              QSizePolicy, QPushButton, QDialog, QMenu)
 
-from . import theme, templates, intellisense, lsp, indentation
+from . import theme, templates, intellisense, lsp, indentation, symbols
+from .goto_all import GoToAll
 from .analyzer_control import AnalyzerControl
 from .build_check import SolutionCheck
 from .commands import CommandRegistry, KeyboardPage
 from .document_safety import DocumentSafety
+from .formatting import Formatter
 from .navigation import NavigationHistory
 from .options import Options, OptionsDialog
 from .project_actions import ProjectActions
@@ -25,7 +27,7 @@ from .run_control import RunController
 from .editor import CodeEditor
 from . import languages
 from .panels import (SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, TerminalPanel, UnityPanel,
-                     PyQtDesigner, BusyBar, ReferencesPanel, find_unity_projects)
+                     PyQtDesigner, BusyBar, ReferencesPanel, find_unity_projects, outline)
 from .theme import C
 from .i18n import (LANGUAGE_NAMES, LANGUAGE_SETTING, bind_text, change_language,
                    refresh_text, selected_language, tr)
@@ -183,6 +185,7 @@ class MainWindow(QMainWindow):
         self.refactoring = RefactorActions(self)    # ссылки, переименование, перенос типа, лампочка
         self.project = ProjectActions(self)         # новые файлы, Unity, PyQt-дизайнер
         self.analyzers = AnalyzerControl(self)      # состояние, перезапуск и обновление анализаторов
+        self.formatter = Formatter(self)            # Ctrl+K, Ctrl+D: Roslyn, для Python — ruff/black
         self.setWindowIcon(theme.app_icon())
         self.resize(1440, 900)
 
@@ -259,6 +262,14 @@ class MainWindow(QMainWindow):
                 svc.restart_mb = value
         elif key.startswith(("documents/", "recovery/")):
             self.safety.option_changed(key)
+        elif key == "editor/navigation_bar":
+            for ed in self.editors():
+                ed.set_navigation_bar(value)
+                ed.set_symbols(ed.symbols)
+        elif key == "editor/folding":
+            for ed in self.editors():
+                ed.folding.set_enabled(value)
+                ed._update_gutter_width()
         elif key in INDENT_OPTIONS:
             for ed in self.editors():
                 self.apply_indent(ed)
@@ -425,12 +436,18 @@ class MainWindow(QMainWindow):
         self.a_find_prev = A("Edit.FindPrevious", "mainwindow.find_previous", lambda: self.findbar.step(False), "Shift+F3")
         self.a_goto = A("Edit.GoTo", "mainwindow.go_line_2", self.goto_line_dialog, "Ctrl+G")
         self.a_comment = A("Edit.ToggleLineComment", "mainwindow.toggle_comment", ed("toggle_comment"), "Ctrl+/")
+        self.a_format = A("Edit.FormatDocument", "mainwindow.format_document",
+                          lambda: self.formatter.format(self.editor()), "Ctrl+K, Ctrl+D")
+        self.a_format_sel = A("Edit.FormatSelection", "mainwindow.format_selection",
+                              lambda: self.formatter.format(self.editor(), True), "Ctrl+K, Ctrl+F")
         self.a_dup = A("Edit.Duplicate", "mainwindow.duplicate_line", ed("duplicate_line"), "Ctrl+D")
         self.a_complete = A("Edit.ListMembers", "mainwindow.member_list_completion",
                             lambda: self.editor() and self.editor().request_completion(True), "Ctrl+Space")
         self.a_params = A("Edit.ParameterInfo", "mainwindow.parameter_info",
                           lambda: self.editor() and self.editor().request_signatures(True), "Ctrl+Shift+Space")
         self.a_definition = A("Edit.GoToDefinition", "mainwindow.go_definition", ed("go_to_definition"), "F12")
+        self.a_goto_all = A("Edit.GoToAll", "mainwindow.go_to_all", lambda: self.goto_all(), "Ctrl+T")
+        self.a_goto_member = A("Edit.GoToMember", "mainwindow.go_to_member", lambda: self.goto_all("m "), "Alt+\\")
         self.a_quick = A("Edit.GoToFile", "mainwindow.go_file", lambda: (self.quick.setFocus(), self.quick.selectAll()), "Ctrl+P")
         # масштаб кода — клавиши Visual Studio (Ctrl+Shift+. / Ctrl+Shift+,); Ctrl+− в VS — «Назад»
         self.a_zoom_in = A("View.ZoomIn", "mainwindow.increase_font_size", lambda: self.zoom(1), ("Ctrl+Shift+.", "Ctrl+="))
@@ -439,6 +456,13 @@ class MainWindow(QMainWindow):
         self.a_fwd = A("View.NavigateForward", "mainwindow.forward", lambda: self.navigate(1), "Ctrl+Shift+-", "forward",
                        "mainwindow.forward_ctrl_shift")
         self.a_refs = A("Edit.FindAllReferences", "mainwindow.find_all_references", ed("find_references"), "Shift+F12")
+        fold = lambda name: (lambda: self.editor() and self._fold(name))  # noqa
+        self.a_fold_toggle = A("Edit.ToggleOutliningExpansion", "mainwindow.fold_toggle", fold("toggle"), "Ctrl+M, Ctrl+M")
+        self.a_fold_all = A("Edit.ToggleAllOutlining", "mainwindow.fold_toggle_all", fold("toggle_all"), "Ctrl+M, Ctrl+L")
+        self.a_fold_defs = A("Edit.CollapseToDefinitions", "mainwindow.fold_to_definitions", fold("collapse_to_definitions"),
+                             "Ctrl+M, Ctrl+O")
+        self.a_fold_collapse = A("Edit.CollapseAllOutlining", "mainwindow.fold_collapse_all", fold("collapse_all"), "Ctrl+M, Ctrl+A")
+        self.a_fold_expand = A("Edit.ExpandAllOutlining", "mainwindow.fold_expand_all", fold("expand_all"), "Ctrl+M, Ctrl+X")
         self.a_rename = A("Refactor.Rename", "common.rename_2", R.rename_dialog, ("Ctrl+R, Ctrl+R", "F2"))
         self.a_move_type = A("Refactor.MoveTypeToFile", "common.move_type_own_file", R.move_type_to_file, "Ctrl+R, Ctrl+F")
         self.a_unimported = A("View.UnimportedNamespaceSuggestions", "mainwindow.suggestions_from_unimported_namespaces",
@@ -468,6 +492,18 @@ class MainWindow(QMainWindow):
         self.a_designer = A("View.PyQtDesigner", "mainwindow.pyqt_designer", lambda: self.show_dock(self.d_designer))
         self.a_unity_root = A("Tools.UnityVersionsFolder", "mainwindow.folder_with_version_unity", P.pick_unity_root)
 
+    def _fold(self, name):
+        """Команды «Правка → Структура» для текущего редактора."""
+        ed = self.editor()
+        if not ed.folding.enabled:
+            self.status(tr("mainwindow.folding_disabled"))
+            return
+        if name == "toggle":
+            if not ed.folding.toggle(ed.textCursor().blockNumber()):
+                self.status(tr("mainwindow.no_block_here"))
+        else:
+            getattr(ed.folding, name)()
+
     def _step_tab(self, step):
         self.tabs.setCurrentIndex((self.tabs.currentIndex() + step) % max(1, self.tabs.count()))
 
@@ -485,11 +521,17 @@ class MainWindow(QMainWindow):
         m.addAction(self.a_quit)
         m = bind_text(mb.addMenu(""), "mainwindow.edit", "setTitle")
         for a in (self.a_undo, self.a_redo, None, self.a_cut, self.a_copy, self.a_paste, None,
-                  self.a_find, self.a_replace, self.a_project_find, self.a_project_replace, self.a_goto, None, self.a_comment, self.a_dup):
+                  self.a_find, self.a_replace, self.a_project_find, self.a_project_replace, self.a_goto, None, self.a_comment, self.a_dup,
+                  self.a_format, self.a_format_sel):
             m.addSeparator() if a is None else m.addAction(a)
+        sub = bind_text(m.addMenu(""), "mainwindow.outlining", "setTitle")
+        for a in (self.a_fold_toggle, self.a_fold_all, self.a_fold_defs, self.a_fold_collapse, self.a_fold_expand):
+            sub.addAction(a)
         sub = m.addMenu("IntelliSense")
         for a in (self.a_complete, self.a_params, self.a_definition, self.a_refs):
             sub.addAction(a)
+        m.addAction(self.a_goto_all)
+        m.addAction(self.a_goto_member)
         m.addAction(self.a_rename)
         m.addAction(self.a_move_type)
         m = bind_text(mb.addMenu(""), "mainwindow.view", "setTitle")
@@ -881,8 +923,12 @@ class MainWindow(QMainWindow):
             return None
         ed = CodeEditor(path, self, self.font)
         ed.setLineWrapMode(ed.LineWrapMode.WidgetWidth if self.word_wrap else ed.LineWrapMode.NoWrap)
+        if not self.options["editor/folding"]:
+            ed.folding.set_enabled(False)
+            ed._update_gutter_width()
         ed.load()
         self.apply_indent(ed)
+        ed.set_navigation_bar(self.options["editor/navigation_bar"])
         if lsp.is_metadata_path(path):
             ed.setReadOnly(True)        # исходник из сборки (UnityEngine.dll и т.п.)
         ed.cursor_moved.connect(self._cursor_moved)
@@ -1083,11 +1129,38 @@ class MainWindow(QMainWindow):
         self.err_label.setText("✖ %d  ⚠ %d" % (e, w))
 
     def refresh_outline(self):
+        """Символы текущего файла → структура, панель навигации, Ctrl+T. От анализатора (documentSymbol),
+        пока он не готов — из разбора текста; устаревший ответ (текст успел измениться) отбрасывается."""
         ed = self.editor()
-        if ed:
-            self.outline.update_for(ed.path, ed.toPlainText(), ed.lang)
-        else:
-            self.outline.update_for(None, "", "")
+        if not ed:
+            self.outline.show_symbols(None, [])
+            return
+        text, revision = ed.toPlainText(), ed.document().revision()
+        svc = self.service_for(ed.language)
+        srv = svc.ready_for(ed.path) if svc is not None else None
+        if srv is not None and srv.supports("documentSymbolProvider"):
+            srv.document_symbols(ed.path, text, lambda found, e=ed, r=revision: self._symbols_arrived(e, r, found))
+            return
+        self._set_symbols(ed, symbols.from_outline(outline(text, ed.lang), ed.folding.ranges, ed.path))
+
+    def _symbols_arrived(self, ed, revision, found):
+        if ed not in self.editors():
+            return
+        if found is None:               # сервер не ответил — разбор текста
+            found = symbols.from_outline(outline(ed.toPlainText(), ed.lang), ed.folding.ranges, ed.path)
+        elif ed.document().revision() != revision:
+            return                      # пока ждали, текст изменился — придёт новый ответ
+        self._set_symbols(ed, found)
+
+    def _set_symbols(self, ed, found):
+        ed.set_symbols(found)
+        if ed is self.editor():
+            self.outline.show_symbols(ed.path, found)
+
+    def goto_all(self, text=""):
+        if not hasattr(self, "_goto_all"):
+            self._goto_all = GoToAll(self)
+        self._goto_all.popup(text)
 
     def _open_link(self, path, line):
         if not os.path.isabs(path) and self.runner.path:

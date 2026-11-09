@@ -55,6 +55,12 @@
 | `project_actions.py` | ~150 | Новые файлы, шаблоны, Unity, PyQt-дизайнер (`ProjectActions`) |
 | `analyzer_control.py` | ~95 | Состояние, перезапуск, обновление анализаторов (`AnalyzerControl`) |
 | `document_safety.py` | ~120 | Связь `documents.py` с окном: слежение за вкладками, восстановление (`DocumentSafety`) |
+| `indentation.py` | ~260 | Отступы: `IndentStyle`, `.editorconfig`, определение по файлу, правила сохранения (без Qt) |
+| `folding.py` | ~400 | Сворачивание: `fold_ranges` (без Qt) и `Folding` у каждого редактора |
+| `symbols.py` | ~170 | Символы файла/решения (`Symbol`) из documentSymbol, workspace/symbol и разбора текста (без Qt) |
+| `navbar.py` | ~110 | Панель навигации «тип / член» над кодом (`NavigationBar`) |
+| `goto_all.py` | ~200 | «Перейти ко всему» (Ctrl+T): файлы, типы, члены (`GoToAll`) |
+| `formatting.py` | ~150 | Форматирование (Ctrl+K, Ctrl+D): Roslyn, для Python — ruff/black (`Formatter`) |
 | `editor.py` | 1237 | Один редактор кода (`CodeEditor`): ввод, отступы, скобки, подсказки |
 | `highlighter.py` | 420 | Подсветка синтаксиса (своя для C#/Python/XML/JSON/Markdown + через Pygments) |
 | `languages.py` | 111 | **Реестр языков** — что редактор знает про каждый язык |
@@ -387,6 +393,10 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 | Поменять порог памяти анализаторов | `options.RESTART_THRESHOLDS`, `LanguageService.IDLE_BEFORE_RESTART` |
 | Добавить параметр в «Средства → Параметры» | `options.PAGES` + `MainWindow._option_changed` + `locales/*.json` |
 | Поведение при изменении файла вне редактора, автовосстановление | `documents.py` |
+| Отступы, `.editorconfig` | `indentation.py`; применяет `MainWindow.apply_indent` |
+| Какие блоки сворачиваются | `folding.fold_ranges` (новый язык — ветка там же) |
+| Форматер для нового языка | `formatting.Formatter.format` (сервер с `documentFormattingProvider` подхватится сам) |
+| Символы для структуры / панели навигации / Ctrl+T | `MainWindow.refresh_outline` → `ed.set_symbols`; формат — `symbols.Symbol` |
 | Поменять лимиты логов | `log_limits.py` |
 | Изменить, что открывается при запуске из Unity | `launch.py` |
 
