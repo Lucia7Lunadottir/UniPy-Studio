@@ -1,7 +1,7 @@
 import os
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 import unittest
-from PyQt6.QtWidgets import QApplication, QDialog, QSpinBox, QCheckBox
+from PyQt6.QtWidgets import QApplication, QDialog
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QTextDocument
 from studio.highlighter import Highlighter
@@ -26,6 +26,8 @@ class SettingsHighlight(unittest.TestCase):
     def test_settings_visible_opens_and_persists(self):
         win=MainWindow(screenshot=True)
         try:
+            # настройки теста — в песочнице tests/conftest.py, не в ~/.config пользователя
+            self.assertFalse(win.settings.fileName().startswith(os.path.expanduser('~/.config')))
             self.assertTrue(any(win.a_settings in action.menu().actions()
                                 for action in win.menuBar().actions() if action.menu()))
             self.assertEqual(win.a_settings.shortcut().toString(),'Ctrl+,')
@@ -34,10 +36,9 @@ class SettingsHighlight(unittest.TestCase):
                 dialog=app.activeModalWidget()
                 outcome.append(isinstance(dialog,QDialog))
                 if dialog:
-                    spin=dialog.findChildren(QSpinBox)
-                    spin[0].setValue(15); spin[1].setValue(13)
-                    dialog.findChild(QCheckBox).setChecked(True)
-                    dialog.grab().save('/tmp/unipy-settings-verified.png')
+                    fields={key:field for key,(_o,field,_r) in dialog._editors.items()}
+                    fields['editor/font_size'].setValue(15); fields['editor/hint_size'].setValue(13)
+                    fields['editor/word_wrap'].setChecked(True)
                     dialog.accept()
             QTimer.singleShot(50,accept)
             win.a_settings.trigger()
