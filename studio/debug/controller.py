@@ -88,7 +88,7 @@ class DebugController(QObject):
             win.save_all()
         self._last = (tc, target)
         self.store.reset_verified()
-        self.session = DebugSession(config, self.store, parent=self)
+        self.session = DebugSession(config, self.store, run_in_terminal=self._run_in_terminal, parent=self)
         self.session.state_changed.connect(self._state)
         self.session.stopped.connect(self._stopped)
         self.session.output.connect(self._output)
@@ -98,6 +98,13 @@ class DebugController(QObject):
         win.output.write(tr("debug.started") % (config.title or target.label), SOURCE, C["link"])
         win.show_dock(win.d_output)
         self.session.start()
+
+    def _run_in_terminal(self, argv, cwd, env, title):
+        """runInTerminal от отладчика: программа — во вкладке встроенного терминала, как при обычном запуске."""
+        win = self.win
+        win.show_dock(win.d_terminal)
+        session = win.terminal.run(argv, cwd, env, title or "debug")
+        return session.process.pid
 
     def restart(self):
         if self._last is None:

@@ -11,7 +11,9 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, QCoreApplication, QEvent
 from PyQt6.QtWidgets import QApplication
 from studio.lsp import LanguageService, LanguageServer, RoslynServer, JsonRpcConnection
-from studio.panels import OutputPanel, TerminalPanel
+from studio.panels import OutputPanel
+from studio.terminal.panel import CAPTURE_LIMIT, TerminalSession
+from studio.terminal.screen import HISTORY
 from studio.log_limits import LOG_CHARS, LOG_BLOCKS, LOG_LINE_CHARS
 from studio import theme
 
@@ -140,16 +142,22 @@ class MemoryLifecycleTests(unittest.TestCase):
 
     def test_log_limits_include_single_long_line(self):
         output = OutputPanel(theme.code_font(11))
-        terminal = TerminalPanel(theme.code_font(11))
+        session = TerminalSession(theme.code_font(11), "test")
         for _ in range(8):
             output.write('x' * 250000)
-            terminal._write('x' * 250000)
-        for view in (output.view, terminal.view):
-            self.assertLessEqual(view.document().characterCount()-1, LOG_CHARS)
-            self.assertLessEqual(view.blockCount(), LOG_BLOCKS)
-            self.assertLessEqual(view.document().lastBlock().length()-1, LOG_LINE_CHARS)
+        for _ in range(3):                  # pyte медленный (~150 КБ/с) — ровно столько, чтобы упереться в оба предела
+            session._data(b'y' * 40000 + b'\r\n' + b'l\r\n' * 2500)
+            session._data(b'z' * 100000)
+        session.drain_all()
+        view = output.view
+        self.assertLessEqual(view.document().characterCount()-1, LOG_CHARS)
+        self.assertLessEqual(view.blockCount(), LOG_BLOCKS)
+        self.assertLessEqual(view.document().lastBlock().length()-1, LOG_LINE_CHARS)
+        # терминал: история pyte ограничена, перехват вывода для поиска ошибок — тоже
+        self.assertLessEqual(session.view.term.history_size(), HISTORY)
+        self.assertLessEqual(len(session._captured), CAPTURE_LIMIT)
         self.assertLessEqual(output._line_chars, LOG_CHARS)
         output.clear()
         self.assertEqual(output._line_chars, 0)
-        output.deleteLater(); terminal.deleteLater()
+        output.deleteLater(); session.deleteLater()
         self.drain()

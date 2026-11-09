@@ -37,8 +37,6 @@
   "instance.unipy_studio_project_window_not": "UniPy Studio: The project window is not answering; Run it again",
   "panels.unity_hub_was_not_found": "Unity Hub was not found. Install it or select the folder containing your Unity Editor versions.",
   "theme.unipy_studio_using_built_theme": "[UniPy Studio] %s — using the built-in theme",
-  "panels.exit_code": "[Exit code is %d]\n",
-  "panels.cd_no_such_folder": "cd: no such folder: %s\n",
   "unity.Time.unscaledDeltaTime": "deltaTime excluding timeScale",
   "intellisense.jedi_pyqt6_not_loaded": "jedi %s (PyQt6 not loaded: %s)",
   "intellisense.jedi_pyqt6_modules_loaded": "jedi %s  PyQt6 modules loaded",
@@ -578,7 +576,6 @@
   "mainwindow.preview_prefix": "Preview — ",
   "panels.preview": "The preview:",
   "unity.Debug.LogWarning": "Warning to the console",
-  "panels.previous_command_still_being_executed": "The previous command is still being executed.\n",
   "mainwindow.previous_shift_f3": "Previous (Shift+F3)",
   "templates.hello_from": "Hello from {name}!",
   "templates.hello": "Hello!",
@@ -1202,5 +1199,9 @@
   "vcs.state_renamed": "renamed",
   "vcs.state_untracked": "untracked",
   "vcs.switch_branch": "Switch Branch…",
-  "vcs.unstage": "Unstage"
+  "vcs.unstage": "Unstage",
+  "options.run_in_terminal": "Run programs in the integrated terminal",
+  "options.run_in_terminal_hint": "Keyboard input (input(), Console.ReadLine()), colours and Ctrl+C work — while debugging too. Turn off to send output to Output (faster for huge output, but no input).",
+  "terminal.exited": "Process exited with code %s",
+  "terminal.new": "New Terminal"
 }

@@ -33,8 +33,6 @@
   "instance.unipy_studio_project_window_not": "UniPy Studio: プロジェクトウィンドウが応答していない; 起動を繰り返す",
   "panels.unity_hub_was_not_found": "Unity Hub は見つかりませんでした.インストールするか,あなたの Unity エディタバージョンを含むフォルダを選択してください.",
   "theme.unipy_studio_using_built_theme": "[UniPy Studio] %s  内蔵テーマを使用する",
-  "panels.exit_code": "[出口コード %d]\n",
-  "panels.cd_no_such_folder": "cd: %s のフォルダはありません\n",
   "unity.Time.unscaledDeltaTime": "timeScale を考慮せずに deltaTime",
   "intellisense.jedi_pyqt6_not_loaded": "jedi %s (PyQt6 読み込みされていません: %s)",
   "intellisense.jedi_pyqt6_modules_loaded": "jedi %s  PyQt6 モジュールが読み込まれました",
@@ -552,7 +550,6 @@
   "mainwindow.preview_prefix": "プレビュー ",
   "panels.preview": "予見:",
   "unity.Debug.LogWarning": "コンソールへの警告",
-  "panels.previous_command_still_being_executed": "前回の命令はまだ実行中です\n",
   "mainwindow.previous_shift_f3": "前 (Shift+F3)",
   "templates.hello_from": "{name} からこんにちは！",
   "templates.hello": "こんにちは!",
@@ -1202,5 +1199,9 @@
   "vcs.state_renamed": "名前変更",
   "vcs.state_untracked": "未追跡",
   "vcs.switch_branch": "ブランチの切り替え…",
-  "vcs.unstage": "ステージ解除"
+  "vcs.unstage": "ステージ解除",
+  "options.run_in_terminal": "統合ターミナルでプログラムを実行する",
+  "options.run_in_terminal_hint": "キーボード入力 (input()、Console.ReadLine())、色、Ctrl+C がデバッグ中も使えます。オフにすると出力は [出力] に送られます (大量の出力では速いが入力不可)。",
+  "terminal.exited": "プロセスはコード %s で終了しました",
+  "terminal.new": "新しいターミナル"
 }

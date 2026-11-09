@@ -56,9 +56,11 @@ class DebugSession(QObject):
     breakpoints_bound = pyqtSignal(str, object)  # путь, [(строка, verified, message)]
     ended = pyqtSignal(object)                  # код выхода программы или None
 
-    def __init__(self, config, breakpoints, exception_filters=None, parent=None):
+    def __init__(self, config, breakpoints, exception_filters=None, run_in_terminal=None, parent=None):
         super().__init__(parent)
         self.config = config
+        # run_in_terminal(argv, cwd, env, title) → pid или None — запустить программу во встроенном терминале
+        self.run_in_terminal = run_in_terminal
         self.store = breakpoints
         self.exception_filters = exception_filters      # None — какие адаптер считает включёнными по умолчанию
         self.state = IDLE
@@ -84,7 +86,8 @@ class DebugSession(QObject):
         self.conn.request("initialize", {
             "clientID": "unipy-studio", "clientName": "UniPy Studio", "adapterID": self.config.adapter_id,
             "pathFormat": "path", "linesStartAt1": True, "columnsStartAt1": True,
-            "supportsVariableType": True, "supportsVariablePaging": False, "supportsRunInTerminalRequest": False,
+            "supportsVariableType": True, "supportsVariablePaging": False,
+            "supportsRunInTerminalRequest": self.run_in_terminal is not None,
             "supportsProgressReporting": False, "locale": os.environ.get("LANG", "en").split(".")[0]},
             self._initialized)
 
@@ -178,8 +181,16 @@ class DebugSession(QObject):
             self.stopped.emit(thread_id, reason, self.frames)
         self.conn.request("stackTrace", {"threadId": thread_id, "startFrame": 0, "levels": 200}, done)
 
-    def _reverse_request(self, seq, command, _arguments):
-        """runInTerminal / startDebugging — не поддерживаем (консоль — внутренняя), отвечаем честно."""
+    def _reverse_request(self, seq, command, arguments):
+        """runInTerminal — запустить программу во встроенном терминале (ввод с клавиатуры при отладке);
+        startDebugging и прочее не поддерживаем — отвечаем честно."""
+        if command == "runInTerminal" and self.run_in_terminal is not None:
+            env = {k: v for k, v in (arguments.get("env") or {}).items() if v is not None}
+            pid = self.run_in_terminal(arguments.get("args") or [], arguments.get("cwd"), env,
+                                       arguments.get("title") or self.config.title)
+            if pid:
+                self.conn.respond(seq, command, body={"processId": pid})
+                return
         self.conn.respond(seq, command, success=False, message="not supported by UniPy Studio")
 
     # --- управление (как кнопки панели отладки VS)

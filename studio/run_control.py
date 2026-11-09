@@ -5,7 +5,7 @@ Unity — открыть проект в Unity. Здесь только общи
 """
 import os
 
-from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment
+from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer
 from PyQt6.QtWidgets import QMessageBox
 
 from . import toolchains
@@ -21,13 +21,9 @@ class RunController(QObject):
     def __init__(self, window):
         super().__init__(window)
         self.win = window
-        self.proc = None
+        self.launch = None          # OutputLaunch или TerminalLaunch — где идёт программа
         self.command = None
         self.path = None            # папка запущенного — относительные пути в выводе считаются от неё
-        self.stderr = ""
-
-    def running(self):
-        return self.proc is not None and self.proc.state() != QProcess.ProcessState.NotRunning
 
     # --- что запускать
     def run_selected(self):
@@ -54,45 +50,76 @@ class RunController(QObject):
         return True
 
     # --- процесс
+    def running(self):
+        return self.launch is not None and self.launch.running()
+
     def start(self, command):
+        """Запустить RunCommand: во встроенном терминале (ввод с клавиатуры) или в окно «Вывод» — по параметрам."""
         win = self.win
         if self.running():
             if QMessageBox.question(win, APP_NAME, tr("mainwindow.program_already_running")) \
                     != QMessageBox.StandardButton.Yes:
                 return
-            self.stop()
-            self.proc.waitForFinished(2000)
+            self.launch.stop()
         if win.options["documents/save_before_run"]:
             win.save_all()
         self.command = command
         self.path = command.cwd
-        self.stderr = ""
         win.errors.clear_source("common.run")
+        kind = TerminalLaunch if win.options["run/in_terminal"] else OutputLaunch
+        self.launch = kind(win, command, self._finished)
+        self.launch.start()
+        win.update_run_actions()
+        win.status_label.setText(tr("mainwindow.running_ellipsis"))
+
+    def _finished(self, code, error_text):
+        win = self.win
+        win.update_run_actions()
+        win.status(tr("common.ready") if code == 0 else tr("mainwindow.program_ended_with_error_code") % code, 0)
+        if code != 0 and self.command is not None and error_text:
+            for path, line, col, message in self.command.problem_matcher(error_text):
+                if os.path.isfile(path):
+                    win.errors.set_group("common.run", path, [(line, col, message, "error")])
+                    win.show_dock(win.d_errors)
+
+    def stop(self):
+        if self.running():
+            self.launch.stop()
+
+    def shutdown(self):
+        """Выход из программы: запущенный процесс не переживает окно."""
+        if self.running():
+            self.launch.kill()
+
+
+class OutputLaunch(QObject):
+    """Вывод — в «Вывод» (быстро, без ввода с клавиатуры). done(код, текст stderr)."""
+
+    def __init__(self, win, command, done):
+        super().__init__(win)
+        self.win, self.command, self.done = win, command, done
+        self.proc = None
+        self.stderr = ""
+
+    def start(self):
+        win, command = self.win, self.command
         win.output.clear()
         win.output.write(tr("mainwindow.running") % command.title, "common.run", C["link"])
         win.output.write(command.command_line(), "common.run", C["dim"])
         win.show_dock(win.d_output)
-        if self.proc is not None:
-            self.proc.deleteLater()
         self.proc = QProcess(self)
         self.proc.setWorkingDirectory(command.cwd)
         env = QProcessEnvironment.systemEnvironment()
         for key, value in command.env.items():
             env.insert(key, value)
         self.proc.setProcessEnvironment(env)
-        self.proc.readyReadStandardOutput.connect(self._read_out)
+        self.proc.readyReadStandardOutput.connect(
+            lambda: win.output.write(bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace"), "common.run"))
         self.proc.readyReadStandardError.connect(self._read_err)
         self.proc.finished.connect(self._finished)
-        self.proc.errorOccurred.connect(self._failed)
+        self.proc.errorOccurred.connect(lambda _e: win.output.write(
+            tr("mainwindow.could_not_run") % self.proc.errorString(), "common.run", C["error"]))
         self.proc.start(command.program, command.args)
-        win.update_run_actions()
-        win.status_label.setText(tr("mainwindow.running_ellipsis"))
-
-    def _failed(self, _err):
-        self.win.output.write(tr("mainwindow.could_not_run") % self.proc.errorString(), "common.run", C["error"])
-
-    def _read_out(self):
-        self.win.output.write(bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace"), "common.run")
 
     def _read_err(self):
         text = bytes(self.proc.readAllStandardError()).decode("utf-8", "replace")
@@ -100,23 +127,45 @@ class RunController(QObject):
         self.win.output.write(text, "common.run", C["error"])
 
     def _finished(self, code, _status):
-        win = self.win
-        win.update_run_actions()
-        win.output.write(tr("mainwindow.process_exited_with_code") % code, "common.run",
-                         C["dim"] if code == 0 else C["warning"])
-        win.status(tr("common.ready") if code == 0 else tr("mainwindow.program_ended_with_error_code") % code, 0)
-        if code != 0 and self.command is not None and self.stderr:
-            for path, line, col, message in self.command.problem_matcher(self.stderr):
-                if os.path.isfile(path):
-                    win.errors.set_group("common.run", path, [(line, col, message, "error")])
-                    win.show_dock(win.d_errors)
+        self.win.output.write(tr("mainwindow.process_exited_with_code") % code, "common.run",
+                              C["dim"] if code == 0 else C["warning"])
+        self.done(code, self.stderr)
+
+    def running(self):
+        return self.proc is not None and self.proc.state() != QProcess.ProcessState.NotRunning
 
     def stop(self):
         if self.running():
             self.proc.kill()
             self.win.output.write(tr("mainwindow.stopped_by_user"), "common.run", C["warning"])
 
-    def shutdown(self):
-        """Выход из программы: запущенный процесс не переживает окно."""
+    kill = stop
+
+
+class TerminalLaunch(QObject):
+    """Программа во вкладке встроенного терминала (настоящий PTY): input(), Console.ReadLine(), цвета.
+    Ошибки ищутся во всём выводе (stdout и stderr в терминале смешаны)."""
+
+    def __init__(self, win, command, done):
+        super().__init__(win)
+        self.win, self.command, self.done = win, command, done
+        self.session = None
+
+    def start(self):
+        win, command = self.win, self.command
+        win.show_dock(win.d_terminal)
+        self.session = win.terminal.run([command.program, *command.args], command.cwd, command.env, command.title)
+        self.session.finished.connect(lambda code, text: self.done(code, text))
+
+    def running(self):
+        return self.session is not None and self.session.running()
+
+    def stop(self):
+        """Shift+F5 — как Ctrl+C, а если программа не послушалась — закрыть сеанс."""
         if self.running():
-            self.proc.kill()
+            self.session.process.interrupt()
+            QTimer.singleShot(1500, lambda: self.running() and self.session.process.terminate())
+
+    def kill(self):
+        if self.running():
+            self.session.process.terminate()

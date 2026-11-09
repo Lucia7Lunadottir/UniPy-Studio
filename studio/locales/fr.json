@@ -33,8 +33,6 @@
   "instance.unipy_studio_project_window_not": "UniPy Studio: la fenêtre du projet ne répond pas; Répétez le démarrage",
   "panels.unity_hub_was_not_found": "Unity Hub n'a pas été trouvé. Installez-le ou sélectionnez le dossier contenant vos versions Unity Editor.",
   "theme.unipy_studio_using_built_theme": "[UniPy Studio] %s  en utilisant le thème intégré",
-  "panels.exit_code": "[code de sortie %d]\n",
-  "panels.cd_no_such_folder": "cd: il n' y a pas de dossier: %s\n",
   "unity.Time.unscaledDeltaTime": "deltaTime sans compter le timeScale",
   "intellisense.jedi_pyqt6_not_loaded": "jedi %s (PyQt6 non chargé: %s)",
   "intellisense.jedi_pyqt6_modules_loaded": "jedi %s  les modules PyQt6 sont chargés",
@@ -552,7 +550,6 @@
   "mainwindow.preview_prefix": "Une vue d'avance ",
   "panels.preview": "Une vue d' avant:",
   "unity.Debug.LogWarning": "Avertissement à la console",
-  "panels.previous_command_still_being_executed": "La précédente commande est toujours en cours.\n",
   "mainwindow.previous_shift_f3": "Précédent (Shift+F3)",
   "templates.hello_from": "Bonjour de {name} !",
   "templates.hello": "Je vous en prie.",
@@ -1202,5 +1199,9 @@
   "vcs.state_renamed": "renommé",
   "vcs.state_untracked": "non suivi",
   "vcs.switch_branch": "Changer de branche…",
-  "vcs.unstage": "Désindexer"
+  "vcs.unstage": "Désindexer",
+  "options.run_in_terminal": "Exécuter les programmes dans le terminal intégré",
+  "options.run_in_terminal_hint": "La saisie au clavier (input(), Console.ReadLine()), les couleurs et Ctrl+C fonctionnent — en débogage aussi. Désactivez pour envoyer la sortie dans Sortie (plus rapide pour une sortie énorme, mais sans saisie).",
+  "terminal.exited": "Le processus s'est terminé avec le code %s",
+  "terminal.new": "Nouveau terminal"
 }

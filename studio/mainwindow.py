@@ -31,7 +31,8 @@ from .run_control import RunController
 from .unity_console import UnityConsole
 from .editor import CodeEditor
 from . import languages
-from .panels import (SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, TerminalPanel, UnityPanel,
+from .terminal.panel import TerminalPanel
+from .panels import (SolutionExplorer, OutlinePanel, OutputPanel, ErrorList, UnityPanel,
                      PyQtDesigner, BusyBar, ReferencesPanel, find_unity_projects, outline)
 from .theme import C
 from .i18n import (LANGUAGE_NAMES, LANGUAGE_SETTING, bind_text, change_language,
@@ -1284,7 +1285,7 @@ class MainWindow(QMainWindow):
 
     def _open_link(self, path, line):
         if not os.path.isabs(path) and self.runner.path:
-            path = os.path.join(os.path.dirname(self.runner.path), path)
+            path = os.path.join(self.runner.path, path)        # папка, где запущена программа
         self.open_path(path, line)
 
     # ------------------------------------------------------------ диалоги

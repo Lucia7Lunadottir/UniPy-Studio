@@ -117,7 +117,9 @@ class PythonToolchain(Toolchain):
         return DebugConfig(adapter_python, ["-m", "debugpy.adapter"], "launch", {
             "name": os.path.basename(target.path), "type": "python", "request": "launch",
             "program": target.path, "cwd": os.path.dirname(target.path), "python": [program],
-            "console": "internalConsole", "redirectOutput": True, "justMyCode": True, "showReturnValue": True,
+            # во встроенном терминале работает input(); иначе — вывод в «Вывод» через сам отладчик
+            "console": "integratedTerminal" if ctx.option("run/in_terminal", True) else "internalConsole",
+            "redirectOutput": True, "justMyCode": True, "showReturnValue": True,
             "env": {"PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}},
             adapter_id="debugpy", cwd=os.path.dirname(target.path), title=os.path.basename(target.path))
 

@@ -33,8 +33,6 @@
   "instance.unipy_studio_project_window_not": "UniPy Studio: окно проекта не отвечает; повторите запуск",
   "panels.unity_hub_was_not_found": "Unity Hub не найден. Установите его или укажите папку с версиями Unity.",
   "theme.unipy_studio_using_built_theme": "[UniPy Studio] %s — включена своя тема",
-  "panels.exit_code": "[код выхода %d]\n",
-  "panels.cd_no_such_folder": "cd: нет такой папки: %s\n",
   "unity.Time.unscaledDeltaTime": "deltaTime без учёта timeScale",
   "intellisense.jedi_pyqt6_not_loaded": "jedi %s (PyQt6 не загружен: %s)",
   "intellisense.jedi_pyqt6_modules_loaded": "jedi %s — модули PyQt6 загружены",
@@ -552,7 +550,6 @@
   "mainwindow.preview_prefix": "Предпросмотр — ",
   "panels.preview": "Предпросмотр:",
   "unity.Debug.LogWarning": "Предупреждение в консоль",
-  "panels.previous_command_still_being_executed": "Предыдущая команда ещё выполняется.\n",
   "mainwindow.previous_shift_f3": "Предыдущее (Shift+F3)",
   "templates.hello_from": "Привет из {name}!",
   "templates.hello": "Привет!",
@@ -1202,5 +1199,9 @@
   "vcs.state_renamed": "переименован",
   "vcs.state_untracked": "не отслеживается",
   "vcs.switch_branch": "Переключить ветку…",
-  "vcs.unstage": "Отменить индексирование"
+  "vcs.unstage": "Отменить индексирование",
+  "options.run_in_terminal": "Запускать программы во встроенном терминале",
+  "options.run_in_terminal_hint": "Работают ввод с клавиатуры (input(), Console.ReadLine()), цвета и Ctrl+C — и при отладке. Выключите, чтобы вывод шёл в «Вывод» (быстрее на огромном выводе, но без ввода).",
+  "terminal.exited": "Процесс завершился с кодом %s",
+  "terminal.new": "Новый терминал"
 }

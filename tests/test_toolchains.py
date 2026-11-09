@@ -207,7 +207,10 @@ class Extensibility(unittest.TestCase):
             self.assertIn("a.echo", labels)
             win.startup.setCurrentIndex(labels.index("a.echo"))
             win.a_run.trigger()
-            self.assertTrue(spin(5, lambda: "echo-ran a.echo" in win.output.view.toPlainText()))
+            # программы идут во встроенный терминал — вкладка «▶ a.echo»
+            self.assertTrue(spin(5, lambda: win.terminal.current() is not None
+                                 and b"echo-ran a.echo" in win.terminal.current()._captured))
+            self.assertEqual(win.terminal.current().title, "▶ echo")      # RunCommand без title — по имени программы
             dialog = NewProjectDialog(win, toolchains.TOOLCHAINS, str(root))
             self.assertIn("Echo hello", [dialog.list.item(i).text() for i in range(dialog.list.count())])
             dialog.deleteLater()

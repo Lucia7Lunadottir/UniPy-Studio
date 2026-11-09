@@ -321,6 +321,7 @@ PAGES = (
         BoolOption("documents/reload_unmodified", True, "options.reload_unmodified",
                    hint="options.reload_unmodified_hint"),
         BoolOption("documents/save_before_run", True, "options.save_before_run"),
+        BoolOption("run/in_terminal", True, "options.run_in_terminal", hint="options.run_in_terminal_hint"),
     )),
     Page(("options.environment", "options.autorecover"), (
         BoolOption("recovery/enabled", True, "options.recovery_enabled", hint="options.recovery_hint"),

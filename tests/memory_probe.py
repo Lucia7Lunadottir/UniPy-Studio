@@ -42,12 +42,12 @@ with tempfile.TemporaryDirectory() as tmp:
         # Normal multiline output and 1 MB without newlines per view, per cycle.
         for _ in range(4):
             win.output.write(('x'*99+'\n')*250)
-            win.terminal._write(('x'*99+'\n')*250)
+            win.terminal.ensure_shell().view.feed((b'x'*99+b'\r\n')*250)
         for _ in range(4):
             win.output.write('x'*250000)
-            win.terminal._write('x'*250000)
+            win.terminal.ensure_shell().view.feed(b'x'*250000)
         assert win.output._line_chars <= LOG_CHARS
-        for view in (win.output.view, win.terminal.view):
+        for view in (win.output.view,):
             assert view.document().characterCount() - 1 <= LOG_CHARS
             assert view.blockCount() <= LOG_BLOCKS
         print("logs finished", cycle+1, flush=True)
@@ -61,11 +61,12 @@ with tempfile.TemporaryDirectory() as tmp:
         print("file cycles finished", cycle+1, flush=True)
         # Each run must release the prior QProcess child.
         for _ in range(4):
-            win.terminal.input.setText('true')
-            win.terminal.run()
-            assert win.terminal.proc.waitForFinished(3000)
+            session = win.terminal.run(['true'], str(projects[0]), title='true')
+            deadline = time.monotonic() + 3
+            while session.running() and time.monotonic() < deadline:
+                drain()
             drain()
-        assert len(win.terminal.findChildren(QProcess)) <= 1
+        assert win.terminal.tabs.count() <= 2       # оболочка + последняя «▶ true»: старые вкладки закрываются
         drain()
         samples.append(round(rss(), 1))
         print('cycle', cycle+1, 'RSS', samples[-1], 'QProcesses', len(win.findChildren(QProcess)), flush=True)

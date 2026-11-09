@@ -33,8 +33,6 @@
   "instance.unipy_studio_project_window_not": "UniPy Studio: La ventana del proyecto no responde; Repita el arranque",
   "panels.unity_hub_was_not_found": "Unity Hub no se encontró. Instala o seleccione la carpeta que contiene sus versiones de Unity Editor.",
   "theme.unipy_studio_using_built_theme": "[UniPy Studio] %s  usando el tema incorporado",
-  "panels.exit_code": "[Código de salida %d]\n",
-  "panels.cd_no_such_folder": "cd: no hay una carpeta: %s\n",
   "unity.Time.unscaledDeltaTime": "deltaTime sin tener en cuenta timeScale",
   "intellisense.jedi_pyqt6_not_loaded": "jedi %s (PyQt6 no cargado: %s)",
   "intellisense.jedi_pyqt6_modules_loaded": "jedi %s  los módulos PyQt6 están cargados",
@@ -552,7 +550,6 @@
   "mainwindow.preview_prefix": "Previsión ",
   "panels.preview": "Presentación:",
   "unity.Debug.LogWarning": "Advertencia en la consola",
-  "panels.previous_command_still_being_executed": "El anterior comando todavía está en ejecución.\n",
   "mainwindow.previous_shift_f3": "Previo (Shift+F3)",
   "templates.hello_from": "¡Hola desde {name}!",
   "templates.hello": "¡Hola, qué haces?",
@@ -1202,5 +1199,9 @@
   "vcs.state_renamed": "renombrado",
   "vcs.state_untracked": "sin seguimiento",
   "vcs.switch_branch": "Cambiar de rama…",
-  "vcs.unstage": "Quitar de preparados"
+  "vcs.unstage": "Quitar de preparados",
+  "options.run_in_terminal": "Ejecutar programas en el terminal integrado",
+  "options.run_in_terminal_hint": "Funcionan la entrada de teclado (input(), Console.ReadLine()), los colores y Ctrl+C, también al depurar. Desactívelo para enviar la salida a Salida (más rápido con salidas enormes, pero sin entrada).",
+  "terminal.exited": "El proceso terminó con el código %s",
+  "terminal.new": "Nuevo terminal"
 }

@@ -63,6 +63,7 @@
 | `debug/` | ~900 | Отладка по DAP: `dap.py` (транспорт), `session.py` (сеанс: остановки, шаги, стек, переменные), `breakpoints.py`, `panels.py`, `controller.py` |
 | `framing.py` | ~30 | Рамка `Content-Length` — общая для LSP и DAP |
 | `vcs/` | ~750 | Контроль версий: интерфейс `Repository` (`base.py`), Git (`git.py`), полоски строк (`linediff.py`), панель «Изменения Git», сравнение рядом, связь с окном (`controller.py`). Новая система — подкласс `Repository` и строка в `vcs/PROVIDERS` |
+| `terminal/` | ~600 | Встроенный терминал на настоящем PTY: процесс (`pty_process.py`, запуск через `setsid -c`), экран (`screen.py`, разбор — `pyte`), виджет (`widget.py`), вкладки (`panel.py`). F5/Ctrl+F5 и отладка (`runInTerminal`) запускают программы сюда — работает ввод с клавиатуры |
 | `indentation.py` | ~260 | Отступы: `IndentStyle`, `.editorconfig`, определение по файлу, правила сохранения (без Qt) |
 | `folding.py` | ~400 | Сворачивание: `fold_ranges` (без Qt) и `Folding` у каждого редактора |
 | `symbols.py` | ~170 | Символы файла/решения (`Symbol`) из documentSymbol, workspace/symbol и разбора текста (без Qt) |
@@ -319,7 +320,6 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 | `OutputPanel` | Вывод запуска и сообщений сборки, с цветами |
 | `ErrorList` | Список ошибок/предупреждений; группируется по источнику (C#, Python…) |
 | `ReferencesPanel` | Результаты «Найти все ссылки» |
-| `TerminalPanel` | Встроенный терминал на `QProcess` |
 | `UnityPanel` | Работа с Unity: поиск установленных редакторов, создание скриптов по шаблонам, вставка кода |
 | `PyQtDesigner` | Помощник для PyQt: создание окон/диалогов/виджетов, предпросмотр `.ui` |
 | `NewFileDialog` | Диалог «Новый файл» с шаблонами |

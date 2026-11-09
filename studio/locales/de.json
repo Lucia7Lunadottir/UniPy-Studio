@@ -33,8 +33,6 @@
   "instance.unipy_studio_project_window_not": "UniPy Studio: Das Projektfenster reagiert nicht; Wiederholen Sie den Start",
   "panels.unity_hub_was_not_found": "Unity Hub wurde nicht gefunden. Installieren Sie es oder wählen Sie den Ordner aus, der Ihre Unity Editor-Versionen enthält.",
   "theme.unipy_studio_using_built_theme": "[UniPy Studio] %s  mit dem eingebauten Thema",
-  "panels.exit_code": "[Ausgangs-Code %d]\n",
-  "panels.cd_no_such_folder": "cd: Es gibt keinen solchen Ordner: %s\n",
   "unity.Time.unscaledDeltaTime": "deltaTime ohne TimeScale",
   "intellisense.jedi_pyqt6_not_loaded": "jedi %s (PyQt6 nicht geladen: %s)",
   "intellisense.jedi_pyqt6_modules_loaded": "jedi %s  Module PyQt6 geladen",
@@ -552,7 +550,6 @@
   "mainwindow.preview_prefix": "Vorschau ",
   "panels.preview": "Vorschau:",
   "unity.Debug.LogWarning": "Warnung in die Konsole",
-  "panels.previous_command_still_being_executed": "Der vorherige Befehl wird noch ausgeführt.\n",
   "mainwindow.previous_shift_f3": "Vorherige (Shift+F3)",
   "templates.hello_from": "Hallo von {name}!",
   "templates.hello": "- Ich weiß nicht.",
@@ -1202,5 +1199,9 @@
   "vcs.state_renamed": "umbenannt",
   "vcs.state_untracked": "nicht nachverfolgt",
   "vcs.switch_branch": "Branch wechseln…",
-  "vcs.unstage": "Bereitstellung aufheben"
+  "vcs.unstage": "Bereitstellung aufheben",
+  "options.run_in_terminal": "Programme im integrierten Terminal ausführen",
+  "options.run_in_terminal_hint": "Tastatureingabe (input(), Console.ReadLine()), Farben und Strg+C funktionieren — auch beim Debuggen. Ausschalten, um die Ausgabe ins Ausgabefenster zu leiten (schneller bei riesiger Ausgabe, aber ohne Eingabe).",
+  "terminal.exited": "Prozess beendet mit Code %s",
+  "terminal.new": "Neues Terminal"
 }

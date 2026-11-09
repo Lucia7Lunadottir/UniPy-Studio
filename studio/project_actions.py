@@ -143,7 +143,6 @@ class ProjectActions:
             self.win.status(tr("mainwindow.no_requirements_txt_solution"))
             return
         self.win.show_dock(self.win.d_terminal)
-        self.win.terminal.set_cwd(os.path.dirname(reqs[0]))
-        self.win.terminal.input.setText('"%s" -m pip install --user -r requirements.txt' % self.win.interp.currentData())
-        self.win.terminal.input.setFocus()
+        self.win.terminal.type_text('cd "%s" && "%s" -m pip install --user -r requirements.txt'
+                                    % (os.path.dirname(reqs[0]), self.win.interp.currentData()))
         self.win.status(tr("mainwindow.check_command_terminal_press_enter"))

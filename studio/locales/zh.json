@@ -33,8 +33,6 @@
   "instance.unipy_studio_project_window_not": "UniPy Studio: 项目窗口没有响应; 再启动",
   "panels.unity_hub_was_not_found": "Unity Hub 没有找到.安装它或选择包含您的 Unity 编辑器版本的文件.",
   "theme.unipy_studio_using_built_theme": "[UniPy Studio] %s 使用内置主题",
-  "panels.exit_code": "[输出代码%d]\n",
-  "panels.cd_no_such_folder": "cd:没有这样的文件: %s\n",
   "unity.Time.unscaledDeltaTime": "不包括 timeScale 的 deltaTime",
   "intellisense.jedi_pyqt6_not_loaded": "jedi %s (PyQt6未加载: %s)",
   "intellisense.jedi_pyqt6_modules_loaded": "jedi %s  PyQt6 模块已加载",
@@ -552,7 +550,6 @@
   "mainwindow.preview_prefix": "预览 ",
   "panels.preview": "预览:",
   "unity.Debug.LogWarning": "警告到电脑控制台",
-  "panels.previous_command_still_being_executed": "前一个命令还在执行.\n",
   "mainwindow.previous_shift_f3": "上一个 (Shift+F3)",
   "templates.hello_from": "来自 {name} 的问候！",
   "templates.hello": "您好!",
@@ -1202,5 +1199,9 @@
   "vcs.state_renamed": "已重命名",
   "vcs.state_untracked": "未跟踪",
   "vcs.switch_branch": "切换分支…",
-  "vcs.unstage": "取消暂存"
+  "vcs.unstage": "取消暂存",
+  "options.run_in_terminal": "在集成终端中运行程序",
+  "options.run_in_terminal_hint": "可使用键盘输入（input()、Console.ReadLine()）、颜色和 Ctrl+C——调试时也可以。关闭后输出发送到“输出”（大量输出时更快，但无法输入）。",
+  "terminal.exited": "进程已退出，代码为 %s",
+  "terminal.new": "新建终端"
 }

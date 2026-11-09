@@ -608,6 +608,12 @@ def tool_icon(name):
         p.setPen(QPen(QColor(C["icon"]), 1.6))
         p.drawEllipse(QRectF(2.5, 2.5, 8, 8))
         p.drawLine(QPointF(9.5, 9.5), QPointF(14, 14))
+    elif name == "terminal":                    # окно с подсказкой «>_»
+        p.setPen(QPen(QColor(C["icon"]), 1.2))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRoundedRect(QRectF(1.5, 2.5, 13, 11), 1.5, 1.5)
+        p.drawPolyline(QPolygonF([QPointF(4, 6), QPointF(6.5, 8), QPointF(4, 10)]))
+        p.drawLine(QPointF(8, 10.5), QPointF(11.5, 10.5))
     p.end()
     icon = QIcon(pm)
     _cache[key] = icon

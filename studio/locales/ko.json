@@ -33,8 +33,6 @@
   "instance.unipy_studio_project_window_not": "UniPy Studio: 프로젝트 창이 응답하지 않습니다; 다시 시작",
   "panels.unity_hub_was_not_found": "Unity Hub는 발견되지 않았습니다. 설치하거나 Unity 에디터 버전을 포함하는 폴더를 선택하십시오.",
   "theme.unipy_studio_using_built_theme": "[UniPy Studio] %s  내장된 테마를 사용하여",
-  "panels.exit_code": "[출력 코드 %d]\n",
-  "panels.cd_no_such_folder": "cd: %s 폴더가 없습니다\n",
   "unity.Time.unscaledDeltaTime": "timeScale를 포함하지 않은 deltaTime",
   "intellisense.jedi_pyqt6_not_loaded": "jedi %s (PyQt6 다운로드되지 않은: %s)",
   "intellisense.jedi_pyqt6_modules_loaded": "jedi %s  모듈 PyQt6 로드",
@@ -552,7 +550,6 @@
   "mainwindow.preview_prefix": "미리보기 ",
   "panels.preview": "미리보기:",
   "unity.Debug.LogWarning": "콘솔에 경고",
-  "panels.previous_command_still_being_executed": "이전 명령은 여전히 실행 중입니다.\n",
   "mainwindow.previous_shift_f3": "이전 (Shift+F3)",
   "templates.hello_from": "{name}에서 인사합니다!",
   "templates.hello": "안녕하세요!",
@@ -1202,5 +1199,9 @@
   "vcs.state_renamed": "이름 바뀜",
   "vcs.state_untracked": "추적되지 않음",
   "vcs.switch_branch": "분기 전환…",
-  "vcs.unstage": "스테이징 취소"
+  "vcs.unstage": "스테이징 취소",
+  "options.run_in_terminal": "통합 터미널에서 프로그램 실행",
+  "options.run_in_terminal_hint": "키보드 입력(input(), Console.ReadLine()), 색, Ctrl+C가 디버깅 중에도 작동합니다. 끄면 출력이 출력 창으로 갑니다(대량 출력에 더 빠르지만 입력 불가).",
+  "terminal.exited": "프로세스가 코드 %s(으)로 종료되었습니다",
+  "terminal.new": "새 터미널"
 }

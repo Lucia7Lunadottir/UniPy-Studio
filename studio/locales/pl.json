@@ -33,8 +33,6 @@
   "instance.unipy_studio_project_window_not": "UniPy Studio: Okno projektu nie odpowiada; Powtórz uruchomienie",
   "panels.unity_hub_was_not_found": "Unity Hub nie znaleziono. Zainstaluj go lub wybierz folder zawierający wersje edytor Unity.",
   "theme.unipy_studio_using_built_theme": "[UniPy Studio] %s  przy użyciu wbudowanego tematu",
-  "panels.exit_code": "[kod wyjścia %d]\n",
-  "panels.cd_no_such_folder": "cd: nie ma takiego folderu: %s\n",
   "unity.Time.unscaledDeltaTime": "deltaTime bez timeScale",
   "intellisense.jedi_pyqt6_not_loaded": "jedi %s (PyQt6 nie załadowany: %s)",
   "intellisense.jedi_pyqt6_modules_loaded": "jedi %s  moduły PyQt6 załadowane",
@@ -552,7 +550,6 @@
   "mainwindow.preview_prefix": "Przejrzenie ",
   "panels.preview": "Przedwzór:",
   "unity.Debug.LogWarning": "Ostrzeżenie do konsolu",
-  "panels.previous_command_still_being_executed": "Poprzednie polecenie jest jeszcze wykonywane.\n",
   "mainwindow.previous_shift_f3": "Poprzedni (Shift+F3)",
   "templates.hello_from": "Witaj z {name}!",
   "templates.hello": "- Cześć!",
@@ -1202,5 +1199,9 @@
   "vcs.state_renamed": "przemianowany",
   "vcs.state_untracked": "nieśledzony",
   "vcs.switch_branch": "Przełącz gałąź…",
-  "vcs.unstage": "Cofnij przygotowanie"
+  "vcs.unstage": "Cofnij przygotowanie",
+  "options.run_in_terminal": "Uruchamiaj programy we wbudowanym terminalu",
+  "options.run_in_terminal_hint": "Działa wprowadzanie z klawiatury (input(), Console.ReadLine()), kolory i Ctrl+C — także podczas debugowania. Wyłącz, aby dane wyjściowe trafiały do Danych wyjściowych (szybciej przy ogromnej ilości, ale bez wprowadzania).",
+  "terminal.exited": "Proces zakończył się kodem %s",
+  "terminal.new": "Nowy terminal"
 }
