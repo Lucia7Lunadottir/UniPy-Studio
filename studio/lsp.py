@@ -965,6 +965,18 @@ class CSharpServer(LanguageServer):
         super().__init__(root, parent)
         self.exe = exe
         self.solution = pick_solution(root)
+        self.light_solution = None          # облегчённое решение Unity (unity_light_solution) — его и открывает Roslyn
+        if self.solution and getattr(self, "is_unity_project", False):
+            from .unity_light_solution import build
+            self.light_solution, _ = build(root, self.solution)
+
+    def refresh_light_solution(self):
+        """Unity пересоздал .sln/.csproj: пересобрать облегчённое решение; [изменённые его файлы] — для Roslyn."""
+        if not self.light_solution:
+            return []
+        from .unity_light_solution import build
+        light, changed = build(self.root, self.solution)
+        return changed if light else []
 
     def open_location(self, uri, line, done):
         if not uri.startswith("csharp:"):
@@ -1009,7 +1021,7 @@ class RoslynServer(CSharpServer):
 
     def after_initialized(self):
         if self.solution:
-            self.conn.notify("solution/open", {"solution": path_to_uri(self.solution)})
+            self.conn.notify("solution/open", {"solution": path_to_uri(self.light_solution or self.solution)})
 
     def environment(self):
         # Only our analyzer inherits these; do not change the user's SDK globally.
@@ -1282,6 +1294,8 @@ class CSharpService(LanguageService):
             changes = [(p, 1) for p in now if p not in before]
             changes += [(p, 2) for p, m in now.items() if p in before and before[p] != m]
             changes += [(p, 3) for p in before if p not in now]
+            if changes and hasattr(srv, "refresh_light_solution"):
+                changes += [(p, 2) for p in srv.refresh_light_solution()]     # облегчённое решение — следом
             srv.files_changed(changes)
 
     def files_changed(self, changes):
