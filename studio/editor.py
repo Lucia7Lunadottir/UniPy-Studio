@@ -263,6 +263,7 @@ class CodeEditor(QPlainTextEdit):
         self.execution_is_top = True   # верхний кадр стека (жёлтая стрелка) или выбранный выше (зелёная)
         self.debug_hover = None        # функция(выражение, ответ(текст)) — значение при наведении во время отладки
         self.vcs_markers = {}          # {строка с 1: added/modified/deleted} относительно последнего коммита (vcs)
+        self.faded = []                # [(стр, стлб, стр2, стлб2, вид)] с 0: неиспользуемое — бледным, устаревшее — зачёркнутым
         self._link = None              # слово под мышью при зажатом Ctrl — подчёркнуто, как ссылка в VS
         self.find_text = ""
         self._completion_items = {}
@@ -444,6 +445,38 @@ class CodeEditor(QPlainTextEdit):
             return
         self.breakpoints.toggle(self.path, line or self.textCursor().blockNumber() + 1)
         self.gutter.update()
+
+    def set_faded(self, ranges):
+        """Неиспользуемые using/import и переменные — бледным (пометка Unnecessary от анализатора), как в VS."""
+        if ranges != self.faded:
+            self.faded = ranges
+            self.update_selections()
+
+    def _faded_selections(self):
+        doc = self.document()
+        dim = QColor(C["text"])
+        dim.setAlpha(110)                           # бледнее, но читается (VS — около 60% непрозрачности)
+
+        def position(line, col):
+            block = doc.findBlockByNumber(line)
+            if not block.isValid():
+                return None
+            return block.position() + min(col, block.length() - 1)
+        out = []
+        for l1, c1, l2, c2, kind in self.faded[:2000]:
+            a, b = position(l1, c1), position(l2, c2)
+            if a is None or b is None or b <= a:
+                continue
+            sel = QTextEdit.ExtraSelection()
+            if kind == "unnecessary":
+                sel.format.setForeground(dim)
+            else:
+                sel.format.setFontStrikeOut(True)
+            sel.cursor = QTextCursor(doc)
+            sel.cursor.setPosition(a)
+            sel.cursor.setPosition(b, QTextCursor.MoveMode.KeepAnchor)
+            out.append(sel)
+        return out
 
     def set_vcs_markers(self, markers):
         """Полоски изменений на поле (vcs.linediff): зелёная — добавлено, синяя — изменено, красный треугольник — удалено."""
@@ -674,6 +707,7 @@ class CodeEditor(QPlainTextEdit):
         line.cursor = self.textCursor()
         line.cursor.clearSelection()
         sels.append(line)
+        sels.extend(self._faded_selections())
         if self.execution_line is not None:
             block = self.document().findBlockByNumber(self.execution_line - 1)
             if block.isValid():

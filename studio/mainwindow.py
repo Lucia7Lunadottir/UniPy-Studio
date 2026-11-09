@@ -213,6 +213,7 @@ class MainWindow(QMainWindow):
         for key, svc in self.services_by_key.items():
             svc.finished.connect(self._worker_result)
             svc.diagnostics.connect(self._lsp_diagnostics)
+            svc.faded.connect(lambda path, ranges: [ed.set_faded(ranges) for ed in self.editors() if ed.path == path])
             svc.status.connect(lambda text, state, k=key: self.analyzers.on_status(text, state, k))
             svc.restarted.connect(lambda reason, k=key: self.analyzers.on_restarted(k, reason))
             svc.restart_mb = self.options["analyzers/restart_mb"]

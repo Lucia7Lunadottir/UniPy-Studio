@@ -350,7 +350,7 @@ class ThemeController(QObject):
             p.setColor(getattr(QPalette.ColorRole, role), QColor(C[key]))
         self.app.setPalette(p)
         close_png = _write_close_icon()
-        extra = ""
+        extra = _checkbox_style()
         if close_png:
             extra += ("QTabBar::close-button { image: url(%s); subcontrol-position: right; border: none;"
                       " padding: 1px; margin-left: 4px; }\n"
@@ -397,6 +397,44 @@ def apply(app, settings=None):
             break
     CONTROLLER = ThemeController(app, settings)
     return CONTROLLER
+
+
+def _write_svg(name, svg):
+    folder = os.path.join(tempfile.gettempdir(), "unipy-studio-theme-%d" % os.getuid())
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, name)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(svg)
+    except OSError:
+        return None
+    return path.replace("\\", "/")
+
+
+def _checkbox_style():
+    """Флажки, заметные и пустыми: рамка, отмеченный — акцентная заливка с галочкой (как в VS).
+    Fusion с глобальной таблицей стилей рисовал пустой флажок почти невидимым."""
+    mark = C["on_accent"]
+    check = _write_svg("check-%s.svg" % mark.lstrip("#"),
+                       '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">'
+                       '<path d="M2.2 6.3 L4.9 9 L9.9 3.4" fill="none" stroke="%s" stroke-width="1.9" '
+                       'stroke-linecap="round" stroke-linejoin="round"/></svg>' % mark)
+    dash = _write_svg("dash-%s.svg" % mark.lstrip("#"),
+                      '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">'
+                      '<path d="M3 6 H9" stroke="%s" stroke-width="2" stroke-linecap="round"/></svg>' % mark)
+    sel = "QCheckBox::indicator, QTreeView::indicator, QListView::indicator, QTableView::indicator, QGroupBox::indicator"
+    css = ("%s { width: 13px; height: 13px; border: 1px solid %s; border-radius: 3px; background: %s; }\n"
+           % (sel, C["dim"], C["input_bg"]))
+    css += "%s { border-color: %s; }\n" % (sel.replace("::indicator", "::indicator:hover"), C["accent"])
+    css += "%s { background: %s; border-color: %s;%s }\n" % (
+        sel.replace("::indicator", "::indicator:checked"), C["accent"], C["accent"],
+        " image: url(%s);" % check if check else "")
+    css += "%s { background: %s; border-color: %s;%s }\n" % (
+        sel.replace("::indicator", "::indicator:indeterminate"), C["accent"], C["accent"],
+        " image: url(%s);" % dash if dash else "")
+    css += "%s { border-color: %s; background: %s; }\n" % (
+        sel.replace("::indicator", "::indicator:disabled"), C["border"], C["panel"])
+    return css
 
 
 def _write_close_icon():

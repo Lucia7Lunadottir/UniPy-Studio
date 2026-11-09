@@ -19,6 +19,8 @@ from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSig
 
 from . import unity_api
 from .framing import frame, split_frames
+
+UNITY_MESSAGE_NAMES = {m[0] for m in unity_api.MESSAGES}     # Awake, Update, OnTriggerEnter…
 from .intellisense import Item, CompletionList, TYPE_KINDS, completion_tier, file_imports
 from .theme import C
 from .i18n import tr
@@ -166,6 +168,7 @@ class LanguageServer(QObject):
     """Один сеанс LSP для одной папки (решения). Подклассы задают команду запуска и особенности сервера."""
     result = pyqtSignal(object)                 # в формате JediWorker.finished
     diagnostics = pyqtSignal(str, object)       # путь, [(строка, столбец, текст, "error"/"warning")]
+    faded = pyqtSignal(str, object)             # путь, [(стр, стлб, стр2, стлб2, "unnecessary"/"deprecated")] с 0
     state_changed = pyqtSignal(str)             # "starting" / "loading" / "ready" / "failed"
     log = pyqtSignal(str)
 
@@ -252,7 +255,8 @@ class LanguageServer(QObject):
                 "formatting": {"dynamicRegistration": False},
                 "rangeFormatting": {"dynamicRegistration": False},
                 "implementation": {"linkSupport": True},
-                "publishDiagnostics": {"relatedInformation": False},
+                # tagSupport: без него pyright не присылает «не используется» (бледный код), а Roslyn — лишние using
+                "publishDiagnostics": {"relatedInformation": False, "tagSupport": {"valueSet": [1, 2]}},
                 "diagnostic": {"dynamicRegistration": True, "relatedDocumentSupport": False},
                 # лампочка: быстрые исправления и рефакторинги сервера; подробности (edit) — по codeAction/resolve
                 "codeAction": {"codeActionLiteralSupport": {"codeActionKind": {"valueSet": [
@@ -362,6 +366,7 @@ class LanguageServer(QObject):
                 self._raw_diag[params.get("uri", "")] = {None: params.get("diagnostics") or []}
                 items = self.filter_diagnostics(path, params.get("diagnostics") or [])
                 self.diagnostics.emit(path, self._convert_diagnostics(items))
+                self._emit_faded(path, params.get("uri", ""))
         elif method in ("window/logMessage", "window/showMessage"):
             text = params.get("message", "")
             self.log.emit(text)
@@ -378,6 +383,28 @@ class LanguageServer(QObject):
                 self._progress.discard(token)
                 if self.state == "loading" and not self._progress:
                     self._set_state("ready")
+
+    TAG_UNNECESSARY, TAG_DEPRECATED = 1, 2
+
+    def _emit_faded(self, path, uri):
+        """Неиспользуемый код (лишние using/import, ненужные переменные) — бледным, устаревший — зачёркнутым,
+        как в Visual Studio. Берётся из всех групп диагностик, включая подсказки (их нет в списке ошибок)."""
+        out = set()
+        for items in self._raw_diag.get(uri, {}).values():
+            for d in items:
+                tags = d.get("tags") or []
+                kind = "unnecessary" if self.TAG_UNNECESSARY in tags else \
+                    "deprecated" if self.TAG_DEPRECATED in tags else None
+                if kind is None or not self.keep_faded(d):
+                    continue
+                rng = d.get("range") or {}
+                a, b = rng.get("start", {}), rng.get("end", {})
+                out.add((a.get("line", 0), a.get("character", 0), b.get("line", 0), b.get("character", 0), kind))
+        self.faded.emit(path, sorted(out))
+
+    def keep_faded(self, diagnostic):
+        """Показывать ли пометку бледным (подклассы убирают ложные — например, сообщения Unity)."""
+        return True
 
     def _convert_diagnostics(self, items):
         out = []
@@ -461,6 +488,7 @@ class LanguageServer(QObject):
                             merged.append(d)
                 merged.sort()
                 self.diagnostics.emit(path, merged)
+                self._emit_faded(path, uri)
             self._diag_pending[key] = self.conn.request("textDocument/diagnostic", params, got)
 
     # ---- разовый запрос всех диагностик (в том числе «лишних using» уровня Hint)
@@ -1013,6 +1041,14 @@ class RoslynServer(CSharpServer):
     def is_loaded_notification(self, method):
         return method == "workspace/projectInitializationComplete"
 
+    def keep_faded(self, diagnostic):
+        """IDE0051/IDE0052 «закрытый член не используется» — ложь для сообщений Unity (Awake, Update…):
+        их вызывает движок. В VS это гасят анализаторы Unity; через LSP их подавление не приходит."""
+        if diagnostic.get("code") in ("IDE0051", "IDE0052") and self.is_unity_project:
+            message = diagnostic.get("message", "")
+            return not any(re.search(r"\b%s\b" % re.escape(name), message) for name in UNITY_MESSAGE_NAMES)
+        return True
+
     def wanted_diagnostic_group(self, identifier):
         # ошибки и предупреждения самого файла; HotReload/XAML/ENC/по всему решению — не для редактора
         return identifier in ("syntax", "DocumentCompilerSemantic", "DocumentAnalyzerSyntax",
@@ -1035,6 +1071,7 @@ class LanguageService(QObject):
     """Набор серверов одного языка по корням проектов; редактор спрашивает его так же, как JediWorker."""
     finished = pyqtSignal(object)
     diagnostics = pyqtSignal(str, object)
+    faded = pyqtSignal(str, object)
     status = pyqtSignal(str, str)     # текст, состояние: loading / ready / failed
     log = pyqtSignal(str)
     restarted = pyqtSignal(str)     # анализатор перезапущен (причина) — открытые файлы надо отдать новому
@@ -1121,6 +1158,7 @@ class LanguageService(QObject):
             srv.choices = self.choices
             srv.result.connect(lambda res, s=srv: self._on_result(s, res))
             srv.diagnostics.connect(self.diagnostics)
+            srv.faded.connect(self.faded)
             srv.log.connect(lambda t, s=srv: t and self.log.emit("[%s] %s" % (os.path.basename(s.root), t)))
             srv.state_changed.connect(lambda st, s=srv: self._state(s, st))
             self.servers[root] = srv
