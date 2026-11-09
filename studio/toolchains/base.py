@@ -118,6 +118,11 @@ class Toolchain:
         """testing.base.TestProvider для «Обозревателя тестов» или None — тестов этой платформы нет."""
         return None
 
+    # --- зависимости
+    def dependency_provider(self, ctx) -> object:
+        """dependencies.base.DependencyProvider для панели «Зависимости» или None."""
+        return None
+
     # --- сборка
     def build_jobs(self, ctx, rebuild=False) -> list:
         """[build.BuildJob] для «Собрать решение»."""

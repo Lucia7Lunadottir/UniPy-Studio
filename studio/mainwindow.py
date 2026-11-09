@@ -23,6 +23,7 @@ from .debug.session import STOPPED as DEBUG_STOPPED
 from .document_safety import DocumentSafety
 from .vcs.controller import VcsController
 from .testing.controller import TestController
+from .dependencies.controller import DependenciesController
 from .formatting import Formatter
 from .navigation import NavigationHistory
 from .options import Options, OptionsDialog
@@ -196,6 +197,7 @@ class MainWindow(QMainWindow):
         self.debugger = DebugController(self)       # F5/F9/F10/F11: отладка по DAP (debugpy…)
         self.vcs = VcsController(self)              # Git: статус, полоски изменений, коммит, ветки
         self.tests = TestController(self)           # «Обозреватель тестов»: pytest / unittest…
+        self.dependencies = DependenciesController(self)    # что требуется проекту и что установлено
         self.formatter = Formatter(self)            # Ctrl+K, Ctrl+D: Roslyn, для Python — ruff/black
         self.setWindowIcon(theme.app_icon())
         self.resize(1440, 900)
@@ -399,6 +401,10 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self.d_designer, self.d_git)
         self.d_tests = self._dock("testing.explorer", self.tests.panel, Qt.DockWidgetArea.RightDockWidgetArea, "tests")
         self.tabifyDockWidget(self.d_git, self.d_tests)
+        self.d_dependencies = self._dock("dependencies.panel", self.dependencies.panel,
+                                         Qt.DockWidgetArea.RightDockWidgetArea, "dependencies")
+        self.tabifyDockWidget(self.d_tests, self.d_dependencies)
+        self.d_dependencies.visibilityChanged.connect(lambda shown: shown and self.dependencies.check())
         # тесты ищутся, когда панель впервые показали (поиск запускает процесс — не на каждом открытии решения)
         self.d_tests.visibilityChanged.connect(lambda shown: shown and not self.tests.nodes
                                                and not self.tests.running() and self.tests.discover())
@@ -641,7 +647,8 @@ class MainWindow(QMainWindow):
         m = bind_text(mb.addMenu(""), "mainwindow.view", "setTitle")
         for d in (self.d_explorer, self.d_outline, self.d_unity, self.d_designer, self.d_output,
                   self.d_errors, self.d_references, self.d_terminal, self.d_unity_console,
-                  self.d_call_stack, self.d_locals, self.d_breakpoints, self.d_git, self.d_tests):
+                  self.d_call_stack, self.d_locals, self.d_breakpoints, self.d_git, self.d_tests,
+                  self.d_dependencies):
             m.addAction(d.toggleViewAction())
         m.addSeparator()
         m.addAction(self.a_back)
@@ -719,6 +726,7 @@ class MainWindow(QMainWindow):
         self.designer.retranslate()
         self.vcs.panel.retranslate()
         self.tests.panel.retranslate()
+        self.dependencies.panel.retranslate()
         if self.startup.count():
             self.startup.setItemText(0, tr("mainwindow.current_file"))
         self.analyzers.refresh_label()
@@ -756,6 +764,8 @@ class MainWindow(QMainWindow):
         tb.addWidget(self.interp)
         self.interp.currentIndexChanged.connect(lambda: self.jedi.set_project(self.root, self.interp.currentData()))
         self.interp.currentIndexChanged.connect(lambda *_: self.python_ls.configuration_changed())
+        self.interp.currentIndexChanged.connect(              # другое окружение — другие установленные пакеты
+            lambda *_: self.d_dependencies.isVisible() and self.dependencies.check())
         run_btn = QToolButton()
         run_btn.setDefaultAction(self.a_run)
         run_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)

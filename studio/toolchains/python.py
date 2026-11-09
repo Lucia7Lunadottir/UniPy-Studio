@@ -137,6 +137,15 @@ class PythonToolchain(Toolchain):
         from ..testing.python import PythonTests
         return PythonTests(ctx.root, ctx.interpreter or sys.executable, self._debugpy_python(ctx))
 
+    # --- зависимости (pyproject.toml, requirements*.txt)
+    def dependency_provider(self, ctx):
+        names = {os.path.basename(p) for p in ctx.files}
+        if not ctx.root or not ("pyproject.toml" in names or any(n.startswith("requirements") and n.endswith(".txt")
+                                                                for n in names)):
+            return None
+        from ..dependencies.python import PythonDependencies
+        return PythonDependencies(ctx.root, ctx.interpreter or sys.executable)
+
     # --- сборка
     def build_jobs(self, ctx, rebuild=False):
         files = [p for p in ctx.files if p.endswith(".py")]

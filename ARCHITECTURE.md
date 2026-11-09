@@ -65,6 +65,7 @@
 | `vcs/` | ~750 | Контроль версий: интерфейс `Repository` (`base.py`), Git (`git.py`), полоски строк (`linediff.py`), панель «Изменения Git», сравнение рядом, связь с окном (`controller.py`). Новая система — подкласс `Repository` и строка в `vcs/PROVIDERS` |
 | `terminal/` | ~600 | Встроенный терминал на настоящем PTY: процесс (`pty_process.py`, запуск через `setsid -c`), экран (`screen.py`, разбор — `pyte`), виджет (`widget.py`), вкладки (`panel.py`). F5/Ctrl+F5 и отладка (`runInTerminal`) запускают программы сюда — работает ввод с клавиатуры |
 | `testing/` | ~650 | Обозреватель тестов: интерфейс `TestProvider` и протокол событий (`base.py`), Python — pytest/unittest через `python_helper.py` (запускается интерпретатором проекта), панель и связь с окном. Набор инструментов отдаёт поставщика: `Toolchain.test_provider()` |
+| `dependencies/` | ~450 | Зависимости проекта: интерфейс `DependencyProvider`, Python — pyproject.toml / requirements*.txt, версии в выбранном интерпретаторе, установка: системный Python → pacman (официальный репозиторий), venv → pip. `Toolchain.dependency_provider()` |
 | `indentation.py` | ~260 | Отступы: `IndentStyle`, `.editorconfig`, определение по файлу, правила сохранения (без Qt) |
 | `folding.py` | ~400 | Сворачивание: `fold_ranges` (без Qt) и `Folding` у каждого редактора |
 | `symbols.py` | ~170 | Символы файла/решения (`Symbol`) из documentSymbol, workspace/symbol и разбора текста (без Qt) |

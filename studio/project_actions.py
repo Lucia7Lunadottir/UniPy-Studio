@@ -138,11 +138,6 @@ class ProjectActions:
             self.win.show_dock(self.win.d_unity)
 
     def install_requirements(self):
-        reqs = [p for p in self.win.explorer.files if os.path.basename(p) == "requirements.txt"]
-        if not reqs:
-            self.win.status(tr("mainwindow.no_requirements_txt_solution"))
-            return
-        self.win.show_dock(self.win.d_terminal)
-        self.win.terminal.type_text('cd "%s" && "%s" -m pip install --user -r requirements.txt'
-                                    % (os.path.dirname(reqs[0]), self.win.interp.currentData()))
-        self.win.status(tr("mainwindow.check_command_terminal_press_enter"))
+        """«Проект → Установить зависимости»: панель «Зависимости» — что требуется, что уже стоит, как поставить."""
+        self.win.show_dock(self.win.d_dependencies)
+        self.win.dependencies.check()
