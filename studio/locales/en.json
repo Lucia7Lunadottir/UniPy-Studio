@@ -434,7 +434,7 @@
   "mainwindow.stopped_by_user": "Stopped by user",
   "unity.Input.GetAxisRaw": "Input axis without smoothing",
   "unity.Input.GetAxis": "The input axis is horizontal, vertical, mouse X...",
-  "mainwindow.open_your_own_c_file": "Open your own C# file to move a type",
+  "mainwindow.open_your_own_c_file": "Open your own C# or Python file to move a type",
   "mainwindow.open_c_script_insert_method": "Open the C# script to insert the method",
   "mainwindow.open_file_python_select_boot": "Open file Python or select the boot file from the dashboard",
   "mainwindow.open_file_solution_explorer_ctrl": "Open a file in Solution Explorer\n\nCtrl+N — new file     Ctrl+P — go to file     F5 — run",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "Keyboard input (input(), Console.ReadLine()), colours and Ctrl+C work — while debugging too. Turn off to send output to Output (faster for huge output, but no input).",
   "terminal.exited": "Process exited with code %s",
   "terminal.new": "New Terminal",
-  "terminal.needs_pyte": "The integrated terminal needs the python-pyte package (official Arch repository):\nsudo pacman -S python-pyte\n\nUntil then, programs run with their output in Output."
+  "terminal.needs_pyte": "The integrated terminal needs the python-pyte package (official Arch repository):\nsudo pacman -S python-pyte\n\nUntil then, programs run with their output in Output.",
+  "refactor.python_syntax": "The file has a syntax error (line %d) — fix it first",
+  "refactor.python_no_symbol": "Put the cursor in a top-level class or function",
+  "refactor.python_alone": "“%s” is already alone in its file — nothing to move",
+  "refactor.python_exists": "File %s already exists",
+  "refactor.python_moved": "“%s” moved to %s",
+  "refactor.python_importers": "; imports updated in %d files",
+  "refactor.python_circular": "Modules %s and %s now import each other at load time — Python will fail with a circular import. Move the shared names (constants, functions) to a third module or import them inside a function."
 }

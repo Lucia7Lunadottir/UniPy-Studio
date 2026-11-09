@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (QPlainTextEdit, QWidget, QTextEdit, QCompleter, QLa
                              QListView, QToolButton, QHBoxLayout, QMenu)
 
 from .highlighter import Highlighter, PygmentsHighlighter
-from . import languages, refactor
+from . import languages, refactor, refactor_python
 from .documents import DiskState, atomic_write
 from .indentation import IndentStyle, apply_save_rules
 from .folding import Folding
@@ -617,9 +617,16 @@ class CodeEditor(QPlainTextEdit):
     # ------------------------------------------------------------ лампочка (быстрые действия)
     def _own_actions(self):
         """Рефакторинги самой программы (работают и без анализатора)."""
-        if self.lang != "csharp" or self.isReadOnly():
+        if self.isReadOnly():
             return []
         text = self.toPlainText()
+        if self.lang == "python":
+            if refactor_python.can_move(text, self.textCursor().blockNumber() + 1):
+                return [{"title": tr("common.move_type_own_file"), "source": "own",
+                         "run": self.services.move_type_to_file}]
+            return []
+        if self.lang != "csharp":
+            return []
         pos = len(text.encode("utf-16-le")[:self.textCursor().position() * 2].decode("utf-16-le", "ignore"))
         try:
             types = refactor.parse(text)[0]
@@ -1143,7 +1150,7 @@ class CodeEditor(QPlainTextEdit):
 
     def contextMenuEvent(self, e):
         menu = self.createStandardContextMenu()
-        if self.lang == "csharp" and not self.isReadOnly():
+        if self.lang in ("csharp", "python") and not self.isReadOnly():
             menu.addSeparator()
             menu.addAction(self.services.a_move_type)
         menu.exec(e.globalPos())

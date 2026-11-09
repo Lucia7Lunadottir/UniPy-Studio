@@ -858,7 +858,7 @@
   "intellisense.methods": "Methoden",
   "mainwindow.could_not_apply": "Konnte nicht angewendet werden:\n",
   "mainwindow.could_not_create_file": "Datei konnte nicht erstellt werden: ",
-  "mainwindow.open_your_own_c_file": "Öffnen Sie eine eigene C#-Datei, um einen Typ zu verschieben",
+  "mainwindow.open_your_own_c_file": "Öffnen Sie eine eigene C#- oder Python-Datei, um einen Typ zu verschieben",
   "refactor.there_other_code_before_type": "Vor dem Typ steht in derselben Zeile anderer Code — verteilen Sie ihn auf separate Zeilen",
   "common.move_type_own_file": "Typ in eigene Datei verschieben",
   "mainwindow.suggestions_from_unimported_namespaces": "Vorschläge aus nicht importierten Namespaces",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "Tastatureingabe (input(), Console.ReadLine()), Farben und Strg+C funktionieren — auch beim Debuggen. Ausschalten, um die Ausgabe ins Ausgabefenster zu leiten (schneller bei riesiger Ausgabe, aber ohne Eingabe).",
   "terminal.exited": "Prozess beendet mit Code %s",
   "terminal.new": "Neues Terminal",
-  "terminal.needs_pyte": "Das integrierte Terminal benötigt das Paket python-pyte (offizielles Arch-Repository):\nsudo pacman -S python-pyte\n\nBis dahin laufen Programme mit Ausgabe im Ausgabefenster."
+  "terminal.needs_pyte": "Das integrierte Terminal benötigt das Paket python-pyte (offizielles Arch-Repository):\nsudo pacman -S python-pyte\n\nBis dahin laufen Programme mit Ausgabe im Ausgabefenster.",
+  "refactor.python_syntax": "Die Datei hat einen Syntaxfehler (Zeile %d) — zuerst beheben",
+  "refactor.python_no_symbol": "Setzen Sie den Cursor in eine Klasse oder Funktion der obersten Ebene",
+  "refactor.python_alone": "„%s“ steht bereits allein in der Datei — nichts zu verschieben",
+  "refactor.python_exists": "Datei %s existiert bereits",
+  "refactor.python_moved": "„%s“ nach %s verschoben",
+  "refactor.python_importers": "; Importe in %d Dateien aktualisiert",
+  "refactor.python_circular": "Die Module %s und %s importieren sich jetzt gegenseitig beim Laden — Python bricht mit einem zirkulären Import ab. Verschieben Sie gemeinsame Namen (Konstanten, Funktionen) in ein drittes Modul oder importieren Sie sie innerhalb einer Funktion."
 }

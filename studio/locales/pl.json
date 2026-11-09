@@ -858,7 +858,7 @@
   "intellisense.methods": "Metody",
   "mainwindow.could_not_apply": "Nie udało się zastosować:\n",
   "mainwindow.could_not_create_file": "Nie udało się utworzyć pliku: ",
-  "mainwindow.open_your_own_c_file": "Otwórz własny plik C#, aby przenieść typ",
+  "mainwindow.open_your_own_c_file": "Otwórz własny plik C# lub Python, aby przenieść typ",
   "refactor.there_other_code_before_type": "Przed typem w tym samym wierszu jest inny kod — rozdziel je na osobne wiersze",
   "common.move_type_own_file": "Przenieś typ do osobnego pliku",
   "mainwindow.suggestions_from_unimported_namespaces": "Podpowiedzi z niezaimportowanych przestrzeni nazw",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "Działa wprowadzanie z klawiatury (input(), Console.ReadLine()), kolory i Ctrl+C — także podczas debugowania. Wyłącz, aby dane wyjściowe trafiały do Danych wyjściowych (szybciej przy ogromnej ilości, ale bez wprowadzania).",
   "terminal.exited": "Proces zakończył się kodem %s",
   "terminal.new": "Nowy terminal",
-  "terminal.needs_pyte": "Wbudowany terminal wymaga pakietu python-pyte (oficjalne repozytorium Arch):\nsudo pacman -S python-pyte\n\nDo tego czasu programy działają z wyjściem w Danych wyjściowych."
+  "terminal.needs_pyte": "Wbudowany terminal wymaga pakietu python-pyte (oficjalne repozytorium Arch):\nsudo pacman -S python-pyte\n\nDo tego czasu programy działają z wyjściem w Danych wyjściowych.",
+  "refactor.python_syntax": "Plik ma błąd składni (wiersz %d) — najpierw go popraw",
+  "refactor.python_no_symbol": "Ustaw kursor w klasie lub funkcji najwyższego poziomu",
+  "refactor.python_alone": "„%s” jest już sam w pliku — nie ma czego przenosić",
+  "refactor.python_exists": "Plik %s już istnieje",
+  "refactor.python_moved": "Przeniesiono „%s” do %s",
+  "refactor.python_importers": "; zaktualizowano importy w plikach: %d",
+  "refactor.python_circular": "Moduły %s i %s importują się teraz nawzajem przy wczytywaniu — Python zakończy się błędem importu cyklicznego. Przenieś wspólne nazwy (stałe, funkcje) do trzeciego modułu lub importuj je wewnątrz funkcji."
 }

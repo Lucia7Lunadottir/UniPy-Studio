@@ -858,7 +858,7 @@
   "intellisense.methods": "方法",
   "mainwindow.could_not_apply": "無法套用：\n",
   "mainwindow.could_not_create_file": "無法建立檔案：",
-  "mainwindow.open_your_own_c_file": "請開啟您自己的 C# 檔案以移動型別",
+  "mainwindow.open_your_own_c_file": "開啟您自己的 C# 或 Python 檔案以移動型別",
   "refactor.there_other_code_before_type": "同一行中型別之前還有其他程式碼——請把它們分到不同的行",
   "common.move_type_own_file": "將型別移至獨立檔案",
   "mainwindow.suggestions_from_unimported_namespaces": "來自未匯入命名空間的建議",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "可使用鍵盤輸入（input()、Console.ReadLine()）、色彩和 Ctrl+C——偵錯時也可以。關閉後輸出會送到「輸出」（大量輸出時較快，但無法輸入）。",
   "terminal.exited": "處理序已結束，代碼為 %s",
   "terminal.new": "新增終端機",
-  "terminal.needs_pyte": "整合式終端機需要 python-pyte 套件（Arch 官方套件庫）：\nsudo pacman -S python-pyte\n\n在此之前，程式輸出會顯示在「輸出」中。"
+  "terminal.needs_pyte": "整合式終端機需要 python-pyte 套件（Arch 官方套件庫）：\nsudo pacman -S python-pyte\n\n在此之前，程式輸出會顯示在「輸出」中。",
+  "refactor.python_syntax": "檔案有語法錯誤（第 %d 行）——請先修正",
+  "refactor.python_no_symbol": "請將游標放在最上層的類別或函式中",
+  "refactor.python_alone": "「%s」已單獨位於檔案中——無需移動",
+  "refactor.python_exists": "檔案 %s 已存在",
+  "refactor.python_moved": "已將「%s」移至 %s",
+  "refactor.python_importers": "；已更新 %d 個檔案中的匯入",
+  "refactor.python_circular": "模組 %s 和 %s 現在會在載入時互相匯入——Python 會因循環匯入而失敗。請將共用名稱（常數、函式）移到第三個模組，或在函式內部匯入。"
 }

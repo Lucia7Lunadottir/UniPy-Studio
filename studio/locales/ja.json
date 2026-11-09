@@ -858,7 +858,7 @@
   "intellisense.methods": "メソッド",
   "mainwindow.could_not_apply": "適用できませんでした:\n",
   "mainwindow.could_not_create_file": "ファイルを作成できませんでした: ",
-  "mainwindow.open_your_own_c_file": "型を移動するには、ご自身の C# ファイルを開いてください",
+  "mainwindow.open_your_own_c_file": "型を移動するには、ご自身の C# または Python ファイルを開いてください",
   "refactor.there_other_code_before_type": "同じ行の型の前に別のコードがあります — 別々の行に分けてください",
   "common.move_type_own_file": "型を別のファイルに移動",
   "mainwindow.suggestions_from_unimported_namespaces": "インポートされていない名前空間からの候補",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "キーボード入力 (input()、Console.ReadLine())、色、Ctrl+C がデバッグ中も使えます。オフにすると出力は [出力] に送られます (大量の出力では速いが入力不可)。",
   "terminal.exited": "プロセスはコード %s で終了しました",
   "terminal.new": "新しいターミナル",
-  "terminal.needs_pyte": "統合ターミナルには python-pyte パッケージ (Arch 公式リポジトリ) が必要です:\nsudo pacman -S python-pyte\n\nそれまでは、プログラムの出力は [出力] に表示されます。"
+  "terminal.needs_pyte": "統合ターミナルには python-pyte パッケージ (Arch 公式リポジトリ) が必要です:\nsudo pacman -S python-pyte\n\nそれまでは、プログラムの出力は [出力] に表示されます。",
+  "refactor.python_syntax": "ファイルに構文エラーがあります (%d 行目) — 先に修正してください",
+  "refactor.python_no_symbol": "トップレベルのクラスまたは関数にカーソルを置いてください",
+  "refactor.python_alone": "「%s」はすでにファイル内で単独です — 移動するものがありません",
+  "refactor.python_exists": "ファイル %s は既に存在します",
+  "refactor.python_moved": "「%s」を %s に移動しました",
+  "refactor.python_importers": "; %d 個のファイルの import を更新しました",
+  "refactor.python_circular": "モジュール %s と %s が読み込み時に互いを import します — Python は循環 import で失敗します。共通の名前 (定数、関数) を 3 つ目のモジュールに移すか、関数内で import してください。"
 }

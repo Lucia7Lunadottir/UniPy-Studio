@@ -858,7 +858,7 @@
   "intellisense.methods": "Методы",
   "mainwindow.could_not_apply": "Не удалось применить:\n",
   "mainwindow.could_not_create_file": "Не удалось создать файл: ",
-  "mainwindow.open_your_own_c_file": "Откройте свой файл C#, чтобы перенести тип",
+  "mainwindow.open_your_own_c_file": "Откройте свой файл C# или Python, чтобы перенести тип",
   "refactor.there_other_code_before_type": "Перед типом на той же строке есть другой код — разнесите их по строкам",
   "common.move_type_own_file": "Перенести тип в отдельный файл",
   "mainwindow.suggestions_from_unimported_namespaces": "Подсказки из неподключённых пространств имён",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "Работают ввод с клавиатуры (input(), Console.ReadLine()), цвета и Ctrl+C — и при отладке. Выключите, чтобы вывод шёл в «Вывод» (быстрее на огромном выводе, но без ввода).",
   "terminal.exited": "Процесс завершился с кодом %s",
   "terminal.new": "Новый терминал",
-  "terminal.needs_pyte": "Для встроенного терминала нужен пакет python-pyte (официальный репозиторий Arch):\nsudo pacman -S python-pyte\n\nПока его нет, программы запускаются с выводом в «Вывод»."
+  "terminal.needs_pyte": "Для встроенного терминала нужен пакет python-pyte (официальный репозиторий Arch):\nsudo pacman -S python-pyte\n\nПока его нет, программы запускаются с выводом в «Вывод».",
+  "refactor.python_syntax": "В файле синтаксическая ошибка (строка %d) — сначала исправьте её",
+  "refactor.python_no_symbol": "Поставьте курсор в класс или функцию верхнего уровня",
+  "refactor.python_alone": "«%s» уже один в файле — переносить нечего",
+  "refactor.python_exists": "Файл %s уже существует",
+  "refactor.python_moved": "«%s» перенесён в %s",
+  "refactor.python_importers": "; обновлены импорты в файлах: %d",
+  "refactor.python_circular": "Модули %s и %s теперь импортируют друг друга при загрузке — Python упадёт с ошибкой циклического импорта. Перенесите общие имена (константы, функции) в третий модуль или импортируйте их внутри функции."
 }

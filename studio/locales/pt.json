@@ -858,7 +858,7 @@
   "intellisense.methods": "Métodos",
   "mainwindow.could_not_apply": "Não foi possível aplicar:\n",
   "mainwindow.could_not_create_file": "Não foi possível criar o arquivo: ",
-  "mainwindow.open_your_own_c_file": "Abra o seu próprio arquivo C# para mover um tipo",
+  "mainwindow.open_your_own_c_file": "Abra seu próprio arquivo C# ou Python para mover um tipo",
   "refactor.there_other_code_before_type": "Há outro código antes do tipo na mesma linha — coloque-os em linhas separadas",
   "common.move_type_own_file": "Mover o tipo para um arquivo próprio",
   "mainwindow.suggestions_from_unimported_namespaces": "Sugestões de namespaces não importados",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "Entrada pelo teclado (input(), Console.ReadLine()), cores e Ctrl+C funcionam — também ao depurar. Desative para enviar a saída para Saída (mais rápido com saídas enormes, mas sem entrada).",
   "terminal.exited": "O processo terminou com o código %s",
   "terminal.new": "Novo terminal",
-  "terminal.needs_pyte": "O terminal integrado precisa do pacote python-pyte (repositório oficial do Arch):\nsudo pacman -S python-pyte\n\nAté lá, os programas rodam com a saída em Saída."
+  "terminal.needs_pyte": "O terminal integrado precisa do pacote python-pyte (repositório oficial do Arch):\nsudo pacman -S python-pyte\n\nAté lá, os programas rodam com a saída em Saída.",
+  "refactor.python_syntax": "O arquivo tem um erro de sintaxe (linha %d) — corrija-o primeiro",
+  "refactor.python_no_symbol": "Coloque o cursor em uma classe ou função de nível superior",
+  "refactor.python_alone": "“%s” já está sozinho no arquivo — nada a mover",
+  "refactor.python_exists": "O arquivo %s já existe",
+  "refactor.python_moved": "“%s” movido para %s",
+  "refactor.python_importers": "; importações atualizadas em %d arquivos",
+  "refactor.python_circular": "Os módulos %s e %s agora importam um ao outro ao carregar — o Python falhará com importação circular. Mova os nomes comuns (constantes, funções) para um terceiro módulo ou importe-os dentro de uma função."
 }

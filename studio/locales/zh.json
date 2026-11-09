@@ -858,7 +858,7 @@
   "intellisense.methods": "方法",
   "mainwindow.could_not_apply": "无法应用：\n",
   "mainwindow.could_not_create_file": "无法创建文件：",
-  "mainwindow.open_your_own_c_file": "请打开您自己的 C# 文件以移动类型",
+  "mainwindow.open_your_own_c_file": "打开您自己的 C# 或 Python 文件以移动类型",
   "refactor.there_other_code_before_type": "同一行中类型之前还有其他代码——请把它们分到不同的行",
   "common.move_type_own_file": "将类型移动到单独的文件",
   "mainwindow.suggestions_from_unimported_namespaces": "来自未导入命名空间的建议",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "可使用键盘输入（input()、Console.ReadLine()）、颜色和 Ctrl+C——调试时也可以。关闭后输出发送到“输出”（大量输出时更快，但无法输入）。",
   "terminal.exited": "进程已退出，代码为 %s",
   "terminal.new": "新建终端",
-  "terminal.needs_pyte": "集成终端需要 python-pyte 软件包（Arch 官方仓库）：\nsudo pacman -S python-pyte\n\n在此之前，程序输出显示在“输出”中。"
+  "terminal.needs_pyte": "集成终端需要 python-pyte 软件包（Arch 官方仓库）：\nsudo pacman -S python-pyte\n\n在此之前，程序输出显示在“输出”中。",
+  "refactor.python_syntax": "文件存在语法错误（第 %d 行）——请先修复",
+  "refactor.python_no_symbol": "请将光标放在顶层类或函数中",
+  "refactor.python_alone": "“%s”已单独位于文件中——无需移动",
+  "refactor.python_exists": "文件 %s 已存在",
+  "refactor.python_moved": "已将“%s”移动到 %s",
+  "refactor.python_importers": "；已更新 %d 个文件中的导入",
+  "refactor.python_circular": "模块 %s 和 %s 现在在加载时相互导入——Python 将因循环导入而失败。请将共享名称（常量、函数）移到第三个模块，或在函数内部导入。"
 }

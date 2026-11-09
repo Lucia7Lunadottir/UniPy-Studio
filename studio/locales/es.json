@@ -858,7 +858,7 @@
   "intellisense.methods": "Métodos",
   "mainwindow.could_not_apply": "No se pudo aplicar:\n",
   "mainwindow.could_not_create_file": "No se pudo crear el archivo: ",
-  "mainwindow.open_your_own_c_file": "Abra su propio archivo C# para mover un tipo",
+  "mainwindow.open_your_own_c_file": "Abra su propio archivo C# o Python para mover un tipo",
   "refactor.there_other_code_before_type": "Hay otro código antes del tipo en la misma línea: sepárelos en líneas distintas",
   "common.move_type_own_file": "Mover el tipo a su propio archivo",
   "mainwindow.suggestions_from_unimported_namespaces": "Sugerencias de espacios de nombres no importados",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "Funcionan la entrada de teclado (input(), Console.ReadLine()), los colores y Ctrl+C, también al depurar. Desactívelo para enviar la salida a Salida (más rápido con salidas enormes, pero sin entrada).",
   "terminal.exited": "El proceso terminó con el código %s",
   "terminal.new": "Nuevo terminal",
-  "terminal.needs_pyte": "El terminal integrado necesita el paquete python-pyte (repositorio oficial de Arch):\nsudo pacman -S python-pyte\n\nMientras tanto, los programas se ejecutan con la salida en Salida."
+  "terminal.needs_pyte": "El terminal integrado necesita el paquete python-pyte (repositorio oficial de Arch):\nsudo pacman -S python-pyte\n\nMientras tanto, los programas se ejecutan con la salida en Salida.",
+  "refactor.python_syntax": "El archivo tiene un error de sintaxis (línea %d); corríjalo primero",
+  "refactor.python_no_symbol": "Coloque el cursor en una clase o función de nivel superior",
+  "refactor.python_alone": "«%s» ya está solo en su archivo; no hay nada que mover",
+  "refactor.python_exists": "El archivo %s ya existe",
+  "refactor.python_moved": "«%s» se movió a %s",
+  "refactor.python_importers": "; importaciones actualizadas en %d archivos",
+  "refactor.python_circular": "Los módulos %s y %s ahora se importan entre sí al cargarse: Python fallará con una importación circular. Mueva los nombres comunes (constantes, funciones) a un tercer módulo o impórtelos dentro de una función."
 }

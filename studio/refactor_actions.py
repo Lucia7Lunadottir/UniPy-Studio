@@ -7,7 +7,7 @@ import re
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QInputDialog, QMessageBox
 
-from . import documents, lsp, refactor
+from . import documents, lsp, refactor, refactor_python
 from .editor import decode_source
 from .i18n import plural, tr
 from .theme import C
@@ -26,6 +26,10 @@ def edit_file_on_disk(path, items):
     except (OSError, UnicodeError) as e:
         return "%s (%s)" % (os.path.basename(path), e)
     return None
+
+
+# «Перенести в отдельный файл»: язык → метод RefactorActions. Новый язык — свой метод и строка здесь.
+MOVERS = {"csharp": "_move_csharp", "python": "_move_python"}
 
 
 class RefactorActions:
@@ -132,13 +136,72 @@ class RefactorActions:
         self.win.refresh_outline()
 
     def move_type_to_file(self):
+        """Ctrl+R, Ctrl+F: тип или функция под курсором — в отдельный файл. Как именно — зависит от языка
+        (MOVERS): C# — <Тип>.cs с подбором using через Roslyn, Python — модуль в snake_case с импортами."""
+        ed = self.win.editor()
+        mover = MOVERS.get(ed.lang) if ed is not None and not ed.isReadOnly() else None
+        if mover is None:
+            self.win.status(tr("mainwindow.open_your_own_c_file"))
+            return
+        getattr(self, mover)(ed)
+
+    def _move_python(self, ed):
+        """Класс или функция верхнего уровня → новый модуль рядом; импорты разложены, остальные файлы проекта
+        переправлены на новый модуль (refactor_python)."""
+        win = self.win
+        text = ed.toPlainText()
+        try:
+            plan = refactor_python.move_symbol_plan(text, ed.textCursor().blockNumber() + 1, ed.path)
+        except refactor_python.MoveError as exc:
+            win.status(str(exc), 12000)
+            return
+        buffers = {e.path: e.toPlainText() for e in win.editors()}
+        files = {}
+        for path in getattr(win.explorer, "files", []):
+            if path.endswith(".py") and path != ed.path:
+                if path in buffers:
+                    files[path] = buffers[path]
+                else:
+                    try:
+                        with open(path, "rb") as f:
+                            files[path] = decode_source(f.read())[1].replace("\r\n", "\n")
+                    except OSError:
+                        continue
+        importers = refactor_python.update_importers(plan, files)
+        try:
+            documents.atomic_write(plan["new_path"], plan["new_text"].encode("utf-8"))
+        except OSError as exc:
+            QMessageBox.warning(win, APP_NAME, tr("mainwindow.could_not_create_file") + str(exc))
+            return
+        ed.apply_edits(lsp.line_diff_edits(text, plan["rest_text"]))      # одна правка — одно Ctrl+Z
+        ed.save()
+        failed = []
+        open_eds = {e.path: e for e in win.editors()}
+        for path, new in importers.items():
+            if path in open_eds:
+                open_eds[path].apply_edits(lsp.line_diff_edits(files[path], new))
+            else:
+                error = edit_file_on_disk(path, lsp.line_diff_edits(files[path], new))
+                if error:
+                    failed.append(error)
+        win.tell_analyzers([(plan["new_path"], 1)] + [(p, 2) for p in importers])
+        win.open_path(plan["new_path"])
+        msg = tr("refactor.python_moved") % (plan["name"], plan["file_name"])
+        if importers:
+            msg += tr("refactor.python_importers") % len(importers)
+        win.status(msg, 12000)
+        problems = []
+        if plan["circular"]:
+            problems.append(tr("refactor.python_circular") % (plan["module"], plan["new_module"]))
+        if failed:
+            problems.append(tr("mainwindow.couldn_t_write") + "\n".join(failed))
+        if problems:
+            QMessageBox.information(win, APP_NAME, msg + "\n\n" + "\n\n".join(problems))
+
+    def _move_csharp(self, ed):
         """Тип под курсором → в новый файл <Имя>.cs рядом (как «Move type to …cs» в Visual Studio).
         Если анализатор C# готов, лишние using не попадают в новый файл, а нужные только этому типу
         убираются из старого."""
-        ed = self.win.editor()
-        if not ed or ed.lang != "csharp" or ed.isReadOnly():
-            self.win.status(tr("mainwindow.open_your_own_c_file"))
-            return
         text = ed.toPlainText()
         pos = len(text.encode("utf-16-le")[:ed.textCursor().position() * 2].decode("utf-16-le", "ignore"))
         try:

@@ -858,7 +858,7 @@
   "intellisense.methods": "Méthodes",
   "mainwindow.could_not_apply": "Impossible d’appliquer :\n",
   "mainwindow.could_not_create_file": "Impossible de créer le fichier : ",
-  "mainwindow.open_your_own_c_file": "Ouvrez votre propre fichier C# pour déplacer un type",
+  "mainwindow.open_your_own_c_file": "Ouvrez votre propre fichier C# ou Python pour déplacer un type",
   "refactor.there_other_code_before_type": "Il y a d’autre code avant le type sur la même ligne — placez-les sur des lignes séparées",
   "common.move_type_own_file": "Déplacer le type dans son propre fichier",
   "mainwindow.suggestions_from_unimported_namespaces": "Suggestions des espaces de noms non importés",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "La saisie au clavier (input(), Console.ReadLine()), les couleurs et Ctrl+C fonctionnent — en débogage aussi. Désactivez pour envoyer la sortie dans Sortie (plus rapide pour une sortie énorme, mais sans saisie).",
   "terminal.exited": "Le processus s'est terminé avec le code %s",
   "terminal.new": "Nouveau terminal",
-  "terminal.needs_pyte": "Le terminal intégré nécessite le paquet python-pyte (dépôt officiel Arch) :\nsudo pacman -S python-pyte\n\nEn attendant, les programmes s'exécutent avec leur sortie dans Sortie."
+  "terminal.needs_pyte": "Le terminal intégré nécessite le paquet python-pyte (dépôt officiel Arch) :\nsudo pacman -S python-pyte\n\nEn attendant, les programmes s'exécutent avec leur sortie dans Sortie.",
+  "refactor.python_syntax": "Le fichier contient une erreur de syntaxe (ligne %d) — corrigez-la d'abord",
+  "refactor.python_no_symbol": "Placez le curseur dans une classe ou une fonction de niveau supérieur",
+  "refactor.python_alone": "« %s » est déjà seul dans son fichier — rien à déplacer",
+  "refactor.python_exists": "Le fichier %s existe déjà",
+  "refactor.python_moved": "« %s » déplacé dans %s",
+  "refactor.python_importers": "; imports mis à jour dans %d fichiers",
+  "refactor.python_circular": "Les modules %s et %s s'importent désormais mutuellement au chargement — Python échouera avec une importation circulaire. Déplacez les noms communs (constantes, fonctions) dans un troisième module ou importez-les dans une fonction."
 }

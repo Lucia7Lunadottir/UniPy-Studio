@@ -858,7 +858,7 @@
   "intellisense.methods": "메서드",
   "mainwindow.could_not_apply": "적용하지 못했습니다:\n",
   "mainwindow.could_not_create_file": "파일을 만들지 못했습니다: ",
-  "mainwindow.open_your_own_c_file": "형식을 옮기려면 직접 작성한 C# 파일을 여세요",
+  "mainwindow.open_your_own_c_file": "형식을 이동하려면 C# 또는 Python 파일을 여세요",
   "refactor.there_other_code_before_type": "같은 줄의 형식 앞에 다른 코드가 있습니다 — 서로 다른 줄로 나누세요",
   "common.move_type_own_file": "형식을 별도 파일로 이동",
   "mainwindow.suggestions_from_unimported_namespaces": "가져오지 않은 네임스페이스의 제안",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "키보드 입력(input(), Console.ReadLine()), 색, Ctrl+C가 디버깅 중에도 작동합니다. 끄면 출력이 출력 창으로 갑니다(대량 출력에 더 빠르지만 입력 불가).",
   "terminal.exited": "프로세스가 코드 %s(으)로 종료되었습니다",
   "terminal.new": "새 터미널",
-  "terminal.needs_pyte": "통합 터미널에는 python-pyte 패키지(Arch 공식 저장소)가 필요합니다:\nsudo pacman -S python-pyte\n\n그 전까지 프로그램 출력은 출력 창에 표시됩니다."
+  "terminal.needs_pyte": "통합 터미널에는 python-pyte 패키지(Arch 공식 저장소)가 필요합니다:\nsudo pacman -S python-pyte\n\n그 전까지 프로그램 출력은 출력 창에 표시됩니다.",
+  "refactor.python_syntax": "파일에 구문 오류가 있습니다(%d줄) — 먼저 고치세요",
+  "refactor.python_no_symbol": "최상위 클래스나 함수에 커서를 두세요",
+  "refactor.python_alone": "“%s”은(는) 이미 파일에 혼자 있습니다 — 옮길 것이 없습니다",
+  "refactor.python_exists": "%s 파일이 이미 있습니다",
+  "refactor.python_moved": "“%s”을(를) %s(으)로 옮겼습니다",
+  "refactor.python_importers": "; 파일 %d개의 import를 업데이트했습니다",
+  "refactor.python_circular": "모듈 %s와 %s가 이제 로드할 때 서로를 import합니다 — Python이 순환 import 오류로 실패합니다. 공통 이름(상수, 함수)을 세 번째 모듈로 옮기거나 함수 안에서 import하세요."
 }

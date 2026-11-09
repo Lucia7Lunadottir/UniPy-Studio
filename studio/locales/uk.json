@@ -858,7 +858,7 @@
   "intellisense.methods": "Методи",
   "mainwindow.could_not_apply": "Не вдалося застосувати:\n",
   "mainwindow.could_not_create_file": "Не вдалося створити файл: ",
-  "mainwindow.open_your_own_c_file": "Відкрийте свій файл C#, щоб перенести тип",
+  "mainwindow.open_your_own_c_file": "Відкрийте свій файл C# або Python, щоб перенести тип",
   "refactor.there_other_code_before_type": "Перед типом у тому самому рядку є інший код — рознесіть їх по рядках",
   "common.move_type_own_file": "Перенести тип в окремий файл",
   "mainwindow.suggestions_from_unimported_namespaces": "Підказки з непідключених просторів імен",
@@ -1204,5 +1204,12 @@
   "options.run_in_terminal_hint": "Працюють введення з клавіатури (input(), Console.ReadLine()), кольори й Ctrl+C — і під час налагодження. Вимкніть, щоб виведення йшло у «Вивід» (швидше на величезному виведенні, але без введення).",
   "terminal.exited": "Процес завершився з кодом %s",
   "terminal.new": "Новий термінал",
-  "terminal.needs_pyte": "Для вбудованого термінала потрібен пакет python-pyte (офіційний репозиторій Arch):\nsudo pacman -S python-pyte\n\nПоки його немає, програми запускаються з виведенням у «Вивід»."
+  "terminal.needs_pyte": "Для вбудованого термінала потрібен пакет python-pyte (офіційний репозиторій Arch):\nsudo pacman -S python-pyte\n\nПоки його немає, програми запускаються з виведенням у «Вивід».",
+  "refactor.python_syntax": "У файлі синтаксична помилка (рядок %d) — спершу виправте її",
+  "refactor.python_no_symbol": "Поставте курсор у клас або функцію верхнього рівня",
+  "refactor.python_alone": "«%s» уже один у файлі — переносити нічого",
+  "refactor.python_exists": "Файл %s уже існує",
+  "refactor.python_moved": "«%s» перенесено в %s",
+  "refactor.python_importers": "; оновлено імпорти у файлах: %d",
+  "refactor.python_circular": "Модулі %s і %s тепер імпортують один одного під час завантаження — Python впаде з помилкою циклічного імпорту. Перенесіть спільні імена (константи, функції) у третій модуль або імпортуйте їх усередині функції."
 }
