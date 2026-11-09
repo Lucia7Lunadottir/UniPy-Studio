@@ -105,6 +105,26 @@ class EditorFolding(unittest.TestCase):
         ed.folding.toggle_all()
         self.assertTrue(all(self.visible(ed)))
 
+    def test_folding_keeps_scroll_position(self):
+        """Регрессия: сворачивание прокручивало вид к курсору — наверх файла."""
+        body = "".join("    void M%d()\n    {\n        x();\n        y();\n    }\n\n" % i for i in range(60))
+        ed = self.editor("public class P\n{\n" + body + "}\n")
+        bar = ed.verticalScrollBar()
+        bar.setValue(150)                       # колёсиком вниз; курсор остался на 1-й строке
+        app.processEvents()
+        first = ed.firstVisibleBlock().blockNumber()
+        r = ed.folding.innermost(first + 3)
+        ed.folding.toggle(r.start)
+        app.processEvents()
+        self.assertEqual(ed.firstVisibleBlock().blockNumber(), first)
+        ed.folding.toggle(r.start)
+        app.processEvents()
+        self.assertEqual(ed.firstVisibleBlock().blockNumber(), first)
+        ed.folding.collapse_to_definitions()   # первая строка экрана уходит в блок — держимся за заголовок
+        app.processEvents()
+        self.assertLessEqual(abs(ed.firstVisibleBlock().blockNumber() - first), 5)
+        self.assertGreater(bar.value(), 0)
+
     def test_box_click_and_disable(self):
         ed = self.editor(UNITY)
         ed.folding.toggle(15)

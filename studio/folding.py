@@ -374,11 +374,16 @@ class Folding(QObject):
         return changed
 
     def _move_cursor_out(self, r):
-        c = self.editor.textCursor()
+        """Курсор был внутри свёрнутого блока — на конец строки-заголовка. Прокрутка остаётся как была."""
+        ed = self.editor
+        c = ed.textCursor()
         if r.contains(c.blockNumber()):
-            c.setPosition(self.editor.document().findBlockByNumber(r.start).position())
+            bar = ed.verticalScrollBar()
+            scroll = bar.value()
+            c.setPosition(ed.document().findBlockByNumber(r.start).position())
             c.movePosition(QTextCursor.MoveOperation.EndOfBlock)
-            self.editor.setTextCursor(c)
+            ed.setTextCursor(c)
+            bar.setValue(scroll)
 
     def _cursor_moved(self):
         if self._hidden:
@@ -397,6 +402,8 @@ class Folding(QObject):
         changed = hidden ^ self._hidden
         if not changed:
             return
+        ed = self.editor
+        anchor = ed.firstVisibleBlock()     # вид не должен прыгать: та же строка остаётся первой на экране
         for n in changed:
             block = doc.findBlockByNumber(n)
             if block.isValid():
@@ -407,9 +414,12 @@ class Folding(QObject):
         if not last.isValid():
             last = doc.lastBlock()
         doc.markContentsDirty(first.position(), last.position() + last.length() - first.position())
-        self.editor.viewport().update()
-        self.editor.gutter.update()
-        self.editor.ensureCursorVisible()
+        while anchor.isValid() and not anchor.isVisible():     # первая строка ушла в свёрнутый блок —
+            anchor = anchor.previous()                          # держимся за его заголовок
+        if anchor.isValid():
+            ed.verticalScrollBar().setValue(anchor.firstLineNumber())
+        ed.viewport().update()
+        ed.gutter.update()
 
     # --- рисование
     def paint_marker(self, painter, line, x, top, height, color):
