@@ -966,17 +966,24 @@ class CSharpServer(LanguageServer):
         self.exe = exe
         self.solution = pick_solution(root)
         self.light_solution = None          # облегчённое решение Unity (unity_light_solution) — его и открывает Roslyn
+        self.plugin_files = set()           # скрипты, встроенные .asmref в пакет: их ложные CS0122/CS0436 скрыты
         if self.solution and getattr(self, "is_unity_project", False):
             from .unity_light_solution import build
-            self.light_solution, _ = build(root, self.solution)
+            self.light_solution, _, self.plugin_files = build(root, self.solution)
 
     def refresh_light_solution(self):
         """Unity пересоздал .sln/.csproj: пересобрать облегчённое решение; [изменённые его файлы] — для Roslyn."""
         if not self.light_solution:
             return []
         from .unity_light_solution import build
-        light, changed = build(self.root, self.solution)
+        light, changed, self.plugin_files = build(self.root, self.solution)
         return changed if light else []
+
+    def filter_diagnostics(self, path, items):
+        if os.path.normpath(path or "") in self.plugin_files:
+            from .unity_light_solution import PLUGIN_HIDDEN_CODES
+            items = [d for d in items if str(d.get("code") or "") not in PLUGIN_HIDDEN_CODES]
+        return items
 
     def open_location(self, uri, line, done):
         if not uri.startswith("csharp:"):
