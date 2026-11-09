@@ -57,7 +57,8 @@ class AnalyzerControl:
             text = tr("mainwindow.intellisense_ready") if self.win.jedi.available else tr("mainwindow.intellisense_words")
         else:
             lang, state = self.state
-            label = {"loading": "mainwindow.status_loading", "ready": "mainwindow.status_ready"}.get(state, "mainwindow.status_stopped")
+            label = {"loading": "mainwindow.status_loading", "ready": "mainwindow.status_ready",
+                     "warming": "mainwindow.status_warming"}.get(state, "mainwindow.status_stopped")
             text = "%s: %s" % (lang, tr(label))
         self.win.jedi_label.setText(text)
 

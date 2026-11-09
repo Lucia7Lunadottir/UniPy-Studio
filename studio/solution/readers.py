@@ -194,7 +194,8 @@ def load_solution(root):
     slns = sorted(glob.glob(os.path.join(glob.escape(root), "*.sln")) +
                   glob.glob(os.path.join(glob.escape(root), "*.slnx")))
     named = [s for s in slns if os.path.splitext(os.path.basename(s))[0] == os.path.basename(root.rstrip(os.sep))]
-    sln = (named or slns or [None])[0]
+    # .sln и .slnx с одним именем — свежий (его пересоздаёт Unity); то же правило у анализатора (lsp.pick_solution)
+    sln = max(named or slns, key=lambda p: (os.path.getmtime(p), p.endswith(".sln"))) if slns else None
     name = os.path.basename(root.rstrip(os.sep))
     if sln:
         paths = read_slnx(sln) if sln.endswith(".slnx") else read_sln(sln)

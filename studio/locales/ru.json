@@ -1316,5 +1316,7 @@
   "explorer.edit_project_file": "Изменить файл проекта",
   "explorer.go_to_project": "Перейти к проекту",
   "explorer.check_dependencies": "Проверить, что установлено",
-  "explorer.startup_set": "Запускаемый проект: %s"
+  "explorer.startup_set": "Запускаемый проект: %s",
+  "lsp.warming": "%s: %s — подготовка подсказок (в большом решении первый раз — до нескольких минут)",
+  "mainwindow.status_warming": "подготовка подсказок…"
 }

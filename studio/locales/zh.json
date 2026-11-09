@@ -1316,5 +1316,7 @@
   "explorer.edit_project_file": "编辑项目文件",
   "explorer.go_to_project": "转到项目",
   "explorer.check_dependencies": "检查已安装项",
-  "explorer.startup_set": "启动项目: %s"
+  "explorer.startup_set": "启动项目: %s",
+  "lsp.warming": "%s: %s — 正在准备 IntelliSense（大型解决方案首次可能需要几分钟）",
+  "mainwindow.status_warming": "正在准备 IntelliSense…"
 }

@@ -1316,5 +1316,7 @@
   "explorer.edit_project_file": "프로젝트 파일 편집",
   "explorer.go_to_project": "프로젝트로 이동",
   "explorer.check_dependencies": "설치 상태 확인",
-  "explorer.startup_set": "시작 프로젝트: %s"
+  "explorer.startup_set": "시작 프로젝트: %s",
+  "lsp.warming": "%s: %s — IntelliSense 준비 중(큰 솔루션에서는 처음에 몇 분 걸릴 수 있음)",
+  "mainwindow.status_warming": "IntelliSense 준비 중…"
 }

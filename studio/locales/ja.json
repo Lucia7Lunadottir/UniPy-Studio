@@ -1316,5 +1316,7 @@
   "explorer.edit_project_file": "プロジェクト ファイルの編集",
   "explorer.go_to_project": "プロジェクトへ移動",
   "explorer.check_dependencies": "インストール状態を確認",
-  "explorer.startup_set": "スタートアップ プロジェクト: %s"
+  "explorer.startup_set": "スタートアップ プロジェクト: %s",
+  "lsp.warming": "%s: %s — IntelliSense を準備中 (大きなソリューションでは初回に数分かかることがあります)",
+  "mainwindow.status_warming": "IntelliSense を準備中…"
 }

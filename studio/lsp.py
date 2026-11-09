@@ -172,6 +172,7 @@ class LanguageServer(QObject):
     diagnostics = pyqtSignal(str, object)       # путь, [(строка, столбец, текст, "error"/"warning")]
     faded = pyqtSignal(str, object)             # путь, [(стр, стлб, стр2, стлб2, "unnecessary"/"deprecated")] с 0
     state_changed = pyqtSignal(str)             # "starting" / "loading" / "ready" / "failed"
+    warming_changed = pyqtSignal(bool)          # первые подсказки ещё готовятся (решение загружено, но сервер занят)
     log = pyqtSignal(str)
 
     language_id = "plaintext"
@@ -217,6 +218,9 @@ class LanguageServer(QObject):
     def filter_diagnostics(self, path, items):
         """Сырые диагностики LSP → те, что показать (подклассы убирают шум)."""
         return items
+
+    def after_initialized(self):
+        """Сразу после «initialized»: подкласс может открыть решение (Roslyn: solution/open)."""
 
     def is_loaded_message(self, text):
         return False
@@ -280,6 +284,7 @@ class LanguageServer(QObject):
         # 2 = Incremental: сервер принимает только изменённый кусок текста (как шлют VS Code и Visual Studio)
         self.incremental_sync = (sync == 2) or (isinstance(sync, dict) and sync.get("change") == 2)
         self.conn.notify("initialized", {})
+        self.after_initialized()
         self._set_state("loading")
         for uri, (ver, text) in list(self._docs.items()):
             self._did_open(uri, text, ver)
@@ -318,8 +323,13 @@ class LanguageServer(QObject):
             return
         self._warmed = True
         uri = next(iter(self._docs))
+        # В большом решении (у Unity плагины через .asmref тянут исходники URP/ShaderGraph) сервер после загрузки
+        # ещё минуты собирает компиляции, и подсказки молчат: пусть строка состояния говорит об этом, а «готово»
+        # появится, когда он действительно ответит.
+        self.warming_changed.emit(True)
         self.conn.request("textDocument/completion",
-                          {"textDocument": {"uri": uri}, "position": {"line": 0, "character": 0}})
+                          {"textDocument": {"uri": uri}, "position": {"line": 0, "character": 0}},
+                          lambda _r, _e: self.warming_changed.emit(False))
 
     @property
     def ready(self):
@@ -942,7 +952,8 @@ def pick_solution(folder):
     if not slns:
         return None
     named = [s for s in slns if os.path.splitext(os.path.basename(s))[0] == os.path.basename(folder)]
-    return (named or slns)[0]
+    # .sln и .slnx с одним именем (Unity пишет то один, то другой) — свежий: его Unity и пересоздаёт
+    return max(named or slns, key=lambda s: (os.path.getmtime(s), s.endswith(".sln")))
 
 
 class CSharpServer(LanguageServer):
@@ -990,8 +1001,15 @@ class RoslynServer(CSharpServer):
     tool_name = "roslyn-language-server"
 
     def command(self):
-        # единственный .sln в корне сервер находит и загружает сам
-        return self.exe, ["--stdio", "--autoLoadProjects", "--telemetryLevel", "off", "--logLevel", "Warning"]
+        # Решение открываем сами (after_initialized): автозагрузка берёт решение, только если оно в папке одно, —
+        # а у Unity бывают и .sln, и .slnx, плюс сотни старых .csproj пакетов: Roslyn грузил их все, подсказки
+        # ждали минутами. Без решения (только .csproj) — автозагрузка.
+        auto = [] if self.solution else ["--autoLoadProjects"]
+        return self.exe, ["--stdio", *auto, "--telemetryLevel", "off", "--logLevel", "Warning"]
+
+    def after_initialized(self):
+        if self.solution:
+            self.conn.notify("solution/open", {"solution": path_to_uri(self.solution)})
 
     def environment(self):
         # Only our analyzer inherits these; do not change the user's SDK globally.
@@ -1076,7 +1094,7 @@ class LanguageService(QObject):
     finished = pyqtSignal(object)
     diagnostics = pyqtSignal(str, object)
     faded = pyqtSignal(str, object)
-    status = pyqtSignal(str, str)     # текст, состояние: loading / ready / failed
+    status = pyqtSignal(str, str)     # текст, состояние: loading / warming / ready / failed
     log = pyqtSignal(str)
     restarted = pyqtSignal(str)     # анализатор перезапущен (причина) — открытые файлы надо отдать новому
 
@@ -1165,6 +1183,7 @@ class LanguageService(QObject):
             srv.faded.connect(self.faded)
             srv.log.connect(lambda t, s=srv: t and self.log.emit("[%s] %s" % (os.path.basename(s.root), t)))
             srv.state_changed.connect(lambda st, s=srv: self._state(s, st))
+            srv.warming_changed.connect(lambda on, s=srv: self._warming(s, on))
             self.servers[root] = srv
             srv.start()
         return srv
@@ -1175,6 +1194,13 @@ class LanguageService(QObject):
                 data.get("path") and is_metadata_path(data["path"]):
             self._metadata_owner[data["path"]] = srv
         self.finished.emit(res)
+
+    def _warming(self, srv, on):
+        name = self.display_name(srv)
+        if on:
+            self.status.emit(tr("lsp.warming") % (self.language_name, name), "warming")
+        elif srv.state == "ready":
+            self.status.emit(tr("lsp.loaded") % (self.language_name, name), "ready")
 
     def _state(self, srv, state):
         name = self.display_name(srv)

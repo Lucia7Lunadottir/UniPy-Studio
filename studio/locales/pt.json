@@ -1316,5 +1316,7 @@
   "explorer.edit_project_file": "Editar arquivo de projeto",
   "explorer.go_to_project": "Ir para o projeto",
   "explorer.check_dependencies": "Verificar o que está instalado",
-  "explorer.startup_set": "Projeto de inicialização: %s"
+  "explorer.startup_set": "Projeto de inicialização: %s",
+  "lsp.warming": "%s: %s — preparando o IntelliSense (na primeira vez, em uma solução grande, pode levar alguns minutos)",
+  "mainwindow.status_warming": "preparando o IntelliSense…"
 }
