@@ -1267,5 +1267,10 @@
   "dependencies.state_unknown": "无法检查版本",
   "dependencies.system_env": "系统 Python——包通过 pacman 从官方仓库安装",
   "dependencies.venv_env": "虚拟环境——包通过 pip 安装",
-  "dependencies.venv_hint": "创建 .venv 的命令已在终端中——请按 Enter。然后在运行工具栏中选择 .venv。"
+  "dependencies.venv_hint": "创建 .venv 的命令已在终端中——请按 Enter。然后在运行工具栏中选择 .venv。",
+  "options.show_whitespace": "显示空格和制表符",
+  "options.indent_guides": "缩进参考线",
+  "options.indent_guides_hint": "在每个嵌套层级显示虚线竖线；光标所在块的线更亮",
+  "mainwindow.view_whitespace": "查看空白",
+  "mainwindow.advanced": "高级"
 }

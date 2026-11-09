@@ -1267,5 +1267,10 @@
   "dependencies.state_unknown": "could not check the version",
   "dependencies.system_env": "System Python — packages are installed with pacman from the official repository",
   "dependencies.venv_env": "Virtual environment — packages are installed with pip",
-  "dependencies.venv_hint": "The command to create .venv is in the terminal — press Enter. Then choose .venv on the run toolbar."
+  "dependencies.venv_hint": "The command to create .venv is in the terminal — press Enter. Then choose .venv on the run toolbar.",
+  "options.show_whitespace": "Show spaces and tabs",
+  "options.indent_guides": "Indent guides",
+  "options.indent_guides_hint": "Dotted vertical lines at each nesting level; the line of the block with the caret is brighter",
+  "mainwindow.view_whitespace": "View White Space",
+  "mainwindow.advanced": "Advanced"
 }

@@ -1267,5 +1267,10 @@
   "dependencies.state_unknown": "nie udało się sprawdzić wersji",
   "dependencies.system_env": "Systemowy Python — pakiety instaluje pacman z oficjalnego repozytorium",
   "dependencies.venv_env": "Środowisko wirtualne — pakiety instaluje pip",
-  "dependencies.venv_hint": "Polecenie tworzenia .venv jest w terminalu — naciśnij Enter. Potem wybierz .venv na pasku uruchamiania."
+  "dependencies.venv_hint": "Polecenie tworzenia .venv jest w terminalu — naciśnij Enter. Potem wybierz .venv na pasku uruchamiania.",
+  "options.show_whitespace": "Pokazuj spacje i tabulatory",
+  "options.indent_guides": "Linie wcięć",
+  "options.indent_guides_hint": "Kropkowane pionowe linie na każdym poziomie zagnieżdżenia; linia bloku z kursorem jest jaśniejsza",
+  "mainwindow.view_whitespace": "Pokaż białe znaki",
+  "mainwindow.advanced": "Zaawansowane"
 }

@@ -41,6 +41,8 @@ from .i18n import (LANGUAGE_NAMES, LANGUAGE_SETTING, bind_text, change_language,
                    refresh_text, selected_language, tr)
 
 APP_NAME = "UniPy Studio"
+# флажки вида редактора: параметр → свойство CodeEditor (ed.set_view_option); новый флажок — одна строка здесь
+EDITOR_VIEW_OPTIONS = {"editor/show_whitespace": "show_whitespace", "editor/indent_guides": "indent_guides"}
 INDENT_OPTIONS = {"editor/indent_style", "editor/indent_size", "editor/tab_width", "editor/use_editorconfig",
                   "editor/adapt_indent", "editor/trim_trailing"}
 
@@ -281,6 +283,11 @@ class MainWindow(QMainWindow):
             for ed in self.editors():
                 ed.folding.set_enabled(value)
                 ed._update_gutter_width()
+        elif key in EDITOR_VIEW_OPTIONS:
+            for ed in self.editors():
+                ed.set_view_option(EDITOR_VIEW_OPTIONS[key], value)
+            if key == "editor/show_whitespace":
+                self.a_whitespace.setChecked(value)
         elif key in INDENT_OPTIONS:
             for ed in self.editors():
                 self.apply_indent(ed)
@@ -506,6 +513,10 @@ class MainWindow(QMainWindow):
         self.a_fold_expand = A("Edit.ExpandAllOutlining", "mainwindow.fold_expand_all", fold("expand_all"), "Ctrl+M, Ctrl+X")
         self.a_rename = A("Refactor.Rename", "common.rename_2", R.rename_dialog, ("Ctrl+R, Ctrl+R", "F2"))
         self.a_move_type = A("Refactor.MoveTypeToFile", "common.move_type_own_file", R.move_type_to_file, "Ctrl+R, Ctrl+F")
+        self.a_whitespace = A("Edit.ViewWhiteSpace", "mainwindow.view_whitespace",
+                              lambda: self.options.set("editor/show_whitespace", self.a_whitespace.isChecked()),
+                              "Ctrl+R, Ctrl+W", checkable=True)
+        self.a_whitespace.setChecked(self.options["editor/show_whitespace"])
         self.a_unimported = A("View.UnimportedNamespaceSuggestions", "mainwindow.suggestions_from_unimported_namespaces",
                               self.toggle_unimported, checkable=True)
         self.a_unimported.setChecked(lsp.OPTIONS["unimported"])
@@ -634,6 +645,8 @@ class MainWindow(QMainWindow):
         sub = bind_text(m.addMenu(""), "mainwindow.outlining", "setTitle")
         for a in (self.a_fold_toggle, self.a_fold_all, self.a_fold_defs, self.a_fold_collapse, self.a_fold_expand):
             sub.addAction(a)
+        self.advanced_menu = sub = bind_text(m.addMenu(""), "mainwindow.advanced", "setTitle")
+        sub.addAction(self.a_whitespace)
         sub = m.addMenu("IntelliSense")
         for a in (self.a_complete, self.a_params, self.a_definition, self.a_refs):
             sub.addAction(a)
@@ -1069,6 +1082,8 @@ class MainWindow(QMainWindow):
         ed.load()
         self.apply_indent(ed)
         ed.set_navigation_bar(self.options["editor/navigation_bar"])
+        for key, name in EDITOR_VIEW_OPTIONS.items():
+            ed.set_view_option(name, self.options[key])
         if lsp.is_metadata_path(path):
             ed.setReadOnly(True)        # исходник из сборки (UnityEngine.dll и т.п.)
         ed.cursor_moved.connect(self._cursor_moved)

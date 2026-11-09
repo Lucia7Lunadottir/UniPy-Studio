@@ -1267,5 +1267,10 @@
   "dependencies.state_unknown": "버전을 확인할 수 없음",
   "dependencies.system_env": "시스템 Python — 패키지는 공식 저장소에서 pacman으로 설치합니다",
   "dependencies.venv_env": "가상 환경 — 패키지는 pip로 설치합니다",
-  "dependencies.venv_hint": ".venv를 만드는 명령이 터미널에 있습니다 — Enter를 누르세요. 그런 다음 실행 도구 모음에서 .venv를 선택하세요."
+  "dependencies.venv_hint": ".venv를 만드는 명령이 터미널에 있습니다 — Enter를 누르세요. 그런 다음 실행 도구 모음에서 .venv를 선택하세요.",
+  "options.show_whitespace": "공백 및 탭 표시",
+  "options.indent_guides": "들여쓰기 안내선",
+  "options.indent_guides_hint": "중첩 수준마다 점선 세로줄을 표시하고 커서가 있는 블록의 선은 더 밝게 표시합니다",
+  "mainwindow.view_whitespace": "공백 보기",
+  "mainwindow.advanced": "고급"
 }

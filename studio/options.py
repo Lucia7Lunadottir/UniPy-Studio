@@ -296,6 +296,8 @@ PAGES = (
         BoolOption("editor/word_wrap", False, "mainwindow.wrap_long_lines"),
         BoolOption("editor/folding", True, "options.folding", hint="options.folding_hint"),
         BoolOption("editor/navigation_bar", True, "options.navigation_bar", hint="options.navigation_bar_hint"),
+        BoolOption("editor/show_whitespace", False, "options.show_whitespace"),
+        BoolOption("editor/indent_guides", True, "options.indent_guides", hint="options.indent_guides_hint"),
     )),
     Page(("options.text_editor", "options.indentation"), (
         ChoiceOption("editor/indent_style", "spaces", "options.indent_style",

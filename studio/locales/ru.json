@@ -1267,5 +1267,10 @@
   "dependencies.state_unknown": "не удалось проверить версию",
   "dependencies.system_env": "Системный Python — пакеты ставятся через pacman из официального репозитория",
   "dependencies.venv_env": "Виртуальное окружение — пакеты ставятся через pip",
-  "dependencies.venv_hint": "Команда создания .venv в терминале — нажмите Enter. Затем выберите .venv на панели запуска."
+  "dependencies.venv_hint": "Команда создания .venv в терминале — нажмите Enter. Затем выберите .venv на панели запуска.",
+  "options.show_whitespace": "Показывать пробелы и табуляции",
+  "options.indent_guides": "Направляющие отступов",
+  "options.indent_guides_hint": "Пунктирные вертикальные линии на каждом уровне вложенности; у блока с курсором линия ярче",
+  "mainwindow.view_whitespace": "Показать пробелы",
+  "mainwindow.advanced": "Дополнительно"
 }

@@ -1267,5 +1267,10 @@
   "dependencies.state_unknown": "バージョンを確認できません",
   "dependencies.system_env": "システムの Python — パッケージは公式リポジトリから pacman でインストールします",
   "dependencies.venv_env": "仮想環境 — パッケージは pip でインストールします",
-  "dependencies.venv_hint": ".venv を作成するコマンドをターミナルに入力しました — Enter を押してください。その後、実行ツール バーで .venv を選択します。"
+  "dependencies.venv_hint": ".venv を作成するコマンドをターミナルに入力しました — Enter を押してください。その後、実行ツール バーで .venv を選択します。",
+  "options.show_whitespace": "スペースとタブを表示",
+  "options.indent_guides": "インデント ガイド",
+  "options.indent_guides_hint": "入れ子の各レベルに点線の縦線を表示し、カーソルのあるブロックの線を明るくします",
+  "mainwindow.view_whitespace": "空白の表示",
+  "mainwindow.advanced": "詳細"
 }

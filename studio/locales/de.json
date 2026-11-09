@@ -1267,5 +1267,10 @@
   "dependencies.state_unknown": "Version konnte nicht geprüft werden",
   "dependencies.system_env": "System-Python — Pakete werden mit pacman aus dem offiziellen Repository installiert",
   "dependencies.venv_env": "Virtuelle Umgebung — Pakete werden mit pip installiert",
-  "dependencies.venv_hint": "Der Befehl zum Erstellen von .venv steht im Terminal — Enter drücken. Danach .venv in der Startleiste wählen."
+  "dependencies.venv_hint": "Der Befehl zum Erstellen von .venv steht im Terminal — Enter drücken. Danach .venv in der Startleiste wählen.",
+  "options.show_whitespace": "Leerzeichen und Tabulatoren anzeigen",
+  "options.indent_guides": "Einzugshilfslinien",
+  "options.indent_guides_hint": "Gepunktete senkrechte Linien auf jeder Verschachtelungsebene; die Linie des Blocks mit dem Cursor ist heller",
+  "mainwindow.view_whitespace": "Leerraum anzeigen",
+  "mainwindow.advanced": "Erweitert"
 }

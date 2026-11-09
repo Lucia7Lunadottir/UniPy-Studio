@@ -1267,5 +1267,10 @@
   "dependencies.state_unknown": "no se pudo comprobar la versión",
   "dependencies.system_env": "Python del sistema: los paquetes se instalan con pacman desde el repositorio oficial",
   "dependencies.venv_env": "Entorno virtual: los paquetes se instalan con pip",
-  "dependencies.venv_hint": "El comando para crear .venv está en el terminal: pulse Intro. Luego elija .venv en la barra de ejecución."
+  "dependencies.venv_hint": "El comando para crear .venv está en el terminal: pulse Intro. Luego elija .venv en la barra de ejecución.",
+  "options.show_whitespace": "Mostrar espacios y tabulaciones",
+  "options.indent_guides": "Guías de sangría",
+  "options.indent_guides_hint": "Líneas verticales punteadas en cada nivel de anidamiento; la del bloque con el cursor es más clara",
+  "mainwindow.view_whitespace": "Ver espacios en blanco",
+  "mainwindow.advanced": "Avanzado"
 }

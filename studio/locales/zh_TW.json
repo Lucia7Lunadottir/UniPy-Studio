@@ -1267,5 +1267,10 @@
   "dependencies.state_unknown": "無法檢查版本",
   "dependencies.system_env": "系統 Python——套件透過 pacman 從官方套件庫安裝",
   "dependencies.venv_env": "虛擬環境——套件透過 pip 安裝",
-  "dependencies.venv_hint": "建立 .venv 的命令已在終端機中——請按 Enter。然後在執行工具列中選取 .venv。"
+  "dependencies.venv_hint": "建立 .venv 的命令已在終端機中——請按 Enter。然後在執行工具列中選取 .venv。",
+  "options.show_whitespace": "顯示空格和定位字元",
+  "options.indent_guides": "縮排輔助線",
+  "options.indent_guides_hint": "在每個巢狀層級顯示虛線直線；游標所在區塊的線更亮",
+  "mainwindow.view_whitespace": "檢視空白",
+  "mainwindow.advanced": "進階"
 }
