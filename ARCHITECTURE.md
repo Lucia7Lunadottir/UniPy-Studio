@@ -62,6 +62,7 @@
 | `new_project.py` | ~200 | «Файл → Создать проект…» (Ctrl+Shift+N) по шаблонам всех наборов |
 | `debug/` | ~900 | Отладка по DAP: `dap.py` (транспорт), `session.py` (сеанс: остановки, шаги, стек, переменные), `breakpoints.py`, `panels.py`, `controller.py` |
 | `framing.py` | ~30 | Рамка `Content-Length` — общая для LSP и DAP |
+| `lsp_features.py` | ~140 | Возможности анализатора для редактора (подсказки, справка, параметры, ссылки, переименование, F12): одна возможность — один класс; `LanguageServer.submit` общий, объявления для `initialize` собираются отсюда |
 | `vcs/` | ~750 | Контроль версий: интерфейс `Repository` (`base.py`), Git (`git.py`), полоски строк (`linediff.py`), панель «Изменения Git», сравнение рядом, связь с окном (`controller.py`). Новая система — подкласс `Repository` и строка в `vcs/PROVIDERS` |
 | `terminal/` | ~600 | Встроенный терминал на настоящем PTY: процесс (`pty_process.py`, запуск через `setsid -c`), экран (`screen.py`, разбор — `pyte`), виджет (`widget.py`), вкладки (`panel.py`). F5/Ctrl+F5 и отладка (`runInTerminal`) запускают программы сюда — работает ввод с клавиатуры |
 | `testing/` | ~650 | Обозреватель тестов: интерфейс `TestProvider` и протокол событий (`base.py`), Python — pytest/unittest через `python_helper.py` (запускается интерпретатором проекта), панель и связь с окном. Набор инструментов отдаёт поставщика: `Toolchain.test_provider()` |
@@ -430,6 +431,7 @@ Language("rust", "Rust", (".rs",), "//", braces=True)
 |---|---|
 | Добавить язык | `languages.py` — одна запись в `LANGUAGES` |
 | Добавить анализатор языка | `lsp.py` (новая служба) + `SERVICE_FACTORIES` |
+| Новая функция анализатора (CodeLens, inlay hints…) | класс в `lsp_features.py` + строка в `FEATURES`; обработка результата — в редакторе |
 | Изменить перенос типа в файл | `refactor.py` (логика) и `MainWindow.move_type_to_file` (применение к редактору) |
 | Добавить вид подсказок для кнопок-фильтров | `intellisense.KIND_GROUPS` |
 | Добавить класс/метод Unity в подсказки | `unity_api.py` — `_SPEC` |

@@ -19,9 +19,10 @@ from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSig
 
 from . import unity_api
 from .framing import frame, split_frames
+from . import lsp_features
 
 UNITY_MESSAGE_NAMES = {m[0] for m in unity_api.MESSAGES}     # Awake, Update, OnTriggerEnter…
-from .intellisense import Item, CompletionList, TYPE_KINDS, completion_tier, file_imports
+from .intellisense import Item, CompletionList, TYPE_KINDS, completion_tier
 from .theme import C
 from .i18n import tr
 
@@ -243,18 +244,10 @@ class LanguageServer(QObject):
         caps = {
             "textDocument": {
                 "synchronization": {"didSave": False, "dynamicRegistration": False},
-                "completion": {"completionItem": {"snippetSupport": False,
-                                                  "documentationFormat": ["markdown", "plaintext"]},
-                               "contextSupport": True},
-                "hover": {"contentFormat": ["markdown", "plaintext"]},
-                "signatureHelp": {"signatureInformation": {
-                    "documentationFormat": ["markdown", "plaintext"],
-                    "parameterInformation": {"labelOffsetSupport": True}}},
-                "definition": {"linkSupport": True},
+                **lsp_features.text_document_capabilities(),     # подсказки, справка, переходы — lsp_features.py
                 "documentSymbol": {"hierarchicalDocumentSymbolSupport": True},
                 "formatting": {"dynamicRegistration": False},
                 "rangeFormatting": {"dynamicRegistration": False},
-                "implementation": {"linkSupport": True},
                 # tagSupport: без него pyright не присылает «не используется» (бледный код), а Roslyn — лишние using
                 "publishDiagnostics": {"relatedInformation": False, "tagSupport": {"valueSet": [1, 2]}},
                 "diagnostic": {"dynamicRegistration": True, "relatedDocumentSupport": False},
@@ -661,48 +654,30 @@ class LanguageServer(QObject):
 
     # ---- запросы (формат как у JediWorker.submit)
     def submit(self, kind, req, editor, code, line, col, path, extra=None):
+        """Запрос редактора к серверу (подсказки, справка, F12…) — что и как, описано в lsp_features.FEATURES.
+        Ответ — сигнал result {"kind", "req", "editor", "data"}; прошлый такой же запрос этого редактора отменяется."""
+        feature = lsp_features.FEATURES.get(kind)
+        if feature is None:
+            return
         self.last_activity = time.monotonic()
         self.sync(path, code)
         key = (editor, kind)
         old = self._pending.pop(key, None)
         if old is not None:
             self.conn.cancel(old)
-        pos = {"textDocument": {"uri": path_to_uri(path)}, "position": {"line": line - 1, "character": col}}
-        line_text = code.split("\n")[line - 1][:col] if line - 1 < code.count("\n") + 1 else ""
+        position = {"textDocument": {"uri": path_to_uri(path)}, "position": {"line": line - 1, "character": col}}
+        request = lsp_features.Request(code, line, col, path, extra)
 
         def reply(data):
             self._pending.pop(key, None)
             self.result.emit({"kind": kind, "req": req, "editor": editor, "data": data})
 
-        if kind == "complete":
-            prefix = re.search(r"\w*$", line_text).group(0)
-            imports = file_imports(code)
-            self._pending[key] = self.conn.request(
-                "textDocument/completion", pos,
-                lambda r, e: reply(None if e else self._completions(r, line_text, prefix, imports)))
-        elif kind == "signatures":
-            self._pending[key] = self.conn.request(
-                "textDocument/signatureHelp", pos, lambda r, e: reply(None if e else self._signatures(r)))
-        elif kind == "hover":
-            self._pending[key] = self.conn.request(
-                "textDocument/hover", pos, lambda r, e: reply(None if e else self._hover(r)))
-        elif kind == "references":
-            params = dict(pos, context={"includeDeclaration": True})
-            self._pending[key] = self.conn.request(
-                "textDocument/references", params, lambda r, e: reply(None if e else self._locations(r)))
-        elif kind == "rename":
-            params = dict(pos, newName=(extra or {}).get("new_name", ""))
-            self._pending[key] = self.conn.request(
-                "textDocument/rename", params,
-                lambda r, e: reply({"error": e.get("message", "")} if e else self._workspace_edit(r)))
-        elif kind in ("definition", "implementation"):
-            def located(r, e):
-                loc = self._first_location(r) if not e else None
-                if not loc:
-                    reply(None)
-                    return
-                self.open_location(loc[0], loc[1], lambda p, ln: reply({"path": p, "line": ln} if p else None))
-            self._pending[key] = self.conn.request("textDocument/" + kind, pos, located)
+        def answered(result, error):
+            if error:
+                feature.failed(self, error, request, reply)
+            else:
+                feature.convert(self, result, request, reply)
+        self._pending[key] = self.conn.request(feature.method, feature.params(self, position, request), answered)
 
     MAX_COMPLETIONS = 600
 
