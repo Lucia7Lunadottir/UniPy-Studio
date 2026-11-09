@@ -121,12 +121,12 @@ class SolutionExplorer(QWidget):
         bar.setContentsMargins(4, 2, 4, 2)
         bar.setSpacing(1)
         self.filter = QLineEdit()
-        bind_text(self.filter, "Поиск в обозревателе решений (Ctrl+;)", "setPlaceholderText")
+        bind_text(self.filter, "panels.search_solution_explorer_ctrl", "setPlaceholderText")
         self.filter.textChanged.connect(self._apply_filter)
-        bar.addWidget(mini_button("refresh", "Обновить", self.refresh))
-        bar.addWidget(mini_button("collapse", "Свернуть всё", self._collapse))
-        bar.addWidget(mini_button("new", "Новая папка", lambda: self._new_folder(None)))
-        self.show_all = mini_button("allfiles", "Показать все файлы", self._toggle_all)
+        bar.addWidget(mini_button("refresh", "common.refresh", self.refresh))
+        bar.addWidget(mini_button("collapse", "panels.collapse_all", self._collapse))
+        bar.addWidget(mini_button("new", "panels.new_folder", lambda: self._new_folder(None)))
+        self.show_all = mini_button("allfiles", "panels.show_all_files", self._toggle_all)
         self.show_all.setCheckable(True)
         bar.addWidget(self.show_all)
         bar.addStretch(1)
@@ -180,8 +180,8 @@ class SolutionExplorer(QWidget):
 
     def _solution_title(self):
         count = self._project_count
-        return tr(" Решение «%s» (%d %s)") % (
-            self._solution_name, count, plural(count, "проект", "проекта", "проектов"))
+        return tr("panels.solution") % (
+            self._solution_name, count, plural(count, "panels.project_one", "panels.projects_few", "panels.projects_many"))
 
     def retranslate(self):
         top = self.tree.topLevelItem(0)
@@ -308,42 +308,42 @@ class SolutionExplorer(QWidget):
         folder = path if is_dir else os.path.dirname(path)
         m = QMenu(self)
         if not is_dir:
-            m.addAction(tr("Открыть"), lambda: self.open_file.emit(path))
+            m.addAction(tr("panels.open"), lambda: self.open_file.emit(path))
             if path.endswith(".py"):
-                m.addAction(tr("Запустить"), lambda: self.run_file.emit(path))
+                m.addAction(tr("panels.run"), lambda: self.run_file.emit(path))
             m.addSeparator()
-        m.addAction(tr("Новый файл…"), lambda: self.window().new_file_dialog(folder))
-        m.addAction(tr("Новая папка…"), lambda: self._new_folder(folder))
+        m.addAction(tr("common.new_file"), lambda: self.window().new_file_dialog(folder))
+        m.addAction(tr("panels.new_folder_2"), lambda: self._new_folder(folder))
         m.addSeparator()
         if path != self.root:
-            m.addAction(tr("Переименовать…"), lambda: self._rename(path))
-            m.addAction(tr("Удалить"), lambda: self._delete(path))
-        m.addAction(tr("Копировать путь"), lambda: self.window().copy_text(path))
-        m.addAction(tr("Открыть папку в файловом менеджере"), lambda: self.window().open_external(folder))
+            m.addAction(tr("common.rename_2"), lambda: self._rename(path))
+            m.addAction(tr("panels.delete"), lambda: self._delete(path))
+        m.addAction(tr("common.copy_path"), lambda: self.window().copy_text(path))
+        m.addAction(tr("common.open_folder_file_manager"), lambda: self.window().open_external(folder))
         m.exec(self.tree.viewport().mapToGlobal(pos))
 
     def _new_folder(self, folder):
         folder = folder or self.root
-        name, ok = QInputDialog.getText(self, tr("Новая папка"), tr("Имя папки:"))
+        name, ok = QInputDialog.getText(self, tr("panels.new_folder"), tr("panels.name_folder"))
         if ok and name.strip():
             os.makedirs(os.path.join(folder, name.strip()), exist_ok=True)
             self.refresh()
 
     def _rename(self, path):
         old = os.path.basename(path)
-        name, ok = QInputDialog.getText(self, tr("Переименовать"), tr("Новое имя:"), text=old)
+        name, ok = QInputDialog.getText(self, tr("common.rename"), tr("panels.new_name"), text=old)
         if ok and name.strip() and name != old:
             new = os.path.join(os.path.dirname(path), name.strip())
             if os.path.exists(new):
-                QMessageBox.warning(self, tr("Переименовать"), tr("Такое имя уже есть."))
+                QMessageBox.warning(self, tr("common.rename"), tr("panels.name_exists"))
                 return
             os.rename(path, new)
             self.window().on_path_renamed(path, new)
             self.refresh()
 
     def _delete(self, path):
-        what = tr("папку") if os.path.isdir(path) else tr("файл")
-        if QMessageBox.question(self, tr("Удалить"), tr("Удалить %s «%s»? Это нельзя отменить.") % (
+        what = tr("panels.folder_word") if os.path.isdir(path) else tr("panels.file")
+        if QMessageBox.question(self, tr("panels.delete"), tr("panels.delete_cannot_undone") % (
                 what, os.path.basename(path))) != QMessageBox.StandardButton.Yes:
             return
         if os.path.isdir(path):
@@ -364,7 +364,7 @@ class OutlinePanel(QWidget):
         super().__init__()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        self.title = QLabel(tr("  Нет открытого файла"))
+        self.title = QLabel(tr("panels.no_open_file"))
         self.path = None
         self.title.setObjectName("hint")
         lay.addWidget(self.title)
@@ -376,17 +376,17 @@ class OutlinePanel(QWidget):
 
     def retranslate(self):
         if not self.path:
-            self.title.setText(tr("  Нет открытого файла"))
+            self.title.setText(tr("panels.no_open_file"))
         items = QTreeWidgetItemIterator(self.tree)
         while (item := items.value()) is not None:
-            item.setToolTip(0, tr("строка %d") % item.data(0, ROLE_LINE))
+            item.setToolTip(0, tr("panels.line_2") % item.data(0, ROLE_LINE))
             items += 1
 
     def update_for(self, path, text, lang):
         self.path = path
         self.tree.clear()
         if not path:
-            self.title.setText(tr("  Нет открытого файла"))
+            self.title.setText(tr("panels.no_open_file"))
             return
         self.title.setText("  " + os.path.basename(path))
         entries = outline(text, lang)
@@ -395,7 +395,7 @@ class OutlinePanel(QWidget):
             it = QTreeWidgetItem([name])
             it.setIcon(0, theme.kind_icon(kind))
             it.setData(0, ROLE_LINE, line)
-            it.setToolTip(0, tr("строка %d") % line)
+            it.setToolTip(0, tr("panels.line_2") % line)
             while stack and stack[-1][0] >= depth:
                 stack.pop()
             if stack:
@@ -472,16 +472,16 @@ class OutputPanel(QWidget):
         lay.setSpacing(0)
         bar = QHBoxLayout()
         bar.setContentsMargins(6, 2, 4, 2)
-        lbl = bind_text(QLabel(), "Показать вывод из:")
+        lbl = bind_text(QLabel(), "panels.show_output_from")
         lbl.setObjectName("hint")
         bar.addWidget(lbl)
         self.source = QComboBox()
-        for key in ("Все", "Сборка", "Запуск", "Unity"):
+        for key in ("panels.all", "common.build", "common.run", "Unity"):
             self.source.addItem(tr(key), key)
         self.source.currentIndexChanged.connect(self._rerender)
         bar.addWidget(self.source)
         bar.addStretch(1)
-        bar.addWidget(mini_button("clear", "Очистить всё", self.clear))
+        bar.addWidget(mini_button("clear", "panels.clear_all", self.clear))
         lay.addLayout(bar)
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
@@ -497,14 +497,14 @@ class OutputPanel(QWidget):
         for i in range(self.source.count()):
             self.source.setItemText(i, tr(self.source.itemData(i)))
 
-    def write(self, text, source="Запуск", color=None):
+    def write(self, text, source="common.run", color=None):
         color = theme.role_of(color) or color      # роль, а не цвет: строка перекрасится при смене темы
         for line in clip_log(text).rstrip("\n").split("\n"):
             self.lines.append((source, line, color))
             self._line_chars += len(line) + 1
             while self.lines and (len(self.lines) > LOG_BLOCKS or self._line_chars > LOG_CHARS):
                 self._line_chars -= len(self.lines.popleft()[1]) + 1
-            if self.source.currentData() in ("Все", source):
+            if self.source.currentData() in ("panels.all", source):
                 self._append(line, color)
         trim_log(self.view)
 
@@ -521,7 +521,7 @@ class OutputPanel(QWidget):
         self.view.clear()
         sel = self.source.currentData()
         for src, line, color in self.lines:
-            if sel in ("Все", src):
+            if sel in ("panels.all", src):
                 self._append(line, color)
 
     def clear(self):
@@ -565,13 +565,13 @@ class ReferencesPanel(QWidget):
         lay.addWidget(self.tree, 1)
 
     def retranslate(self):
-        self.tree.setHeaderLabels([tr("Код"), tr("Строка")])
+        self.tree.setHeaderLabels([tr("panels.code"), tr("panels.line")])
         if self.summary is None:
-            self.title.setText(tr("Нажмите Shift+F12 на имени класса, метода или поля"))
+            self.title.setText(tr("panels.press_shift_f12_class_method"))
         else:
             word, refs, files = self.summary
-            self.title.setText(tr("Ссылки на «%s»: %d в %d %s") % (
-                word, refs, files, plural(files, "файле", "файлах", "файлах")))
+            self.title.setText(tr("panels.references") % (
+                word, refs, files, plural(files, "common.file_one", "common.files_few", "common.files_few")))
 
     def show_results(self, word, refs, root, line_text):
         """refs — [{"path", "line", "col"}]; line_text(путь, строка) → текст строки."""
@@ -611,7 +611,7 @@ class ErrorList(QWidget):
         bar = QHBoxLayout()
         bar.setContentsMargins(6, 2, 6, 2)
         self.scope = QComboBox()
-        self.scope.addItems([tr("Всё решение"), tr("Открытые документы"), tr("Текущий документ")])
+        self.scope.addItems([tr("panels.entire_solution"), tr("panels.open_documents"), tr("panels.current_document")])
         self.scope.currentIndexChanged.connect(lambda *_: self.render())
         bar.addWidget(self.scope)
         self.btn_err = QToolButton(checkable=True, checked=True)
@@ -622,7 +622,7 @@ class ErrorList(QWidget):
         bar.addStretch(1)
         lay.addLayout(bar)
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["", tr("Описание"), tr("Проект"), tr("Файл"), tr("Строка")])
+        self.table.setHorizontalHeaderLabels(["", tr("panels.description"), tr("common.project"), tr("common.file"), tr("panels.line")])
         self.table.verticalHeader().hide()
         self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -662,15 +662,15 @@ class ErrorList(QWidget):
         return e, w
 
     def retranslate(self):
-        for i, key in enumerate(("Всё решение", "Открытые документы", "Текущий документ")):
+        for i, key in enumerate(("panels.entire_solution", "panels.open_documents", "panels.current_document")):
             self.scope.setItemText(i, tr(key))
-        self.table.setHorizontalHeaderLabels(["", tr("Описание"), tr("Проект"), tr("Файл"), tr("Строка")])
+        self.table.setHorizontalHeaderLabels(["", tr("panels.description"), tr("common.project"), tr("common.file"), tr("panels.line")])
         self._update_counts()
 
     def _update_counts(self):
         e, w = self.counts()
-        self.btn_err.setText(tr("✖ Ошибки: %d") % e)
-        self.btn_warn.setText(tr("⚠ Предупреждения: %d") % w)
+        self.btn_err.setText(tr("panels.errors") % e)
+        self.btn_warn.setText(tr("panels.warnings") % w)
 
     def render(self):
         self._update_counts()
@@ -735,12 +735,12 @@ class TerminalPanel(QWidget):
         row.addWidget(self.prompt)
         self.input = QLineEdit()
         self.input.setFont(font)
-        bind_text(self.input, "Команда, например: pip install PyQt6 или python3 main.py", "setPlaceholderText")
+        bind_text(self.input, "panels.command_example_pip_install_pyqt6", "setPlaceholderText")
         self.input.returnPressed.connect(self.run)
         self.input.installEventFilter(self)
         row.addWidget(self.input, 1)
-        row.addWidget(mini_button("stop", "Остановить команду", self.stop))
-        row.addWidget(mini_button("clear", "Очистить", self.view.clear))
+        row.addWidget(mini_button("stop", "panels.stop_command", self.stop))
+        row.addWidget(mini_button("clear", "panels.clear", self.view.clear))
         lay.addLayout(row)
         self.proc = None
         self.history, self.hpos = [], 0
@@ -797,10 +797,10 @@ class TerminalPanel(QWidget):
             if os.path.isdir(target):
                 self.set_cwd(target)
             else:
-                self._write(tr("cd: нет такой папки: %s\n") % target, C["error"])
+                self._write(tr("panels.cd_no_such_folder") % target, C["error"])
             return
         if self.proc and self.proc.state() != QProcess.ProcessState.NotRunning:
-            self._write(tr("Предыдущая команда ещё выполняется.\n"), C["warning"])
+            self._write(tr("panels.previous_command_still_being_executed"), C["warning"])
             return
         if self.proc is not None:
             self.proc.deleteLater()
@@ -810,7 +810,7 @@ class TerminalPanel(QWidget):
         self.proc.readyReadStandardOutput.connect(
             lambda: self._write(bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace")))
         self.proc.finished.connect(lambda code, _s: self._write(
-            "" if code == 0 else tr("[код выхода %d]\n") % code, C["dim"]))
+            "" if code == 0 else tr("panels.exit_code") % code, C["dim"]))
         self.proc.start("bash", ["-c", cmd])
 
     def stop(self):
@@ -860,23 +860,23 @@ class UnityPanel(QWidget):
         scroll.setWidget(body)
         outer.addWidget(scroll)
 
-        g = bind_text(QGroupBox(), "Проект Unity", "setTitle")
+        g = bind_text(QGroupBox(), "panels.project_unity", "setTitle")
         gl = QVBoxLayout(g)
         self.project = QComboBox()
-        bind_text(self.project, "Папка проекта Unity (с Assets и ProjectSettings)", "setToolTip")
+        bind_text(self.project, "panels.project_folder_unity_from_assets", "setToolTip")
         gl.addWidget(self.project)
         self.project_version = QLabel()
         self.project_version.setObjectName("hint")
         gl.addWidget(self.project_version)
         row = QHBoxLayout()
-        lbl = bind_text(QLabel(), "Версия Unity:")
+        lbl = bind_text(QLabel(), "panels.version_unity_as_follows")
         lbl.setObjectName("hint")
         row.addWidget(lbl)
         self.editor = QComboBox()
         row.addWidget(self.editor, 1)
         gl.addLayout(row)
         row = QHBoxLayout()
-        self.open_btn = bind_text(QPushButton(), "Открыть в Unity")
+        self.open_btn = bind_text(QPushButton(), "common.open_unity")
         self.open_btn.setObjectName("primary")
         self.open_btn.clicked.connect(self.open_in_unity)
         row.addWidget(self.open_btn)
@@ -886,28 +886,28 @@ class UnityPanel(QWidget):
         gl.addLayout(row)
         path_row = QHBoxLayout()
         self.editors_root = QLineEdit(settings.value("unity/editors_root", UNITY_EDITOR_ROOTS[0]))
-        bind_text(self.editors_root, "Папка, где Unity Hub хранит установленные версии Unity", "setToolTip")
+        bind_text(self.editors_root, "panels.folder_where_unity_hub_stores", "setToolTip")
         self.editors_root.editingFinished.connect(self._root_changed)
         path_row.addWidget(self.editors_root, 1)
         gl.addLayout(path_row)
         lay.addWidget(g)
 
-        g = bind_text(QGroupBox(), "Новый скрипт C#", "setTitle")
+        g = bind_text(QGroupBox(), "panels.new_c_script", "setTitle")
         gl = QFormLayout(g)
         self.script_name = QLineEdit()
-        bind_text(self.script_name, "Например: EnemyAI", "setPlaceholderText")
+        bind_text(self.script_name, "panels.example_enemyai", "setPlaceholderText")
         self.script_kind = QComboBox()
         self.kinds = [i for i, t in enumerate(templates.TEMPLATES) if t[1] == ".cs"]
         self.script_kind.addItems([tr(templates.TEMPLATES[i][0]) for i in self.kinds])
-        gl.addRow(bind_text(QLabel(), "Имя:"), self.script_name)
-        gl.addRow(bind_text(QLabel(), "Вид:"), self.script_kind)
-        b = bind_text(QPushButton(), "Создать скрипт")
+        gl.addRow(bind_text(QLabel(), "common.name"), self.script_name)
+        gl.addRow(bind_text(QLabel(), "panels.view_label"), self.script_kind)
+        b = bind_text(QPushButton(), "panels.create_script")
         b.clicked.connect(self._create)
         self.script_name.returnPressed.connect(self._create)
         gl.addRow(b)
         lay.addWidget(g)
 
-        g = bind_text(QGroupBox(), "Методы Unity — двойной щелчок вставит в код", "setTitle")
+        g = bind_text(QGroupBox(), "panels.methods_unity_double_clicking_code", "setTitle")
         gl = QVBoxLayout(g)
         self.messages = QListWidget()
         for name, sig, doc in unity_api.MESSAGES:
@@ -918,7 +918,7 @@ class UnityPanel(QWidget):
         self.messages.setMinimumHeight(220)
         self.messages.itemDoubleClicked.connect(self._insert_message)
         gl.addWidget(self.messages)
-        self.msg_doc = QLabel(tr("Выберите метод, чтобы увидеть описание."))
+        self.msg_doc = QLabel(tr("panels.select_method_see_description"))
         self.msg_doc.setObjectName("hint")
         self.msg_doc.setWordWrap(True)
         self.messages.currentItemChanged.connect(
@@ -934,11 +934,11 @@ class UnityPanel(QWidget):
         for i, (_, sig, doc) in enumerate(unity_api.MESSAGES):
             self.messages.item(i).setToolTip("%s\n%s" % (sig, tr(doc)))
         item = self.messages.currentItem()
-        self.msg_doc.setText(item.toolTip() if item else tr("Выберите метод, чтобы увидеть описание."))
+        self.msg_doc.setText(item.toolTip() if item else tr("panels.select_method_see_description"))
         if self.editor.count() and not self.editor.itemData(0):
-            self.editor.setItemText(0, tr("не найдено — укажите папку ниже"))
+            self.editor.setItemText(0, tr("panels.not_found_please_enter_folder"))
         if self.project.count() and not self.project.itemData(0):
-            self.project.setItemText(0, tr("в решении нет проекта Unity"))
+            self.project.setItemText(0, tr("panels.no_unity_project_solution"))
         self._match_version(select_editor=False)
 
     def _root_changed(self):
@@ -951,7 +951,7 @@ class UnityPanel(QWidget):
         for ver, exe in editors:
             self.editor.addItem(ver, exe)
         if not editors:
-            self.editor.addItem(tr("не найдено — укажите папку ниже"), "")
+            self.editor.addItem(tr("panels.not_found_please_enter_folder"), "")
         self._match_version()
 
     def set_root(self, root):
@@ -960,7 +960,7 @@ class UnityPanel(QWidget):
         for p in find_unity_projects(root):
             self.project.addItem(os.path.relpath(p, root) if p != root else os.path.basename(p), p)
         if not self.project.count():
-            self.project.addItem(tr("в решении нет проекта Unity"), "")
+            self.project.addItem(tr("panels.no_unity_project_solution"), "")
         self._match_version()
 
     def project_path(self):
@@ -976,7 +976,7 @@ class UnityPanel(QWidget):
                     ver = m.group(1) if m else ""
             except OSError:
                 pass
-        self.project_version.setText(tr("Проект сделан в Unity %s") % ver if ver else tr("Версия проекта не указана"))
+        self.project_version.setText(tr("panels.project_was_made_unity") % ver if ver else tr("panels.project_version_not_shown"))
         if ver and select_editor:
             i = self.editor.findText(ver)
             if i >= 0:
@@ -985,29 +985,29 @@ class UnityPanel(QWidget):
     def open_in_unity(self):
         p = self.project_path()
         if not p:
-            self.message.emit(tr("В решении нет проекта Unity (нужна папка с Assets и ProjectSettings)."), C["warning"])
+            self.message.emit(tr("panels.no_unity_project_solution_folder"), C["warning"])
             return
         exe = self.editor.currentData()
         if exe and os.path.isfile(exe):
             ok = QProcess.startDetached(exe, ["-projectPath", p])[0]
-            self.message.emit((tr("Открываю проект в Unity %s: %s") % (self.editor.currentText(), p)) if ok
-                              else tr("Не удалось запустить %s") % exe, C["text"] if ok else C["error"])
+            self.message.emit((tr("panels.opening_project_at_unity") % (self.editor.currentText(), p)) if ok
+                              else tr("common.could_not_run") % exe, C["text"] if ok else C["error"])
         else:
             self.open_hub(project=p)
 
     def open_hub(self, project=None):
         hub = shutil.which("unityhub") or shutil.which("unity-hub")
         if not hub:
-            self.message.emit(tr("Unity Hub не найден. Установите его или укажите папку с версиями Unity."), C["warning"])
+            self.message.emit(tr("panels.unity_hub_was_not_found"), C["warning"])
             return
         args = ["--", "--projectPath", project] if project else []
         QProcess.startDetached(hub, args)
-        self.message.emit(tr("Запускаю Unity Hub") + (tr(" с проектом %s") % project if project else ""), C["text"])
+        self.message.emit(tr("panels.starting_unity_hub") + (tr("panels.with_project") % project if project else ""), C["text"])
 
     def _create(self):
         name = re.sub(r"\W", "", self.script_name.text().strip())
         if not name:
-            self.message.emit(tr("Введите имя скрипта латиницей, например EnemyAI."), C["warning"])
+            self.message.emit(tr("panels.enter_script_name_latin_like"), C["warning"])
             return
         self.create_script.emit(name, self.kinds[self.script_kind.currentIndex()])
         self.script_name.clear()
@@ -1019,17 +1019,17 @@ class UnityPanel(QWidget):
 
 # ====================================================================== конструктор PyQt
 WIDGETS = [
-    ("QPushButton", "Кнопка", "Нажми меня"),
-    ("QLabel", "Надпись", "Текст"),
-    ("QLineEdit", "Поле ввода", "Введите текст…"),
-    ("QTextEdit", "Многострочное поле", ""),
-    ("QCheckBox", "Флажок", "Включить"),
-    ("QRadioButton", "Переключатель", "Вариант"),
-    ("QComboBox", "Выпадающий список", "Первый;Второй;Третий"),
-    ("QSpinBox", "Число", "0"),
-    ("QSlider", "Ползунок", "50"),
-    ("QProgressBar", "Индикатор", "40"),
-    ("QListWidget", "Список", "Элемент 1;Элемент 2"),
+    ("QPushButton", "panels.widget_button", "common.click_me"),
+    ("QLabel", "panels.widget_label", "common.text"),
+    ("QLineEdit", "panels.widget_line_edit", "panels.enter_text"),
+    ("QTextEdit", "panels.multi_line_field", ""),
+    ("QCheckBox", "panels.checkbox", "panels.enable"),
+    ("QRadioButton", "panels.radio_button", "panels.radio_option"),
+    ("QComboBox", "panels.drop_down_list", "panels.first_one_second_one_third"),
+    ("QSpinBox", "panels.spin_box", "0"),
+    ("QSlider", "panels.slider", "50"),
+    ("QProgressBar", "panels.indicator", "40"),
+    ("QListWidget", "panels.list", "panels.element_1_element_2"),
 ]
 
 
@@ -1104,32 +1104,32 @@ class PyQtDesigner(QWidget):
         scroll.setWidget(body)
         outer.addWidget(scroll)
 
-        g = bind_text(QGroupBox(), "Новый файл PyQt", "setTitle")
+        g = bind_text(QGroupBox(), "panels.new_file_pyqt", "setTitle")
         gl = QGridLayout(g)
-        for n, (label, idx) in enumerate([("Окно", 0), ("Диалог", 1), ("Виджет", 2), ("Форма .ui", 3)]):
+        for n, (label, idx) in enumerate([("panels.window", 0), ("panels.dialog", 1), ("panels.widget", 2), ("panels.form_ui", 3)]):
             b = bind_text(QPushButton(), label)
             b.clicked.connect(lambda _=False, i=idx: self.new_template.emit(i))
             gl.addWidget(b, n // 2, n % 2)
-        b = bind_text(QPushButton(), "Показать форму .ui из редактора")
+        b = bind_text(QPushButton(), "panels.preview_ui_form_from_editor")
         b.clicked.connect(self.preview_ui.emit)
         gl.addWidget(b, 2, 0, 1, 2)
         lay.addWidget(g)
 
-        g = bind_text(QGroupBox(), "Конструктор формы", "setTitle")
+        g = bind_text(QGroupBox(), "panels.form_designer", "setTitle")
         gl = QVBoxLayout(g)
         form = QFormLayout()
-        self.title = QLineEdit(tr("Моя форма"))
+        self.title = QLineEdit(tr("panels.my_form"))
         self.title.textChanged.connect(self.refresh_preview)
         self.cls_name = QLineEdit("MyForm")
         self.layout_kind = QComboBox()
-        self.layout_kind.addItems([tr("Вертикально"), tr("Горизонтально"), tr("Сетка в 2 столбца")])
+        self.layout_kind.addItems([tr("panels.vertically"), tr("panels.horizontal"), tr("panels.two_column_grid")])
         self.layout_kind.currentIndexChanged.connect(self.refresh_preview)
         self.qt_version = QComboBox()
         self.qt_version.addItems(["PyQt6", "PyQt5"])
-        form.addRow(bind_text(QLabel(), "Заголовок:"), self.title)
-        form.addRow(bind_text(QLabel(), "Класс:"), self.cls_name)
-        form.addRow(bind_text(QLabel(), "Раскладка:"), self.layout_kind)
-        form.addRow(bind_text(QLabel(), "Библиотека:"), self.qt_version)
+        form.addRow(bind_text(QLabel(), "panels.title"), self.title)
+        form.addRow(bind_text(QLabel(), "panels.class"), self.cls_name)
+        form.addRow(bind_text(QLabel(), "panels.layout"), self.layout_kind)
+        form.addRow(bind_text(QLabel(), "panels.library"), self.qt_version)
         gl.addLayout(form)
         row = QHBoxLayout()
         self.add_kind = QComboBox()
@@ -1138,22 +1138,22 @@ class PyQtDesigner(QWidget):
         for cls, ru, _ in WIDGETS:
             self.add_kind.addItem("%s (%s)" % (tr(ru), cls), cls)
         row.addWidget(self.add_kind, 1)
-        add = bind_text(QPushButton(), "Добавить")
+        add = bind_text(QPushButton(), "common.add")
         add.clicked.connect(self.add_widget)
         row.addWidget(add)
         gl.addLayout(row)
         self.items = QListWidget()
         self.items.setMinimumHeight(120)
         self.items.itemChanged.connect(self.refresh_preview)
-        bind_text(self.items, "Двойной щелчок — изменить текст. Для списков варианты через «;»", "setToolTip")
+        bind_text(self.items, "panels.double_click_change_text", "setToolTip")
         gl.addWidget(self.items)
         row = QHBoxLayout()
-        for text, slot in (("↑", lambda: self.move(-1)), ("↓", lambda: self.move(1)), ("Удалить", self.remove)):
+        for text, slot in (("↑", lambda: self.move(-1)), ("↓", lambda: self.move(1)), ("panels.delete", self.remove)):
             b = bind_text(QPushButton(), text)
             b.clicked.connect(slot)
             row.addWidget(b)
         gl.addLayout(row)
-        lbl = bind_text(QLabel(), "Предпросмотр:")
+        lbl = bind_text(QLabel(), "panels.preview")
         lbl.setObjectName("hint")
         gl.addWidget(lbl)
         self.preview = QFrame()
@@ -1161,19 +1161,19 @@ class PyQtDesigner(QWidget):
         self.preview.setStyleSheet(PREVIEW_STYLE)
         self.preview.setMinimumHeight(160)
         gl.addWidget(self.preview)
-        gen = bind_text(QPushButton(), "Создать код формы")
+        gen = bind_text(QPushButton(), "panels.create_form_code")
         gen.setObjectName("primary")
         gen.clicked.connect(self.generate)
         gl.addWidget(gen)
         lay.addWidget(g)
         lay.addStretch(1)
         self.counter = {}
-        for cls, text in (("QLabel", tr("Ваше имя:")), ("QLineEdit", tr("Введите имя…")), ("QPushButton", tr("Поздороваться"))):
+        for cls, text in (("QLabel", tr("panels.your_name")), ("QLineEdit", tr("panels.enter_name")), ("QPushButton", tr("panels.say_hello"))):
             self._add(cls, text)
         self.refresh_preview()
 
     def retranslate(self):
-        for i, key in enumerate(("Вертикально", "Горизонтально", "Сетка в 2 столбца")):
+        for i, key in enumerate(("panels.vertically", "panels.horizontal", "panels.two_column_grid")):
             self.layout_kind.setItemText(i, tr(key))
         for i, (cls, label, _) in enumerate(WIDGETS):
             self.add_kind.setItemText(i, "%s (%s)" % (tr(label), cls))
@@ -1233,7 +1233,7 @@ class PyQtDesigner(QWidget):
         outer = QVBoxLayout(self.preview)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        title = QLabel("■  " + (self.title.text() or tr("Форма")))
+        title = QLabel("■  " + (self.title.text() or tr("panels.form")))
         title.setObjectName("formTitle")
         outer.addWidget(title)
         inner = QWidget()
@@ -1265,7 +1265,7 @@ class PyQtDesigner(QWidget):
         lines += ["", "", "class %s(QWidget):" % cls_name,
                   "    def __init__(self, parent=None):",
                   "        super().__init__(parent)",
-                  "        self.setWindowTitle(%r)" % (self.title.text() or tr("Форма")),
+                  "        self.setWindowTitle(%r)" % (self.title.text() or tr("panels.form")),
                   "        layout = %s(self)" % layout_cls, ""]
         handlers = []
         for n, (cls, obj, text) in enumerate(spec):
@@ -1299,7 +1299,7 @@ class PyQtDesigner(QWidget):
                 handlers.append(obj)
         for obj in handlers:
             lines += ["", "    def on_%s_clicked(self):" % obj,
-                      "        print(%r)" % (tr("Нажата кнопка %s") % obj)]
+                      "        print(%r)" % (tr("panels.pressed_button") % obj)]
         lines += ["", "", 'if __name__ == "__main__":',
                   "    app = QApplication(sys.argv)",
                   "    window = %s()" % cls_name,
@@ -1313,7 +1313,7 @@ class PyQtDesigner(QWidget):
 class NewFileDialog(QDialog):
     def __init__(self, parent, folders, default_folder, template_index=0):
         super().__init__(parent)
-        self.setWindowTitle(tr("Добавить новый элемент"))
+        self.setWindowTitle(tr("panels.add_new_item"))
         self.resize(640, 420)
         lay = QVBoxLayout(self)
         body = QHBoxLayout()
@@ -1337,12 +1337,12 @@ class NewFileDialog(QDialog):
         self.folder.setEditable(True)
         for f in folders:
             self.folder.addItem(f)
-        form.addRow(tr("Имя:"), self.name)
-        form.addRow(tr("Папка:"), self.folder)
+        form.addRow(tr("common.name"), self.name)
+        form.addRow(tr("panels.folder"), self.folder)
         lay.addLayout(form)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        bb.button(QDialogButtonBox.StandardButton.Ok).setText(tr("Добавить"))
-        bb.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("Отмена"))
+        bb.button(QDialogButtonBox.StandardButton.Ok).setText(tr("common.add"))
+        bb.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("panels.cancel"))
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)
@@ -1353,8 +1353,8 @@ class NewFileDialog(QDialog):
 
     def _changed(self, row):
         label, ext, text, where = templates.TEMPLATES[row]
-        hints = {"python": tr("Файл попадёт в проект Python."), "unity": tr("Скрипт попадёт в Assets/Scripts проекта Unity."),
-                 "unity_editor": tr("Окно редактора должно лежать в папке Assets/Editor."), None: ""}
+        hints = {"python": tr("panels.file_will_fall_into_project"), "unity": tr("panels.script_will_fall_into_assets"),
+                 "unity_editor": tr("panels.editor_window_should_folder_assets"), None: ""}
         self.desc.setText("<b>%s</b><br><br>%s" % (label, hints.get(where, "")))
         if not self.name.text() or self.name.text().startswith("new_") or self.name.text().startswith("New"):
             self.name.setText("NewScript" if ext == ".cs" else "new_file")

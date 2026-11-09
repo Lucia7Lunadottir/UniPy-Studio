@@ -72,8 +72,8 @@ class ScreenshotRunner:
         os.makedirs(d, exist_ok=True)
         ok = pix.save(self.path, "PNG")
         if os.environ.get("UNIPY_DEBUG"):
-            print(tr("кадров:"), self.frame, tr("подсказки:"), ed is not None and ed.completer.popup().isVisible())
-        print((tr("Снимок сохранён: %s") if ok else tr("Не удалось сохранить снимок: %s")) % self.path)
+            print(tr("app.frames"), self.frame, tr("app.completions"), ed is not None and ed.completer.popup().isVisible())
+        print((tr("app.screenshot_saved") if ok else tr("app.could_not_save_screenshot")) % self.path)
         self.app.exit(0 if ok else 1)
 
 

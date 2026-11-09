@@ -9,6 +9,7 @@ from PyQt6.QtGui import QFont, QTextCursor, QTextDocument
 from PyQt6.QtCore import Qt
 from PyQt6.QtTest import QTest
 from studio.editor import CodeEditor
+from studio.i18n import tr
 from studio.intellisense import Item, CSharpProvider, package_sources
 from studio.highlighter import Highlighter
 from studio.search import pattern, SearchWorker
@@ -70,7 +71,7 @@ class Regressions(unittest.TestCase):
         ed.insert_completion('Translate')
         self.assertEqual(ed.toPlainText(), 'Translate()')
         ed.show_completions([])
-        self.assertIn('Подсказок нет', ed.doc_tip.text())
+        self.assertIn(tr('editor.no_completions_retry'), ed.doc_tip.text())
         self.assertTrue(ed.doc_tip.isVisible())
 
     def test_package_filename_and_extension_at_dot(self):

@@ -30,11 +30,81 @@ class Item:
         self.data = data        # исходный элемент языкового сервера (для completionItem/resolve)
 
 
+class CompletionList(list):
+    """Список подсказок + признак: сервер отдал ВСЁ подходящее к месту (incomplete=False).
+    Тогда при дальнейшем наборе слова список только фильтруется на месте, без нового запроса."""
+    incomplete = True
+
+
+# Виды подсказок для кнопок-фильтров в списке (как значки внизу списка в Visual Studio):
+# (id, название, виды LSP/jedi, вид для значка)
+KIND_GROUPS = (
+    ("types", "intellisense.classes_types", ("class", "type", "struct", "enum"), "class"),
+    ("namespaces", "intellisense.namespaces", ("module",), "module"),
+    ("methods", "intellisense.methods", ("method", "function"), "method"),
+    ("properties", "intellisense.properties", ("property",), "property"),
+    ("fields", "intellisense.fields_values", ("field", "variable", "const", "instance", "statement", "param"), "field"),
+    ("events", "intellisense.events_unity_messages", ("event",), "event"),
+    ("keywords", "intellisense.keywords_snippets", ("keyword", "snippet"), "keyword"),
+)
+_GROUP_OF = {kind: group[0] for group in KIND_GROUPS for kind in group[2]}
+TYPE_KINDS = ("class", "type", "struct", "enum")
+
+
+def group_of(kind):
+    return _GROUP_OF.get(kind)
+
+
+def present_groups(items):
+    """Какие виды есть в списке — для них показываются кнопки-фильтры."""
+    have = {_GROUP_OF.get(it.kind) for it in items}
+    return [group[0] for group in KIND_GROUPS if group[0] in have]
+
+
+def arrange(items, prefix="", groups=(), alpha=False, limit=300):
+    """Что показать в списке: по набранному началу, по выбранным видам; порядок — как дал анализатор
+    (по релевантности) или по алфавиту."""
+    low = prefix.lower()
+    out = [it for it in items if it.name.lower().startswith(low)] if low else list(items)
+    if groups:
+        out = [it for it in out if _GROUP_OF.get(it.kind) in groups]
+    if alpha:
+        out.sort(key=lambda it: it.name.lower())       # sort устойчивый: равные имена — в порядке релевантности
+    return out[:limit]
+
+
+_USING = re.compile(r"^\s*(?:global\s+)?using\s+(?:static\s+)?([\w.]+)\s*;", re.M)
+_NAMESPACE = re.compile(r"^\s*namespace\s+([\w.]+)", re.M)
+
+
+def file_imports(code):
+    """Пространства имён, уже доступные в файле: using-директивы и namespace файла (с родительскими)."""
+    head = code[:60000]
+    names = set(_USING.findall(head))
+    for ns in _NAMESPACE.findall(head):
+        parts = ns.split(".")
+        names.update(".".join(parts[:i]) for i in range(1, len(parts) + 1))
+    return names
+
+
+def completion_tier(namespace, imports):
+    """Какой из одинаковых по имени типов выше (меньше — выше):
+    0 — доступен в файле и из UnityEngine/UnityEditor (Random, Debug — как ждёт Unity-разработчик),
+    1 — доступен в файле, из другой библиотеки (System.Random),
+    2 — ещё не подключён, но из UnityEngine…, 3 — не подключён и прочий (using добавится при выборе)."""
+    if not namespace:
+        return 0
+    unity = namespace.split(".")[0] in ("UnityEngine", "UnityEditor")
+    if namespace in imports:
+        return 0 if unity else 1
+    return 2 if unity else 3
+
+
 KIND_RU = {
-    "function": "функция", "class": "класс", "instance": "переменная", "statement": "переменная",
-    "param": "параметр", "module": "модуль", "keyword": "ключевое слово", "property": "свойство",
-    "path": "путь", "method": "метод", "const": "значение", "event": "сообщение Unity",
-    "field": "поле", "type": "тип", "word": "слово",
+    "function": "common.function", "class": "common.class", "instance": "common.variable", "statement": "common.variable",
+    "param": "intellisense.parameter", "module": "intellisense.module", "keyword": "common.keyword", "property": "common.property",
+    "path": "common.path", "method": "common.method", "const": "common.value", "event": "intellisense.unity_message_2",
+    "field": "common.field", "type": "common.type", "word": "common.word",
 }
 
 
@@ -88,9 +158,9 @@ class JediWorker(QObject):
         try:
             jedi.settings.case_insensitive_completion = True
             jedi.preload_module("PyQt6.QtWidgets", "PyQt6.QtCore", "PyQt6.QtGui", "sys", "os")
-            msg = tr("jedi %s — модули PyQt6 загружены") % JEDI_VERSION
+            msg = tr("intellisense.jedi_pyqt6_modules_loaded") % JEDI_VERSION
         except Exception as e:  # noqa
-            msg = tr("jedi %s (PyQt6 не загружен: %s)") % (JEDI_VERSION, e)
+            msg = tr("intellisense.jedi_pyqt6_not_loaded") % (JEDI_VERSION, e)
         with self._cv:
             if self._stopped:
                 return
@@ -412,7 +482,7 @@ class CSharpProvider:
             result, name, target, parameters = match.groups()
             if _strip_type(target).rsplit(".", 1)[-1] == _strip_type(receiver) and name.lower().startswith(prefix):
                 detail = f"{result} {target}.{name}({parameters or ''})"
-                yield Item(name, "method", detail, "Метод расширения")
+                yield Item(name, "method", detail, "intellisense.extension_method")
 
 
     @staticmethod
@@ -513,7 +583,7 @@ class CSharpProvider:
                     continue
                 for match in re.finditer(r"\bpublic\s+(?:(?:static|partial|abstract|sealed|readonly)\s+)*(?:class|struct|interface|enum)\s+(\w+)", source):
                     if match[1].lower().startswith(low) and match[1] not in {it.name for it in items}:
-                        items.append(Item(match[1], "class", namespace[1] if namespace else "Тип проекта"))
+                        items.append(Item(match[1], "class", namespace[1] if namespace else "intellisense.project_type"))
         if packages_only:
             return items
         # без точки: ключевые слова, классы Unity, члены MonoBehaviour, сообщения, локальные имена
@@ -527,7 +597,7 @@ class CSharpProvider:
 
         if attr_ctx:
             for name, doc in unity_api.ATTRIBUTES:
-                add(name, "class", "атрибут", doc)
+                add(name, "class", "intellisense.attribute", doc)
             return items
         own, base = self._own_class(text)
         for name, typ in sorted(self._locals(text).items()):
@@ -537,12 +607,12 @@ class CSharpProvider:
         for name, sig, doc in unity_api.MESSAGES:
             add(name, "event", sig, doc)
         for cls, info in sorted(unity_api.CLASSES.items()):
-            add(cls, "class", "класс Unity", info["doc"])
+            add(cls, "class", "intellisense.class_unity", info["doc"])
         for kw in unity_api.CS_KEYWORDS:
-            add(kw, "keyword", "ключевое слово")
+            add(kw, "keyword", "common.keyword")
         for w in sorted(set(_IDENT.findall(text))):
             if w != prefix:
-                add(w, "word", "из этого файла")
+                add(w, "word", "intellisense.from_this_file")
         items.sort(key=lambda it: (not it.name.startswith(prefix), it.kind == "word", it.name.lower()))
         return items
 
@@ -660,7 +730,7 @@ class CSharpProvider:
                 word, C["tip_doc"], html.escape(tr(unity_api.CLASSES[word]["doc"])))
         for msg, sig, doc in unity_api.MESSAGES:
             if msg == word:
-                return ("<b>%s</b> <span style='color:" + C["hint"] + tr("'>(сообщение Unity)</span><br>%s")) % (
+                return ("<b>%s</b> <span style='color:" + C["hint"] + tr("intellisense.unity_message")) % (
                     html.escape(sig), html.escape(tr(doc)))
         # член через точку: найдём выражение перед словом
         line_start = text.rfind("\n", 0, pos) + 1
@@ -678,7 +748,7 @@ class CSharpProvider:
                 "<br>".join(lines), mems[0].owner, word, html.escape(tr(mems[0].doc)))
         local = self._locals(text)
         if word in local:
-            return ("<b>%s</b> %s <span style='color:" + C["hint"] + tr("'>(переменная)</span>")) % (
+            return ("<b>%s</b> %s <span style='color:" + C["hint"] + tr("intellisense.variable")) % (
                 html.escape(local[word]), word)
         return ""
 
@@ -687,7 +757,7 @@ class CSharpProvider:
 def word_items(text, prefix):
     low = prefix.lower()
     words = sorted(set(re.findall(r"\b[A-Za-z_][\w-]{2,}\b", text)))
-    return [Item(w, "word", tr("из этого файла")) for w in words if w.lower().startswith(low) and w != prefix]
+    return [Item(w, "word", tr("intellisense.from_this_file")) for w in words if w.lower().startswith(low) and w != prefix]
 
 class CSharpIndexWorker(QObject):
     """Keep project/package disk scans off the UI thread; coalesce typing requests."""
@@ -740,7 +810,10 @@ class CSharpIndexWorker(QObject):
                                           packages_only=base is not None)
                 if base is not None:
                     seen = {item.name for item in base}
-                    items = base + [item for item in items if item.name not in seen]
+                    merged = CompletionList(base)
+                    merged.extend(item for item in items if item.name not in seen)
+                    merged.incomplete = getattr(base, "incomplete", True)    # list + list потерял бы этот признак
+                    items = merged
             except (OSError, ValueError, RuntimeError):
                 items = base or []
             with self._condition:

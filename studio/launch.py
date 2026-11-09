@@ -12,7 +12,7 @@ def resolve_request(args):
         if project.is_file():
             project = project.parent
         if not project.is_dir():
-            raise ValueError(tr("Проект не найден: ") + str(project))
+            raise ValueError(tr("launch.project_not_found") + str(project))
         root = str(project)
     elif target:
         path = Path(target).resolve()

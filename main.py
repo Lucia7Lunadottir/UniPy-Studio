@@ -13,12 +13,12 @@ from studio.i18n import tr
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="UniPy Studio")
-    parser.add_argument("path", nargs="?", help=tr("папка решения или файл"))
-    parser.add_argument("--screenshot", metavar="FILE.png", help=tr("нарисовать ~120 кадров, сохранить картинку окна и выйти"))
-    parser.add_argument("--project", help=tr("корень проекта Unity или файл решения"))
-    parser.add_argument("--file", help=tr("файл для открытия внутри проекта"))
-    parser.add_argument("--line", type=int, default=1, help=tr("строка, начиная с 1"))
-    parser.add_argument("--column", type=int, default=1, help=tr("столбец, начиная с 1"))
+    parser.add_argument("path", nargs="?", help=tr("main.solution_folder_file"))
+    parser.add_argument("--screenshot", metavar="FILE.png", help=tr("main.render_about_120_frames_save"))
+    parser.add_argument("--project", help=tr("main.unity_project_root_solution_file"))
+    parser.add_argument("--file", help=tr("main.file_open_project"))
+    parser.add_argument("--line", type=int, default=1, help=tr("main.line_number_starting_at_1"))
+    parser.add_argument("--column", type=int, default=1, help=tr("main.column_number_starting_at_1"))
     return parser.parse_args(argv)
 
 
@@ -30,7 +30,7 @@ def main():
     try:
         from studio.app import run
     except ImportError as e:
-        sys.stderr.write(tr("Нужен PyQt6: pip install PyQt6 jedi\n(%s)\n") % e)
+        sys.stderr.write(tr("main.pyqt6_required_pip_install_pyqt6") % e)
         return 1
     return run(args)
 

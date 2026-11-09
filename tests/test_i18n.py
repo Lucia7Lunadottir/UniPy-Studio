@@ -7,45 +7,66 @@ from unittest.mock import patch
 
 from studio import i18n
 
+FOLDER = Path(i18n.__file__).with_name("locales")
+KEY = re.compile(r"^[a-z0-9_]+\.[A-Za-z0-9_.]+$")
+CYRILLIC = re.compile("[А-Яа-яЁё]")
+# Русский текст в коде допустим только как содержимое шаблонов новых файлов (переводится через
+# TEMPLATE_PHRASES) и как имя папки примера на диске.
+CYRILLIC_ALLOWED = {"templates.py"}
+CYRILLIC_ALLOWED_VALUES = {"Пример", "equestria-qt-kit старше 1.2"}
+# строки вида «x.y», которые не ключи перевода: имя файла и виды действий LSP
+NOT_KEYS = {"main.py", "refactor.extract", "refactor.inline", "refactor.rewrite"}
+
+
+def code_files():
+    return [FOLDER.parent.parent / "main.py", *sorted(FOLDER.parent.glob("*.py"))]
+
+
+def string_constants(path):
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    docstrings = {id(n.body[0].value) for n in ast.walk(tree)
+                  if isinstance(n, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                  and n.body and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+    return [n for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docstrings]
+
 
 class LocalizationTests(unittest.TestCase):
-    def test_catalogs_cover_source_and_preserve_format_fields(self):
-        folder = Path(i18n.__file__).with_name("locales")
+    def test_catalogs_cover_keys_and_preserve_format_fields(self):
         languages = set("en ru de fr es pt pl uk zh zh_TW ja ko".split())
-        self.assertEqual({path.stem for path in folder.glob("*.json")}, languages)
-        source = json.loads((folder / "ru.json").read_text(encoding="utf-8"))
+        self.assertEqual({path.stem for path in FOLDER.glob("*.json")}, languages)
+        source = json.loads((FOLDER / "en.json").read_text(encoding="utf-8"))
+        prefixes = {key.split(".")[0] for key in source if KEY.match(key)}
+        used = {n.value for path in code_files() for n in string_constants(path)
+                if KEY.match(n.value) and n.value.split(".")[0] in prefixes and n.value not in NOT_KEYS}
+        self.assertEqual(sorted(used - source.keys()), [])
         fields = re.compile(r"%[sdg]|\{name\}")
-        calls = set()
-        for path in [folder.parent.parent / "main.py", *folder.parent.glob("*.py")]:
-            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
-                    continue
-                if node.func.id in ("tr", "plural", "bind_text"):
-                    args = node.args if node.func.id == "tr" else node.args[1:]
-                    if node.func.id == "bind_text":
-                        args = args[:1]
-                    calls.update(arg.value for arg in args if isinstance(arg, ast.Constant)
-                                 and isinstance(arg.value, str) and re.search("[А-Яа-яЁё]", arg.value))
-        self.assertLessEqual(calls, source.keys())
         for language in languages:
             with self.subTest(language=language):
-                catalog = json.loads((folder / f"{language}.json").read_text(encoding="utf-8"))
+                catalog = json.loads((FOLDER / f"{language}.json").read_text(encoding="utf-8"))
                 self.assertEqual(catalog.keys(), source.keys())
-                for message, translation in catalog.items():
-                    self.assertTrue(translation.strip(), message)
-                    self.assertEqual(fields.findall(translation), fields.findall(message), message)
+                for key, translation in catalog.items():
+                    self.assertTrue(translation.strip(), key)
+                    self.assertEqual(fields.findall(translation), fields.findall(source[key]), key)
+
+    def test_no_untranslated_russian_in_code(self):
+        found = [f"{path.name}:{n.lineno}: {n.value[:50]!r}" for path in code_files()
+                 if path.name not in CYRILLIC_ALLOWED for n in string_constants(path)
+                 if CYRILLIC.search(n.value) and n.value not in CYRILLIC_ALLOWED_VALUES]
+        self.assertEqual(found, [])
 
     def test_fallback_chain(self):
         catalogs = {
-            "zh_TW": {"Сохранить": "儲存"},
-            "zh": {"Открыть": "打开"},
-            "en": {"Закрыть": "Close"},
+            "zh_TW": {"mainwindow.save": "儲存"},
+            "zh": {"mainwindow.open_file": "打开"},
+            "en": {"common.close": "Close"},
         }
         with patch.object(i18n, "LANG", "zh_TW"), patch.object(i18n, "_load", catalogs.get):
-            self.assertEqual(i18n.tr("Сохранить"), "儲存")
-            self.assertEqual(i18n.tr("Открыть"), "打开")
-            self.assertEqual(i18n.tr("Закрыть"), "Close")
-            self.assertEqual(i18n.tr("Файл"), "Файл")
+            self.assertEqual(i18n.tr("mainwindow.save"), "儲存")
+            self.assertEqual(i18n.tr("mainwindow.open_file"), "打开")
+            self.assertEqual(i18n.tr("common.close"), "Close")
+            self.assertEqual(i18n.tr("missing.key"), "missing.key")
+            self.assertEqual(i18n.tr("void Update()"), "void Update()")   # чужой текст — как есть
 
 
 if __name__ == "__main__":

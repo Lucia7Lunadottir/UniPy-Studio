@@ -18,9 +18,12 @@ from urllib.parse import quote, unquote, urlparse
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
 
 from . import unity_api
-from .intellisense import Item
+from .intellisense import Item, CompletionList, TYPE_KINDS, completion_tier, file_imports
 from .theme import C
 from .i18n import tr
+
+# Настройки, которые меняются из меню без перезапуска (читаются при workspace/configuration)
+OPTIONS = {"unimported": True}      # подсказки из ещё не подключённых пространств имён (Roslyn)
 
 METADATA_DIR = os.path.join(os.path.expanduser("~"), ".cache", "unipy-studio", "metadata")
 
@@ -36,10 +39,10 @@ LSP_KIND = {
     17: "path", 19: "path", 20: "const", 21: "const", 22: "struct", 23: "event", 25: "type",
 }
 KIND_LABEL = {
-    "method": "метод", "function": "функция", "field": "поле", "variable": "переменная",
-    "class": "класс", "type": "тип", "module": "пространство имён", "property": "свойство",
-    "const": "значение", "enum": "перечисление", "keyword": "ключевое слово", "snippet": "шаблон",
-    "struct": "структура", "event": "событие", "word": "слово", "path": "путь",
+    "method": "common.method", "function": "common.function", "field": "common.field", "variable": "common.variable",
+    "class": "common.class", "type": "common.type", "module": "lsp.namespace", "property": "common.property",
+    "const": "common.value", "enum": "lsp.enum", "keyword": "common.keyword", "snippet": "lsp.template",
+    "struct": "lsp.structure", "event": "lsp.event", "word": "common.word", "path": "common.path",
 }
 
 
@@ -181,6 +184,7 @@ class LanguageServer(QObject):
     log = pyqtSignal(str)
 
     language_id = "plaintext"
+    choices = {}                    # имя → пространство имён, которое пользователь выбирал раньше (общий словарь окна)
     show_diagnostic_code = True     # «CS0103: …»; у pyright коды — длинные имена правил, их не показываем
     ready_after_initialize = False  # сервер готов сразу (pyright), а не после загрузки решения (Roslyn)
 
@@ -199,6 +203,7 @@ class LanguageServer(QObject):
         self.pull_diagnostics_ids = []  # группы ошибок, которые сервер отдаёт по запросу (textDocument/diagnostic)
         self.pull_supported = False
         self._diag_parts = {}           # uri → {группа: [ошибки]}
+        self._raw_diag = {}             # uri → {группа: сырые диагностики сервера} — контекст для лампочки
         self._diag_pending = {}         # (uri, группа) → id запроса
         self._warmed = False
         self.last_activity = time.monotonic()     # последняя правка или запрос — для перезапуска в простое
@@ -243,7 +248,7 @@ class LanguageServer(QObject):
         program, args = self.command()
         if not self.conn.start(program, args, self.root, self.environment()):
             self._set_state("failed")
-            self.log.emit(tr("Не удалось запустить %s") % program)
+            self.log.emit(tr("common.could_not_run") % program)
             return
         caps = {
             "textDocument": {
@@ -259,8 +264,15 @@ class LanguageServer(QObject):
                 "implementation": {"linkSupport": True},
                 "publishDiagnostics": {"relatedInformation": False},
                 "diagnostic": {"dynamicRegistration": True, "relatedDocumentSupport": False},
+                # лампочка: быстрые исправления и рефакторинги сервера; подробности (edit) — по codeAction/resolve
+                "codeAction": {"codeActionLiteralSupport": {"codeActionKind": {"valueSet": [
+                                   "quickfix", "refactor", "refactor.extract", "refactor.inline", "refactor.rewrite",
+                                   "source", "source.organizeImports", "source.fixAll"]}},
+                               "dataSupport": True, "isPreferredSupport": True,
+                               "resolveSupport": {"properties": ["edit"]}},
             },
-            "workspace": {"configuration": True, "workspaceFolders": True},
+            "workspace": {"configuration": True, "workspaceFolders": True,
+                          "workspaceEdit": {"documentChanges": True, "resourceOperations": ["create"]}},
             "window": {"workDoneProgress": True},
         }
         params = {"processId": os.getpid(), "rootUri": path_to_uri(self.root), "capabilities": caps,
@@ -271,7 +283,7 @@ class LanguageServer(QObject):
     def _initialized(self, result, error):
         if error:
             self._set_state("failed")
-            self.log.emit(tr("Ошибка initialize: %s") % error.get("message"))
+            self.log.emit(tr("lsp.initialization_error") % error.get("message"))
             return
         caps = (result or {}).get("capabilities", {})
         self.pull_supported = bool(caps.get("diagnosticProvider"))
@@ -301,7 +313,7 @@ class LanguageServer(QObject):
 
     def _on_exit(self, code):
         if self.state != "failed":
-            self.log.emit(tr("Сервер завершился (код %s)") % code)
+            self.log.emit(tr("lsp.server_exited_code") % code)
         self._set_state("failed")
 
     def _set_state(self, state):
@@ -356,6 +368,7 @@ class LanguageServer(QObject):
         if method == "textDocument/publishDiagnostics":
             path = uri_to_path(params.get("uri", ""))
             if path:
+                self._raw_diag[params.get("uri", "")] = {None: params.get("diagnostics") or []}
                 items = self.filter_diagnostics(path, params.get("diagnostics") or [])
                 self.diagnostics.emit(path, self._convert_diagnostics(items))
         elif method in ("window/logMessage", "window/showMessage"):
@@ -447,6 +460,7 @@ class LanguageServer(QObject):
                 if error or not result or result.get("kind") != "full" or uri not in self._docs:
                     return
                 parts = self._diag_parts.setdefault(uri, {})
+                self._raw_diag.setdefault(uri, {})[ident] = result.get("items") or []
                 parts[ident] = self._convert_diagnostics(self.filter_diagnostics(path, result.get("items") or []))
                 merged, seen = [], set()
                 for items in parts.values():
@@ -458,9 +472,107 @@ class LanguageServer(QObject):
                 self.diagnostics.emit(path, merged)
             self._diag_pending[key] = self.conn.request("textDocument/diagnostic", params, got)
 
+    # ---- разовый запрос всех диагностик (в том числе «лишних using» уровня Hint)
+    def diagnostics_now(self, path, callback):
+        """Спросить у сервера ВСЕ диагностики файла один раз: callback(список | None, если сервер не умеет)."""
+        if self.state != "ready" or not (self.pull_diagnostics_ids or self.pull_supported):
+            callback(None)
+            return
+        uri = path_to_uri(path)
+        groups = self.pull_diagnostics_ids or [None]
+        got_items, left, failed = [], [len(groups)], [False]
+
+        def got(result, error):
+            if error or not result:
+                failed[0] = True
+            else:
+                got_items.extend(result.get("items") or [])
+            left[0] -= 1
+            if left[0] == 0:
+                callback(None if failed[0] and not got_items else got_items)
+        for ident in groups:
+            params = {"textDocument": {"uri": uri}}
+            if ident is not None:
+                params["identifier"] = ident
+            self.conn.request("textDocument/diagnostic", params, got)
+
+    def usings_report(self, path, text, callback):
+        """Подставить серверу этот текст файла и узнать, какие using в нём не нужны.
+        callback({"unused": [строки с 0], "errors": число ошибок} | None)."""
+        self.sync(path, text)
+
+        def done(items):
+            if items is None:
+                callback(None)
+                return
+            unused, errors = set(), 0
+            for d in items:
+                code = str(d.get("code") or "")
+                line = (d.get("range") or {}).get("start", {}).get("line", 0)
+                if code in ("CS8019", "IDE0005") or (1 in (d.get("tags") or []) and "using" in str(d.get("message", "")).lower()):
+                    unused.add(line)
+                elif d.get("severity", 1) == 1:
+                    errors += 1
+            callback({"unused": sorted(unused), "errors": errors})
+        self.diagnostics_now(path, done)
+
+    # ---- лампочка: быстрые исправления и рефакторинги
+    def code_actions(self, path, line, col, callback):
+        """Что сервер предлагает в этом месте: callback([CodeAction, …]); line — с 0, col — в UTF-16."""
+        if self.state != "ready":
+            callback([])
+            return
+        uri = path_to_uri(path)
+        key = (uri, "codeAction")
+        old = self._pending.pop(key, None)
+        if old is not None:
+            self.conn.cancel(old)
+        raw = [d for group in self._raw_diag.get(uri, {}).values() for d in group
+               if (d.get("range") or {}).get("start", {}).get("line", -1) <= line
+               <= (d.get("range") or {}).get("end", {}).get("line", -1)]
+        pos = {"line": line, "character": col}
+        params = {"textDocument": {"uri": uri}, "range": {"start": pos, "end": pos},
+                  "context": {"diagnostics": raw, "triggerKind": 2}}
+
+        def reply(result, error):
+            self._pending.pop(key, None)
+            callback([] if error else self._code_actions(result))
+        self._pending[key] = self.conn.request("textDocument/codeAction", params, reply)
+
+    @staticmethod
+    def _code_actions(result):
+        """Оставить то, что умеем применить: действия с правками текста и созданием файлов
+        (команды сервера, переименование и удаление файлов — нет)."""
+        out = []
+        for it in result or []:
+            if not isinstance(it, dict) or not it.get("title") or isinstance(it.get("command"), str):
+                continue
+            if it.get("disabled"):
+                continue
+            edit = it.get("edit")
+            if edit is None and it.get("data") is None:
+                continue
+            ops = [dc.get("kind") for dc in (edit or {}).get("documentChanges") or [] if "kind" in dc]
+            if any(op in ("rename", "delete") for op in ops):
+                continue
+            out.append(it)
+        out.sort(key=lambda a: (0 if a.get("isPreferred") else 1, 0 if a.get("kind", "").startswith("quickfix") else 1))
+        return out[:15]
+
+    def resolve_code_action(self, item, done):
+        """Правки выбранного действия: done(WorkspaceEdit | None)."""
+        if item.get("edit"):
+            done(item["edit"])
+            return
+        if self.state != "ready":
+            done(None)
+            return
+        self.conn.request("codeAction/resolve", item, lambda r, e: done(None if e or not r else r.get("edit")))
+
     def close(self, path):
         uri = path_to_uri(path)
         self._diag_parts.pop(uri, None)
+        self._raw_diag.pop(uri, None)
         if self._docs.pop(uri, None) is not None and self.state in ("loading", "ready"):
             self.conn.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
 
@@ -481,9 +593,10 @@ class LanguageServer(QObject):
 
         if kind == "complete":
             prefix = re.search(r"\w*$", line_text).group(0)
+            imports = file_imports(code)
             self._pending[key] = self.conn.request(
                 "textDocument/completion", pos,
-                lambda r, e: reply(None if e else self._completions(r, line_text, prefix)))
+                lambda r, e: reply(None if e else self._completions(r, line_text, prefix, imports)))
         elif kind == "signatures":
             self._pending[key] = self.conn.request(
                 "textDocument/signatureHelp", pos, lambda r, e: reply(None if e else self._signatures(r)))
@@ -508,8 +621,11 @@ class LanguageServer(QObject):
                 self.open_location(loc[0], loc[1], lambda p, ln: reply({"path": p, "line": ln} if p else None))
             self._pending[key] = self.conn.request("textDocument/" + kind, pos, located)
 
-    def _completions(self, result, line_text, prefix):
+    MAX_COMPLETIONS = 600
+
+    def _completions(self, result, line_text, prefix, imports=()):
         raw = result.get("items", []) if isinstance(result, dict) else (result or [])
+        server_incomplete = bool(isinstance(result, dict) and result.get("isIncomplete"))
         low = prefix.lower()
         scored = []
         for it in raw:
@@ -518,12 +634,18 @@ class LanguageServer(QObject):
             n = name.lower()
             if low and low not in n:
                 continue
-            rank = 0 if n.startswith(low) else 1
-            scored.append((rank, it.get("sortText") or label.lower(), it))
-        scored.sort(key=lambda t: (t[0], t[1]))
-        items = []
-        for _rank, _s, it in scored[:300]:
+            rank = 0 if name.startswith(prefix) else 1 if n.startswith(low) else 2
             kind = LSP_KIND.get(it.get("kind"), "word")
+            tier = 0
+            if kind in TYPE_KINDS:
+                # одинаковые имена из разных библиотек: выбранное раньше — первым, затем доступные в файле,
+                # затем UnityEngine, затем остальные (как «наиболее подходящие» в Visual Studio / Rider)
+                ns = (it.get("labelDetails") or {}).get("description") or ""
+                tier = -1 if ns and self.choices.get(label) == ns else completion_tier(ns, imports)
+            scored.append((rank, tier, it.get("sortText") or label.lower(), it, kind))
+        scored.sort(key=lambda t: (t[0], t[1], t[2]))
+        items = []
+        for _rank, _tier, _s, it, kind in scored[:self.MAX_COMPLETIONS]:
             # откуда подсказка: пространство имён (UnityEngine.UI) — как справа в списке Visual Studio
             source = (it.get("labelDetails") or {}).get("description")
             detail = source or it.get("detail") or tr(KIND_LABEL.get(kind, ""))
@@ -531,7 +653,9 @@ class LanguageServer(QObject):
             if isinstance(doc, dict):
                 doc = doc.get("value", "")
             items.append(Item(it.get("label", ""), kind, detail, html.escape(doc[:600]), data=it))
-        return self.extra_completions(line_text, prefix) + items
+        out = CompletionList(self.extra_completions(line_text, prefix) + items)
+        out.incomplete = server_incomplete or len(scored) > self.MAX_COMPLETIONS
+        return out
 
     def resolve_completion(self, raw, done):
         """Подробности выбранной подсказки: документация с полным именем и правки,
@@ -602,6 +726,14 @@ class LanguageServer(QObject):
                 edits.setdefault(path, []).append((r["start"]["line"], r["start"]["character"],
                                                    r["end"]["line"], r["end"]["character"], e.get("newText", "")))
         return {"edits": edits}
+
+    @staticmethod
+    def workspace_edit_files(result):
+        """WorkspaceEdit → {"edits": {путь: [...]}, "creates": [пути новых файлов]}."""
+        data = LanguageServer._workspace_edit(result)
+        data["creates"] = [uri_to_path(dc["uri"]) for dc in (result or {}).get("documentChanges") or []
+                           if dc.get("kind") == "create" and dc.get("uri")]
+        return data
 
     @staticmethod
     def _first_location(result):
@@ -763,7 +895,7 @@ class CSharpServer(LanguageServer):
             folder = os.path.join(METADATA_DIR, asm)
             os.makedirs(folder, exist_ok=True)
             path = os.path.join(folder, sym + ".cs")
-            header = tr("// Только для чтения: восстановлено из сборки %s\n") % (result.get("assemblyName") or "")
+            header = tr("lsp.read_only_restored_from") % (result.get("assemblyName") or "")
             with open(path, "w", encoding="utf-8") as f:
                 f.write(header + result["source"])
             done(path, line + 1)
@@ -807,7 +939,7 @@ class RoslynServer(CSharpServer):
             "csharp|background_analysis.dotnet_analyzer_diagnostics_scope": "openFiles",
             "csharp|background_analysis.dotnet_compiler_diagnostics_scope": "openFiles",
             # подсказки из ещё не подключённых пространств имён, «using» добавляется при выборе
-            "csharp|completion.dotnet_show_completion_items_from_unimported_namespaces": True,
+            "csharp|completion.dotnet_show_completion_items_from_unimported_namespaces": OPTIONS["unimported"],
             "navigation.dotnet_navigate_to_decompiled_sources": True,
             "navigation.dotnet_navigate_to_source_link_and_embedded_sources": True,
             "csharp|navigation.dotnet_navigate_to_decompiled_sources": True,
@@ -861,6 +993,7 @@ class LanguageService(QObject):
         self.servers = {}           # корень проекта → сервер
         self._metadata_owner = {}   # исходник класса из сборки → сервер, который его выдал
         self.restart_mb = 0         # 0 — не перезапускать сам
+        self.choices = {}           # что пользователь выбирал из одинаковых имён (общий словарь окна)
         self._memory_timer = QTimer(self, interval=self.CHECK_EVERY_MS, timeout=self._check_memory)
         self._memory_timer.start()
 
@@ -876,12 +1009,12 @@ class LanguageService(QObject):
                 continue
             mb = self.memory_mb(srv)
             if mb > self.restart_mb:
-                self.restart(root, tr("занимал %d МБ при пороге %d МБ") % (mb, self.restart_mb))
+                self.restart(root, tr("lsp.mb_at_threshold_mb") % (mb, self.restart_mb))
 
     def restart(self, root=None, reason=None):
         """Остановить сервер(ы); новый запустится сам при следующей синхронизации открытого файла."""
         if reason is None:
-            reason = tr("по запросу")
+            reason = tr("lsp.by_request")
         roots = [root] if root else list(self.servers)
         for r in roots:
             srv = self.servers.pop(r, None)
@@ -930,6 +1063,7 @@ class LanguageService(QObject):
         srv = self.servers.get(root)
         if srv is None and start:
             srv = self.make_server(root)
+            srv.choices = self.choices
             srv.result.connect(lambda res, s=srv: self._on_result(s, res))
             srv.diagnostics.connect(self.diagnostics)
             srv.log.connect(lambda t, s=srv: t and self.log.emit("[%s] %s" % (os.path.basename(s.root), t)))
@@ -947,9 +1081,9 @@ class LanguageService(QObject):
 
     def _state(self, srv, state):
         name = self.display_name(srv)
-        text = {"loading": tr("%s: загрузка %s…") % (self.language_name, name),
-                "ready": tr("%s: %s загружено") % (self.language_name, name),
-                "failed": tr("%s: анализатор для %s остановлен") % (self.language_name, name)}.get(state, "")
+        text = {"loading": tr("lsp.loading") % (self.language_name, name),
+                "ready": tr("lsp.loaded") % (self.language_name, name),
+                "failed": tr("lsp.analyzer_stopped") % (self.language_name, name)}.get(state, "")
         self.status.emit(text, state)
 
     def ready_for(self, path):

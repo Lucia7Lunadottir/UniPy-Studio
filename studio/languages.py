@@ -68,7 +68,7 @@ LANGUAGES = (
     Language("yaml", "YAML", (".yml", ".yaml"), "#"),
     Language("ini", "INI", (".ini", ".cfg", ".desktop"), "#"),
 )
-PLAIN = Language("plain", tr("Текст"))
+PLAIN = Language("plain", tr("common.text"))
 
 BY_ID = {lang.id: lang for lang in LANGUAGES}
 BY_EXT = {ext: lang for lang in LANGUAGES for ext in lang.extensions}

@@ -202,23 +202,23 @@ def move_type_plan(text, pos):
     → {"name", "file_name", "new_text", "remove": (с, по)}; иначе RefactorError."""
     types, usings, masked, in_string, file_ns = parse(text)
     if not types:
-        raise RefactorError(tr("В файле нет типов верхнего уровня (class, struct, interface, enum, record)"))
+        raise RefactorError(tr("refactor.file_has_no_top_level"))
     if len(types) == 1:
-        raise RefactorError(tr("В файле только один тип — переносить нечего"))
+        raise RefactorError(tr("refactor.file_has_only_one_type"))
     cur = next((t for t in types if t.begin <= pos <= t.end), None)
     if cur is None:
-        raise RefactorError(tr("Поставьте курсор внутрь типа, который нужно перенести"))
+        raise RefactorError(tr("refactor.place_cursor_inside_type_you"))
 
     begin, first_line, kw_line = _leading_begin(text, masked, cur.begin)
     starts = _lines(text)
     kw_line_start = starts[kw_line]
     prefix = masked[kw_line_start:cur.begin]
     if re.search(r"[;{}]", prefix):
-        raise RefactorError(tr("Перед типом на той же строке есть другой код — разнесите их по строкам"))
+        raise RefactorError(tr("refactor.there_other_code_before_type"))
     last_line = max(k for k, s in enumerate(starts) if s <= cur.end - 1)
     line_end = starts[last_line + 1] - 1 if last_line + 1 < len(starts) else len(text)
     if masked[cur.end:line_end].strip():
-        raise RefactorError(tr("После типа на той же строке есть другой код — разнесите их по строкам"))
+        raise RefactorError(tr("refactor.there_other_code_after_type"))
 
     body = text[begin:cur.end]
     depth = 0
@@ -229,7 +229,7 @@ def move_type_plan(text, pos):
             if depth < 0:
                 break
     if depth != 0:
-        raise RefactorError(tr("Тип разрезан директивами #if/#endif — перенесите его вручную"))
+        raise RefactorError(tr("refactor.type_split_by_if_endif"))
 
     # --- текст нового файла
     names = ([file_ns] if file_ns else []) + cur.ns
@@ -282,7 +282,7 @@ def move_type_plan(text, pos):
     l0, l1 = first_line, last_line
     around = (line_text(l0 - 1) or "", line_text(l1 + 1) or "")
     if re.match(r"#\s*if\b", around[0]) or re.match(r"#\s*endif\b", around[1]):
-        raise RefactorError(tr("Тип обёрнут в #if … #endif — перенесите его вручную, чтобы не потерять условие"))
+        raise RefactorError(tr("refactor.type_wrapped_if_endif_move"))
     prev = line_text(l0 - 1)                      # None — начало файла
     if prev is None or prev == "" or prev.endswith("{"):
         while line_text(l1 + 1) == "":
@@ -292,4 +292,26 @@ def move_type_plan(text, pos):
         l0 -= 1
     a = starts[l0]
     b = starts[l1 + 1] if l1 + 1 < n else len(text)
-    return {"name": cur.name, "file_name": file_name_for(cur.name), "new_text": new_text, "remove": (a, b)}
+    return {"name": cur.name, "file_name": file_name_for(cur.name), "new_text": new_text, "remove": (a, b),
+            "lines": (l0, l1)}
+
+
+def using_lines(text):
+    """using-директивы файла: [(номер строки с 0, текст директивы)]. global using не трогаем."""
+    return [(text.count("\n", 0, pos), line) for pos, line in parse(text)[1]]
+
+
+def remove_usings(text, line_numbers):
+    """Убрать строки с using (номера с 0) целиком. Пустые строки правим только на месте удаления
+    (в остальном тексте — например, внутри многострочных строк — ничего не трогаем)."""
+    drop = sorted(set(line_numbers), reverse=True)
+    if not drop:
+        return text
+    lines = text.split("\n")
+    for k in drop:
+        if k >= len(lines):
+            continue
+        del lines[k]
+        if k < len(lines) and lines[k].strip() == "" and (k == 0 or lines[k - 1].strip() == ""):
+            del lines[k]            # после удаления сверху и снизу пусто — оставляем одну пустую строку
+    return "\n".join(lines)

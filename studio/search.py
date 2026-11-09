@@ -9,6 +9,7 @@ from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit,
                              QLineEdit, QCheckBox, QPushButton, QTreeWidget, QTreeWidgetItem)
 from .editor import decode_source
+from .i18n import bind_text, tr
 
 EXCLUDED = {'.git', '.venv', 'venv', '__pycache__', 'node_modules', 'Library',
             'Temp', 'Obj', 'obj', 'bin', 'target', 'Logs', 'Build', 'Builds'}
@@ -16,7 +17,7 @@ EXCLUDED = {'.git', '.venv', 'venv', '__pycache__', 'node_modules', 'Library',
 
 def pattern(query, case=False, regex=False, words=False):
     if not query:
-        raise ValueError('Введите текст поиска')
+        raise ValueError(tr('search.enter_text'))
     source = query if regex else re.escape(query)
     if words:
         source = r'(?<!\w)(?:' + source + r')(?!\w)'
@@ -69,38 +70,38 @@ class ProjectSearch(QDialog):
         self.win = win
         self.worker = None
         self.results = []
-        self.setWindowTitle('Поиск и замена в файлах')
+        bind_text(self, 'search.title', 'setWindowTitle')
         self.resize(900, 650)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('Найти (Enter — новая строка):'))
+        layout.addWidget(bind_text(QLabel(), 'search.find_label'))
         self.query = QPlainTextEdit()
         self.query.setMaximumHeight(85)
         layout.addWidget(self.query)
-        layout.addWidget(QLabel('Заменить на (поддерживаются несколько строк):'))
+        layout.addWidget(bind_text(QLabel(), 'search.replace_label'))
         self.replacement = QPlainTextEdit()
         self.replacement.setMaximumHeight(85)
         layout.addWidget(self.replacement)
         row = QHBoxLayout()
-        self.case = QCheckBox('Регистр')
-        self.words = QCheckBox('Целое слово')
+        self.case = bind_text(QCheckBox(), 'search.match_case')
+        self.words = bind_text(QCheckBox(), 'search.whole_word')
         self.regex = QCheckBox('Regex')
         self.globs = QLineEdit('*.cs;*.py;*.pyi;*.json;*.xml;*.uxml;*.uss;*.md;*.txt;*.yaml;*.yml;*.shader')
-        self.globs.setToolTip('Маски файлов через ; — например *.cs;*.py или *')
+        bind_text(self.globs, 'search.globs_tip', 'setToolTip')
         for widget in (self.case, self.words, self.regex, self.globs):
             row.addWidget(widget)
         layout.addLayout(row)
         row = QHBoxLayout()
-        self.search = QPushButton('Найти / обновить предпросмотр')
-        self.apply = QPushButton('Заменить в отмеченных файлах')
+        self.search = bind_text(QPushButton(), 'search.find_preview')
+        self.apply = bind_text(QPushButton(), 'search.replace_checked')
         self.apply.setEnabled(False)
         row.addWidget(self.search)
         row.addWidget(self.apply)
         layout.addLayout(row)
-        self.status = QLabel('Поиск по проекту и открытым файлам. Двоичный код и файлы > 5 МБ пропускаются.')
+        self.status = QLabel(tr('search.scope_hint'))
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(['Файл / строка', 'Совпадение → замена'])
+        self.tree.setHeaderLabels([tr('search.column_file_line'), tr('search.column_match_replacement')])
         self.tree.setColumnWidth(0, 310)
         layout.addWidget(self.tree)
         self.search.clicked.connect(self.start)
@@ -128,7 +129,7 @@ class ProjectSearch(QDialog):
         self.snapshot = self.options()
         self.apply.setEnabled(False)
         self.search.setEnabled(False)
-        self.status.setText('Поиск…')
+        self.status.setText(tr('search.searching'))
         self.tree.clear()
         buffers = {os.path.abspath(e.path): e.toPlainText() for e in self.win.editors()}
         self.worker = SearchWorker(self.win.root, buffers, self.rx,
@@ -157,9 +158,8 @@ class ProjectSearch(QDialog):
                                                 ' → ' + replacement[:100].replace('\n', ' ↵ ')])
                 child.setData(0, Qt.ItemDataRole.UserRole, (path, line))
             total += len(matches)
-        self.status.setText(f'Совпадений: {total}; файлов: {len(self.results)}. '
-                            'Показаны первые 200 совпадений каждого файла. Изменения нужно сохранить.' +
-                            (f' Ошибок чтения: {len(errors)}' if errors else ''))
+        self.status.setText(tr('search.summary') % (total, len(self.results)) +
+                            (tr('search.read_errors') % len(errors) if errors else ''))
         self.status.setToolTip('\n'.join(errors))
         self.apply.setEnabled(bool(total) and self.snapshot == self.options())
 
@@ -193,14 +193,13 @@ class ProjectSearch(QDialog):
             cursor.endEditBlock()
             count += n
         self.apply.setEnabled(False)
-        self.status.setText(f'Заменено: {count}. Ctrl+Shift+S — сохранить все; Ctrl+Z — отменить в файле. '
-                            f'Пропущено изменённых/недоступных файлов: {len(skipped)}.')
+        self.status.setText(tr('search.replaced_summary') % (count, len(skipped)))
         self.status.setToolTip('\n'.join(skipped))
 
     def closeEvent(self, event):
         if self.worker and self.worker.isRunning():
             self.worker.requestInterruption()
-            self.status.setText('Остановка поиска… Повторите закрытие после завершения.')
+            self.status.setText(tr('common.stopping_search'))
             event.ignore()
             return
         super().closeEvent(event)

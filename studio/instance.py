@@ -31,11 +31,11 @@ class ProjectInstance(QObject):
                 socket.waitForBytesWritten(1000)
                 if socket.waitForReadyRead(3000) and bytes(socket.readAll()) == b"OK\n":
                     return True
-                raise RuntimeError(tr("UniPy Studio: нет подтверждения открытия файла"))
+                raise RuntimeError(tr("instance.unipy_studio_no_confirmation_file"))
             socket.abort()
             from PyQt6.QtCore import QThread
             QThread.msleep(100)
-        raise RuntimeError(tr("UniPy Studio: окно проекта не отвечает; повторите запуск"))
+        raise RuntimeError(tr("instance.unipy_studio_project_window_not"))
 
     def listen(self, callback):
         if not self.owner:

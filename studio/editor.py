@@ -2,17 +2,20 @@
 import ast
 import os
 import re
+import traceback
 
-from PyQt6.QtCore import Qt, QEvent, QRect, QSize, QTimer, pyqtSignal, QPoint, QRectF
+from PyQt6.QtCore import Qt, QEvent, QRect, QSize, QTimer, pyqtSignal, QPoint, QRectF, QModelIndex
 from PyQt6.QtGui import (QColor, QCursor, QFont, QPainter, QTextFormat, QTextCursor, QStandardItemModel,
                          QStandardItem, QKeySequence, QTextCharFormat, QPalette, QFontMetrics)
 from PyQt6.QtWidgets import (QPlainTextEdit, QWidget, QTextEdit, QCompleter, QLabel,
-                             QStyledItemDelegate, QToolTip, QStyle, QApplication, QMessageBox)
+                             QStyledItemDelegate, QToolTip, QStyle, QApplication, QMessageBox,
+                             QListView, QToolButton, QHBoxLayout, QMenu)
 
 from .highlighter import Highlighter, PygmentsHighlighter
-from . import languages
+from . import languages, refactor
 from .lsp import markdown_to_html as lsp_markdown_to_html
-from .intellisense import CSharpProvider, signature_html, hover_html, word_items
+from .intellisense import (CSharpProvider, signature_html, hover_html, word_items,
+                           KIND_GROUPS, arrange, present_groups)
 from . import theme
 from .theme import C, kind_icon
 from .i18n import tr
@@ -25,7 +28,7 @@ ROLE_DOC = Qt.ItemDataRole.UserRole + 2
 ROLE_ITEM = Qt.ItemDataRole.UserRole + 3     # сам элемент подсказки (Item)
 
 
-ENCODING_NAME = {"utf-8": "UTF-8", "utf-8-sig": "UTF-8 с BOM", "utf-16": "UTF-16",
+ENCODING_NAME = {"utf-8": "UTF-8", "utf-8-sig": "editor.utf_8_with_bom", "utf-16": "UTF-16",
                  "cp1251": "Windows-1251", "latin-1": "Latin-1"}
 
 
@@ -58,6 +61,16 @@ class LineNumberArea(QWidget):
 
     def paintEvent(self, event):
         self.editor.paint_gutter(event)
+
+    def mousePressEvent(self, e):
+        ed = self.editor
+        if e.button() == Qt.MouseButton.LeftButton and ed._bulb_line is not None \
+                and e.position().x() >= self.width() - 18:
+            block = ed.cursorForPosition(QPoint(1, int(e.position().y()))).block()
+            if block.blockNumber() == ed._bulb_line:
+                ed.show_bulb_menu()
+                return
+        super().mousePressEvent(e)
 
 
 class CompletionDelegate(QStyledItemDelegate):
@@ -116,6 +129,82 @@ def side_pad(rect):
     return max(12, min(rect.height() - 2, 20)) + 8
 
 
+class CompletionPopup(QListView):
+    """Список подсказок с полосой кнопок внизу (место под неё оставлено полями области просмотра)."""
+    FOOT = 26
+
+    def __init__(self):
+        super().__init__()
+        # то же, что QCompleter делает с собственным списком
+        self.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
+        self.setSelectionBehavior(QListView.SelectionBehavior.SelectRows)
+        self.setSelectionMode(QListView.SelectionMode.SingleSelection)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.footer = None
+
+    def attach_footer(self, footer):
+        self.footer = footer
+        footer.setParent(self)
+        self.setViewportMargins(0, 0, 0, self.FOOT)
+        footer.show()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if self.footer is not None:
+            fw = self.frameWidth()
+            self.footer.setGeometry(fw, self.height() - self.FOOT - fw, self.width() - 2 * fw, self.FOOT)
+
+
+class CompletionFooter(QWidget):
+    """Кнопки внизу списка подсказок, как в Visual Studio: фильтр по видам (классы, методы, свойства…)
+    и переключатель сортировки «по релевантности / по алфавиту»."""
+
+    def __init__(self, editor):
+        super().__init__()
+        self.setObjectName("completionFooter")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(4, 2, 4, 2)
+        lay.setSpacing(2)
+        self.buttons = {}
+        for gid, _title, _kinds, icon_kind in KIND_GROUPS:
+            b = self._button()
+            b.setIcon(kind_icon(icon_kind))
+            b.clicked.connect(lambda _checked=False, g=gid: editor.toggle_completion_group(g))
+            lay.addWidget(b)
+            self.buttons[gid] = b
+        lay.addStretch(1)
+        self.sort = self._button()
+        self.sort.setText("A→Z")
+        self.sort.clicked.connect(lambda _checked=False: editor.toggle_completion_sort())
+        lay.addWidget(self.sort)
+        self.restyle()
+
+    @staticmethod
+    def _button():
+        b = QToolButton()
+        b.setCheckable(True)
+        b.setAutoRaise(True)
+        b.setFocusPolicy(Qt.FocusPolicy.NoFocus)       # фокус остаётся в редакторе
+        b.setIconSize(QSize(16, 16))
+        return b
+
+    def restyle(self):
+        theme.style(self, "#completionFooter { background:@menu@; border-top:1px solid @tooltip_border@; }"
+                          " QToolButton { border:none; border-radius:3px; padding:1px 3px; color:@text@; font-size:8pt; }"
+                          " QToolButton:hover, QToolButton:checked { background:@completion_sel@; }")
+
+    def update_state(self, present, enabled, alpha):
+        titles = {gid: title for gid, title, _k, _i in KIND_GROUPS}
+        many = len(present) > 1                         # одна группа — фильтровать нечего
+        for gid, b in self.buttons.items():
+            b.setVisible(many and gid in present)
+            b.setChecked(gid in enabled)
+            b.setToolTip(tr("editor.show_only") + tr(titles[gid]))
+        self.sort.setChecked(alpha)
+        self.sort.setToolTip(tr("editor.sort_alphabetically_off_by_relevance"))
+
+
 class CallTip(QLabel):
     """Подсказка параметров функции над строкой."""
 
@@ -153,7 +242,19 @@ class CodeEditor(QPlainTextEdit):
         self._link = None              # слово под мышью при зажатом Ctrl — подчёркнуто, как ссылка в VS
         self.find_text = ""
         self._completion_items = {}
+        self._completion_items_full = []    # всё, что дал анализатор; список на экране — его фильтр
+        self._completion_anchor = None      # где начинается набираемое слово
+        self._completion_base = ""          # начало слова, для которого собран список
+        self._completion_exact = False      # анализатор отдал всё: при наборе фильтруем сами, без запроса
+        self._enabled_groups = set()        # включённые кнопки-фильтры по видам
+        self._bulb_line = None              # строка, где показана лампочка (быстрые действия)
+        self._bulb_actions = []
+        self._bulb_req = 0
+        self._bulb_open_after = False       # Ctrl+. нажали раньше, чем пришёл ответ сервера
+        self._bulb_timer = QTimer(self, singleShot=True, interval=600, timeout=self._refresh_bulb)
         self._req = 0
+        self._notice_req = 0
+        self._notice_timer = QTimer(self, singleShot=True, interval=350, timeout=self._pending_notice)
         self._sig_req = 0
         self.set_code_font(font)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
@@ -169,6 +270,15 @@ class CodeEditor(QPlainTextEdit):
         # подсказки
         self.model = QStandardItemModel(self)
         self.completer = QCompleter(self.model, self)
+        self._footer = None
+        try:        # кнопки внизу списка; если что-то пойдёт не так — список подсказок работает и без них
+            popup_view = CompletionPopup()
+            self.completer.setPopup(popup_view)
+            self._footer = CompletionFooter(self)
+            popup_view.attach_footer(self._footer)
+        except Exception:       # noqa: BLE001
+            traceback.print_exc()
+            self._footer = None
         self.completer.setWidget(self)
         self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
@@ -181,7 +291,7 @@ class CodeEditor(QPlainTextEdit):
         theme.style(popup, "QListView { background:@menu@; border:1px solid @tooltip_border@; }")
         popup.installEventFilter(self)
         popup.viewport().installEventFilter(self)
-        self.completer.activated[str].connect(self.insert_completion)
+        self.completer.activated[QModelIndex].connect(self._activated)
         self.completer.highlighted[str].connect(self._on_highlighted)
         self.calltip = CallTip(self, self.hint_pt())
         self.doc_tip = CallTip(self, self.hint_pt())
@@ -190,6 +300,7 @@ class CodeEditor(QPlainTextEdit):
         self._hover_timer = QTimer(self, singleShot=True, interval=550, timeout=self._do_hover)
         self._hover_pos = None
         self.textChanged.connect(self._diag_timer.start)
+        self.textChanged.connect(self._bulb_timer.start)
         self.setMouseTracking(True)
         self._on_cursor()
 
@@ -213,8 +324,7 @@ class CodeEditor(QPlainTextEdit):
         except UnicodeEncodeError as e:
             bad = text[e.start:e.end]
             r = QMessageBox.question(
-                self, tr("Кодировка"), tr("Символ «%s» нельзя сохранить в кодировке %s.\n"
-                "Сохранить файл в Юникоде (UTF-8 с BOM)?") % (bad, tr(ENCODING_NAME.get(self.encoding, self.encoding))),
+                self, tr("editor.encoding"), tr("editor.symbol_cannot_stored_encoding_save") % (bad, tr(ENCODING_NAME.get(self.encoding, self.encoding))),
                 QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel)
             if r != QMessageBox.StandardButton.Save:
                 return False
@@ -263,6 +373,8 @@ class CodeEditor(QPlainTextEdit):
             if block.isVisible() and bottom >= event.rect().top():
                 p.setPen(QColor(C["gutter_current"] if num == current else C["gutter_num"]))
                 p.drawText(0, top, w - 14, h, Qt.AlignmentFlag.AlignRight, str(num + 1))
+                if num == self._bulb_line:
+                    self._draw_bulb(p, w - 15, top + h / 2 - 7)
                 if num in err_lines:
                     p.setPen(Qt.PenStyle.NoPen)
                     p.setBrush(QColor(C["error"] if err_lines[num] == "error" else C["warning"]))
@@ -273,9 +385,98 @@ class CodeEditor(QPlainTextEdit):
             num += 1
         p.end()
 
+    @staticmethod
+    def _draw_bulb(p, x, y):
+        """Лампочка быстрых действий (жёлтая колба и серый цоколь)."""
+        p.save()
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#F5C518"))
+        p.drawEllipse(QRectF(x + 1.5, y, 9, 9))
+        p.setBrush(QColor("#9A9A9A"))
+        p.drawRoundedRect(QRectF(x + 3.5, y + 9, 5, 2.5), 1, 1)
+        p.restore()
+
+    # ------------------------------------------------------------ лампочка (быстрые действия)
+    def _own_actions(self):
+        """Рефакторинги самой программы (работают и без анализатора)."""
+        if self.lang != "csharp" or self.isReadOnly():
+            return []
+        text = self.toPlainText()
+        pos = len(text.encode("utf-16-le")[:self.textCursor().position() * 2].decode("utf-16-le", "ignore"))
+        try:
+            types = refactor.parse(text)[0]
+        except Exception:       # noqa: BLE001 — разбор не должен мешать набору текста
+            return []
+        if len(types) > 1 and any(t.begin <= pos <= t.end for t in types):
+            return [{"title": tr("common.move_type_own_file"), "source": "own",
+                     "run": self.services.move_type_to_file}]
+        return []
+
+    def _refresh_bulb(self):
+        if not self.isVisible() or self.completer.popup().isVisible():
+            return
+        self._bulb_req += 1
+        req = self._bulb_req
+        line, col = self._line_col()
+        line -= 1
+        own = self._own_actions()
+        self._bulb_actions = own
+        self._bulb_line = line if own else None
+        self.gutter.update()
+        srv = self._lsp_server()
+        if srv is not None and hasattr(srv, "code_actions"):
+            srv.code_actions(self.path, line, col,
+                             lambda items, req=req, line=line, own=own: self._bulb_result(req, line, own, items))
+        elif self._bulb_open_after:
+            self._bulb_open_after = False
+            self._open_bulb_menu()
+
+    def _bulb_result(self, req, line, own, items):
+        if req != self._bulb_req or line != self.textCursor().blockNumber():
+            return                  # пока сервер думал, курсор уже ушёл
+        self._bulb_actions = [{"title": it["title"], "source": "lsp", "item": it} for it in items] + own
+        self._bulb_line = line if self._bulb_actions else None
+        self.gutter.update()
+        if self._bulb_open_after:
+            self._bulb_open_after = False
+            self._open_bulb_menu()
+
+    def show_bulb_menu(self):
+        """Ctrl+. или клик по лампочке: список быстрых действий."""
+        if self._bulb_line == self.textCursor().blockNumber() and self._bulb_actions:
+            self._open_bulb_menu()
+            return
+        self._bulb_open_after = True        # данных для этой строки ещё нет — спросим и откроем
+        self._refresh_bulb()
+
+    def _open_bulb_menu(self):
+        if not self._bulb_actions:
+            self.services.status(tr("editor.no_quick_actions_here"))
+            return
+        menu = QMenu(self)
+        for a in self._bulb_actions:
+            menu.addAction(a["title"]).triggered.connect(lambda _c=False, a=a: self._run_bulb_action(a))
+        menu.exec(self.viewport().mapToGlobal(self.cursorRect().bottomLeft()))
+        menu.deleteLater()
+
+    def _run_bulb_action(self, action):
+        if action["source"] == "own":
+            action["run"]()
+            return
+        srv = self._lsp_server()
+        if srv is None:
+            return
+        title = action["title"]
+        srv.resolve_code_action(action["item"], lambda edit, title=title: self.services.apply_code_action(edit, title))
+
     # ------------------------------------------------------------ выделения
     def _on_cursor(self):
         c = self.textCursor()
+        if self._bulb_line is not None and self._bulb_line != c.blockNumber():
+            self._bulb_line = None
+            self.gutter.update()
+        self._bulb_timer.start()
         self.cursor_moved.emit(c.blockNumber() + 1, c.positionInBlock() + 1)
         self.update_selections()
         if self.calltip.isVisible():
@@ -378,7 +579,7 @@ class CodeEditor(QPlainTextEdit):
                 diags.extend(python_warnings(tree, text))
             except SyntaxError as e:
                 if self.lsp_diagnostics is None:        # pyright сам сообщает о синтаксисе
-                    diags.append((e.lineno or 1, e.offset or 1, tr("Синтаксическая ошибка: %s") % e.msg, "error"))
+                    diags.append((e.lineno or 1, e.offset or 1, tr("common.syntax_error") % e.msg, "error"))
             except Exception:
                 pass
             if self.lsp_diagnostics is not None:
@@ -390,7 +591,7 @@ class CodeEditor(QPlainTextEdit):
             try:
                 json.loads(text) if text.strip() else None
             except json.JSONDecodeError as e:
-                diags.append((e.lineno, e.colno, tr("Ошибка JSON: %s") % e.msg, "error"))
+                diags.append((e.lineno, e.colno, tr("editor.json_error") % e.msg, "error"))
         elif self.lsp_diagnostics is not None:      # языки, у которых есть только анализатор
             diags = list(self.lsp_diagnostics)
         if diags != self.diagnostics:
@@ -439,6 +640,8 @@ class CodeEditor(QPlainTextEdit):
         self.update_selections()
         self.gutter.update()
         self.viewport().update()
+        if self._footer is not None:
+            self._footer.restyle()
 
     # ------------------------------------------------------------ размер подсказок
     def hint_pt(self):
@@ -487,6 +690,9 @@ class CodeEditor(QPlainTextEdit):
             return
         if ctrl and key == Qt.Key.Key_Space:
             self.request_completion(force=True)
+            return
+        if ctrl and key == Qt.Key.Key_Period:           # быстрые действия, как Ctrl+. в Visual Studio
+            self.show_bulb_menu()
             return
         if key == Qt.Key.Key_Escape:
             self._req += 1
@@ -538,6 +744,8 @@ class CodeEditor(QPlainTextEdit):
         elif text:
             popup.hide()
             self.doc_tip.hide()
+            self._req += 1              # запоздавший ответ уже не нужен
+            self._notice_timer.stop()
         if text in ("(", ","):
             self.request_signatures(force=True)
         elif text == ")":
@@ -721,9 +929,36 @@ class CodeEditor(QPlainTextEdit):
         c = self.textCursor()
         return c.blockNumber() + 1, c.positionInBlock()
 
+    def _word_anchor(self):
+        c = self.textCursor()
+        return c.blockNumber(), c.positionInBlock() - len(self.word_before_cursor())
+
+    def _refine_completion(self):
+        """Список уже открыт и анализатор отдал всё: при наборе слова достаточно отфильтровать его на месте.
+        Так не нужен новый запрос на каждую букву — подсказки не отстают от набора."""
+        if not (self._completion_exact and self._completion_items_full and self.completer.popup().isVisible()):
+            return False
+        word = self.word_before_cursor()
+        # Стёрли букву: список был собран для более длинного начала и мог не включать то, что подходит
+        # к короткому, — нужен новый запрос. Фильтровать на месте можно только при удлинении начала.
+        if not word or self._word_anchor() != self._completion_anchor \
+                or not word.lower().startswith(self._completion_base):
+            return False
+        self._completion_location = (self.document().revision(), self.textCursor().position())
+        self._render_completions()
+        return True
+
+    def _pending_notice(self):
+        # «Поиск подсказок…» — только если ответа нет заметно долго (раньше мигало на каждую букву)
+        if self._notice_req == self._req and not self.completer.popup().isVisible():
+            self._completion_notice(tr("editor.searching_completions"))
+
     def request_completion(self, force=False):
+        if not force and self._refine_completion():
+            return
         self._req += 1
-        self._completion_notice("Поиск подсказок…")
+        self._notice_req = self._req
+        self._notice_timer.start()
         self._completion_location = (self.document().revision(), self.textCursor().position())
         srv = self._lsp_server()
         if srv:
@@ -772,7 +1007,7 @@ class CodeEditor(QPlainTextEdit):
             self.references_found.emit(getattr(self, "_last_symbol", ""), data or [])
         elif kind == "rename":
             self.busy_changed.emit("")
-            self.rename_ready.emit(getattr(self, "_new_name", ""), data or {"error": tr("анализатор не ответил")})
+            self.rename_ready.emit(getattr(self, "_new_name", ""), data or {"error": tr("editor.analyzer_no_response")})
         elif kind == "definition":
             if not data and self.lang == "csharp" and not res.get("indexed"):
                 self._request_source_definition()
@@ -781,7 +1016,7 @@ class CodeEditor(QPlainTextEdit):
             if data:
                 self.goto_requested.emit(data["path"], data["line"])
             else:
-                self.services.status(tr("Определение не найдено"))
+                self.services.status(tr("editor.definition_not_found"))
 
     def _completion_notice(self, message):
         self.doc_tip.setText("<b>IntelliSense</b><br>" + message)
@@ -790,30 +1025,67 @@ class CodeEditor(QPlainTextEdit):
         self.doc_tip.show()
 
     def show_completions(self, items):
-        popup = self.completer.popup()
+        self._notice_timer.stop()
+        exact = getattr(items, "incomplete", True) is False
         prefix = self.word_before_cursor()
         if not prefix.startswith("_"):
             items = [it for it in items if not it.name.startswith("_")] + \
                     [it for it in items if it.name.startswith("_") and prefix]
-        self._completion_items = {it.name: it for it in items}
-        if not items:
+        self._completion_items_full = items
+        self._completion_exact = exact
+        anchor = self._word_anchor()
+        if anchor != self._completion_anchor:
+            self._enabled_groups = set()                # новое слово — фильтры по видам сбрасываются
+        self._completion_anchor = anchor
+        self._completion_base = prefix.lower()          # для какого начала слова собран список
+        self._render_completions()
+
+    def _render_completions(self):
+        """Что показать сейчас: набранное начало + кнопки-фильтры + сортировка."""
+        popup = self.completer.popup()
+        prefix = self.word_before_cursor()
+        alpha = bool(getattr(self.services, "completion_alpha", False))
+        low = prefix.lower()
+        full = self._completion_items_full
+        matching = [it for it in full if it.name.lower().startswith(low)] if low else full
+        present = present_groups(matching)
+        self._enabled_groups &= set(present)            # такого вида больше нет — фильтр снимается
+        shown = arrange(matching, "", self._enabled_groups, alpha)
+        self._completion_items = {it.name: it for it in shown}
+        if not shown:
             popup.hide()
-            self._completion_notice("Подсказок нет · Ctrl+Space — повторить")
+            self._completion_notice(tr("editor.no_completions_retry"))
             return
+        if self._footer is not None:
+            self._footer.update_state(present, self._enabled_groups, alpha)
         self.model.clear()
-        for it in items[:300]:
+        for it in shown:
             row = QStandardItem(kind_icon(it.kind), it.name)
-            row.setData(it.detail, ROLE_DETAIL)
-            row.setData(it.doc, ROLE_DOC)
+            row.setData(tr(it.detail) if it.detail else it.detail, ROLE_DETAIL)
+            row.setData(tr(it.doc) if it.doc else it.doc, ROLE_DOC)
             row.setData(it, ROLE_ITEM)
             self.model.appendRow(row)
         self.completer.setCompletionPrefix(prefix)
         if self.completer.completionCount() == 0:
             popup.hide()
-            self._completion_notice("Подсказок нет · Ctrl+Space — повторить")
+            self._completion_notice(tr("editor.no_completions_retry"))
             return
         self.show_completions_geometry()
         popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
+
+    def toggle_completion_group(self, group):
+        self._enabled_groups.symmetric_difference_update({group})
+        self._render_completions()
+
+    def toggle_completion_sort(self):
+        setter = getattr(self.services, "set_completion_alpha", None)
+        if setter:
+            setter(not getattr(self.services, "completion_alpha", False))
+        self._render_completions()
+
+    def _activated(self, index):
+        """Выбрана строка списка: вставляем именно её (одинаковые имена из разных библиотек различаются)."""
+        self.insert_completion(index.data(Qt.ItemDataRole.DisplayRole), index.data(ROLE_ITEM))
 
     def show_completions_geometry(self):
         prefix = self.word_before_cursor()
@@ -821,6 +1093,13 @@ class CodeEditor(QPlainTextEdit):
         cr.translate(self.viewportMargins().left() - self.fontMetrics().horizontalAdvance(prefix), 0)
         cr.setWidth(int(self.hint_pt() * 40))
         self.completer.complete(cr)
+        popup = self.completer.popup()
+        foot = popup.FOOT if getattr(popup, "footer", None) is not None else 0
+        if foot:        # QCompleter считает высоту без полосы кнопок — добавляем её
+            g = popup.geometry()
+            cursor_top = self.viewport().mapToGlobal(self.cursorRect().topLeft()).y()
+            top = g.y() - foot if g.bottom() <= cursor_top + 2 else g.y()    # список над строкой растёт вверх
+            popup.setGeometry(g.x(), top, g.width(), g.height() + foot)
 
     def _on_highlighted(self, name):
         # описание выбранной подсказки сбоку от списка
@@ -862,7 +1141,7 @@ class CodeEditor(QPlainTextEdit):
         if html_:
             self._show_doc_tip(html_)
 
-    def insert_completion(self, name):
+    def insert_completion(self, name, item=None):
         c = self.textCursor()
         prefix = self.word_before_cursor()
         before = self._text_before_cursor(c)
@@ -872,7 +1151,8 @@ class CodeEditor(QPlainTextEdit):
         c.setPosition(position - len(prefix.encode("utf-16-le")) // 2)
         c.setPosition(position + len(suffix.encode("utf-16-le")) // 2,
                       QTextCursor.MoveMode.KeepAnchor)
-        item = self._completion_items.get(name)
+        if item is None:
+            item = self._completion_items.get(name)
         insertion = name
         move_back = 0
         if item and item.kind in ("method", "function") and not after[len(suffix):].lstrip().startswith("("):
@@ -893,10 +1173,22 @@ class CodeEditor(QPlainTextEdit):
         c.endEditBlock()
         self.setTextCursor(c)
         self.doc_tip.hide()
+        self._remember_choice(item)
         self._add_completion_imports(item)
         if item and item.kind in ("method", "function"):
             self.request_signatures(True)
 
+
+    def _remember_choice(self, item):
+        """Выбрали одно из одинаковых имён (Debug из UnityEngine или из System.Diagnostics) —
+        в следующий раз оно будет первым."""
+        if item is None or not isinstance(item.data, dict):
+            return
+        if sum(1 for it in self._completion_items_full if it.name == item.name) < 2:
+            return
+        remember = getattr(self.services, "remember_completion", None)
+        if remember:
+            remember(item.name, (item.data.get("labelDetails") or {}).get("description") or "")
 
     def _add_completion_imports(self, item):
         """Подсказка из неподключённого пространства имён: дописать «using …;» (C#) или
@@ -940,7 +1232,7 @@ class CodeEditor(QPlainTextEdit):
             return
         lines = [signature_html(n, params, idx) for n, params, idx in sigs[:4]]
         if len(sigs) > 1:
-            lines.append(tr("<span style='color:%s'>вариантов: %d</span>") % (C["hint"], len(sigs)))
+            lines.append(tr("editor.overloads") % (C["hint"], len(sigs)))
         self.calltip.setText("<br>".join(lines))
         self.calltip.adjustSize()
         cr = self.cursorRect()
@@ -949,7 +1241,7 @@ class CodeEditor(QPlainTextEdit):
         self.calltip.show()
 
     def _request_source_definition(self):
-        self.busy_changed.emit("Поиск определения в исходниках проекта и пакетов…")
+        self.busy_changed.emit(tr("editor.searching_definition_sources"))
         self.services.csharp_index.submit(kind="definition", req=0, editor=id(self),
             code=self.toPlainText(), pos=self._source_offset(), path=self.path)
 
@@ -958,7 +1250,7 @@ class CodeEditor(QPlainTextEdit):
         if srv or (self.lang == "python" and self.services.jedi.available):
             word = self._word_at(self.textCursor())
             # переход в класс из сборки (декомпиляция) может занять несколько секунд — показываем, что идёт работа
-            self.busy_changed.emit(tr("Переход к определению «%s»…") % word if word else tr("Переход к определению…"))
+            self.busy_changed.emit(tr("editor.going_definition") % word if word else tr("editor.going_to_definition"))
         if srv:
             line, col = self._line_col()
             srv.submit("definition", req=0, editor=id(self), code=self.toPlainText(),
@@ -977,7 +1269,7 @@ class CodeEditor(QPlainTextEdit):
                 line = self.toPlainText().count("\n", 0, m.start()) + 1
                 self.go_to_line(line)
             else:
-                self.services.status(tr("Определение «%s» не найдено в файле") % word)
+                self.services.status(tr("editor.definition_not_found_file") % word)
 
     # ------------------------------------------------------------ ссылки и переименование
     def _symbol_request(self, kind, busy_text, extra=None):
@@ -991,7 +1283,7 @@ class CodeEditor(QPlainTextEdit):
             self.services.jedi.submit(kind, req=0, editor=id(self), code=self.toPlainText(),
                                       line=line, col=col, path=self.path, extra=extra or {})
         else:
-            self.services.status(tr("Для этого файла нет анализатора кода (решение ещё загружается?)"))
+            self.services.status(tr("editor.no_code_analyzer_file_solution"))
             return False
         self.busy_changed.emit(busy_text)
         return True
@@ -1003,11 +1295,11 @@ class CodeEditor(QPlainTextEdit):
         word = self.symbol_under_cursor()
         if word:
             self._last_symbol = word
-            self._symbol_request("references", tr("Поиск ссылок на «%s»…") % word)
+            self._symbol_request("references", tr("editor.finding_references") % word)
 
     def rename_symbol(self, new_name):
         self._new_name = new_name
-        self._symbol_request("rename", tr("Переименование в «%s»…") % new_name, {"new_name": new_name})
+        self._symbol_request("rename", tr("editor.renaming") % new_name, {"new_name": new_name})
 
     def apply_edits(self, edits, join_undo=False):
         """Правки LSP (стр, стлб, стр2, стлб2, текст; с 0, столбцы в UTF-16 — как позиции Qt) одним шагом отмены."""
@@ -1140,7 +1432,7 @@ class CodeEditor(QPlainTextEdit):
         if key in (Qt.Key.Key_Tab, Qt.Key.Key_Return, Qt.Key.Key_Enter):
             index = self.completer.popup().currentIndex()
             if index.isValid():
-                self.insert_completion(index.data())
+                self.insert_completion(index.data(), index.data(ROLE_ITEM))
                 self.completer.popup().hide()
                 event.accept()
                 return True
@@ -1183,7 +1475,7 @@ def python_warnings(tree, text):
     all_names = set(re.findall(r"__all__\s*=\s*\[([^\]]*)\]", text))
     for name, line in imported.items():
         if name not in used and name not in "".join(all_names):
-            out.append((line, 1, tr("Импорт «%s» не используется") % name, "warning"))
+            out.append((line, 1, tr("editor.import_not_used") % name, "warning"))
     return out
 
 
@@ -1216,7 +1508,7 @@ def check_csharp(text):
             while j < n and text[j] != ch and (verbatim or text[j] != "\n"):
                 j += 2 if (text[j] == "\\" and not verbatim) else 1
             if j >= n or text[j] == "\n":
-                out.append((line, start_col, tr("Строка не закрыта кавычкой"), "error"))
+                out.append((line, start_col, tr("editor.unclosed_string"), "error"))
             col += j - i + 1
             i = j + 1
             continue
@@ -1226,7 +1518,7 @@ def check_csharp(text):
             if stack and stack[-1][0] == pairs[ch]:
                 stack.pop()
             else:
-                out.append((line, col, tr("Лишняя закрывающая скобка «%s»") % ch, "error"))
+                out.append((line, col, tr("editor.unexpected_closing_bracket") % ch, "error"))
         if ch == "\n":
             line += 1
             col = 1
@@ -1234,12 +1526,12 @@ def check_csharp(text):
             col += 1
         i += 1
     for ch, l, c in stack[-3:]:
-        out.append((l, c, tr("Скобка «%s» не закрыта") % ch, "error"))
+        out.append((l, c, tr("editor.unclosed_bracket") % ch, "error"))
     # простое предупреждение: забытая точка с запятой
     for no, ln in enumerate(text.splitlines(), 1):
         s = ln.strip()
         if re.match(r"^(?:[\w.<>\[\]]+\s+)?[\w.\[\]]+\s*(?:[+\-*/]?=)\s*[^;{}]*[\w)\]\"']$", s) and \
                 not s.startswith(("if", "for", "while", "else", "//", "[", "#", "case", "using", "namespace")) \
                 and "=>" not in s and not s.endswith(","):
-            out.append((no, len(ln) - len(ln.lstrip()) + 1, tr("Возможно, пропущена «;» в конце строки"), "warning"))
+            out.append((no, len(ln) - len(ln.lstrip()) + 1, tr("editor.maybe_you_missed_at_end"), "warning"))
     return out

@@ -197,32 +197,46 @@ CS_INTERFACE = '''public interface {name}
 
 # (подпись, расширение, текст, куда класть: "unity", "unity_editor", "python" или None)
 TEMPLATES = [
-    ("Окно PyQt (QMainWindow)", ".py", PYQT_WINDOW, "python"),
-    ("Диалог PyQt (QDialog)", ".py", PYQT_DIALOG, "python"),
-    ("Виджет PyQt (QWidget)", ".py", PYQT_WIDGET, "python"),
-    ("Форма Qt Designer (.ui)", ".ui", PYQT_UI, "python"),
-    ("Файл Python", ".py", PY_EMPTY, "python"),
-    ("Скрипт Unity (MonoBehaviour)", ".cs", UNITY_MONO, "unity"),
-    ("Данные Unity (ScriptableObject)", ".cs", UNITY_SO, "unity"),
-    ("Окно редактора Unity (EditorWindow)", ".cs", UNITY_EDITOR, "unity_editor"),
-    ("Класс C#", ".cs", CS_CLASS, "unity"),
-    ("Интерфейс C#", ".cs", CS_INTERFACE, "unity"),
-    ("Текстовый файл", ".txt", "", None),
+    ("templates.window_pyqt_qmainwindow", ".py", PYQT_WINDOW, "python"),
+    ("templates.pyqt_dialog_qdialog", ".py", PYQT_DIALOG, "python"),
+    ("templates.widget_pyqt_qwidget", ".py", PYQT_WIDGET, "python"),
+    ("templates.form_qt_designer_ui", ".ui", PYQT_UI, "python"),
+    ("templates.file_python", ".py", PY_EMPTY, "python"),
+    ("templates.script_unity_monobehaviour", ".cs", UNITY_MONO, "unity"),
+    ("templates.data_unity_scriptableobject", ".cs", UNITY_SO, "unity"),
+    ("templates.window_editor_unity_editorwindow", ".cs", UNITY_EDITOR, "unity_editor"),
+    ("templates.class_c", ".cs", CS_CLASS, "unity"),
+    ("templates.c_interface", ".cs", CS_INTERFACE, "unity"),
+    ("templates.text_file", ".txt", "", None),
     ("Markdown", ".md", "# {title}\n", None),
 ]
 
 
-# Русские фразы внутри шаблонов: в файл попадает их перевод на язык интерфейса.
-TEMPLATE_PHRASES = (
-    "Привет из {name}!", "Привет!", "Нажми меня", "Кнопка нажата", "Имя:", "Введите текст:",
-    "Заметка", "Готово", "Пример решения", "Два проекта в одной папке:",
-    "настольное приложение на Python и PyQt6. Запуск: F5.",
-    "скрипты C# для Unity. Откройте проект кнопкой «Unity» на панели.",
-    "Подсказки кода: начните печатать или нажмите Ctrl+Пробел.",
-    "Главное окно: список задач с таймером.", "Список задач", "Новая задача…", "Добавить",
-    "Задач:", "Настройки", "Движение", "Очки:",
-    "Сцены Unity (.unity) появятся здесь после открытия проекта в Unity.",
-)
+# Фразы внутри текста шаблонов → ключи перевода: в файл попадает перевод на язык интерфейса.
+TEMPLATE_PHRASES = {
+    "Привет из {name}!": "templates.hello_from",
+    "Привет!": "templates.hello",
+    "Нажми меня": "common.click_me",
+    "Кнопка нажата": "templates.button_clicked",
+    "Имя:": "common.name",
+    "Введите текст:": "templates.enter_text",
+    "Заметка": "templates.notes",
+    "Готово": "common.ready",
+    "Пример решения": "templates.sample_solution",
+    "Два проекта в одной папке:": "templates.two_projects_one_folder",
+    "настольное приложение на Python и PyQt6. Запуск: F5.": "templates.desktop_application_written_python_pyqt6",
+    "скрипты C# для Unity. Откройте проект кнопкой «Unity» на панели.": "templates.c_scripts_unity_open_project",
+    "Подсказки кода: начните печатать или нажмите Ctrl+Пробел.": "templates.code_completion_start_typing_press",
+    "Главное окно: список задач с таймером.": "templates.main_window_list_tasks_with",
+    "Список задач": "templates.list_tasks",
+    "Новая задача…": "templates.new_task",
+    "Добавить": "common.add",
+    "Задач:": "templates.tasks",
+    "Настройки": "templates.settings",
+    "Движение": "templates.movement",
+    "Очки:": "templates.score",
+    "Сцены Unity (.unity) появятся здесь после открытия проекта в Unity.": "templates.scenes_unity_unity_will_appear",
+}
 
 
 _TEMPLATE_TEXT = re.compile("|".join(map(re.escape, TEMPLATE_PHRASES)))
@@ -230,7 +244,7 @@ _TEMPLATE_TEXT = re.compile("|".join(map(re.escape, TEMPLATE_PHRASES)))
 
 def localize(text, extension):
     def translate(match):
-        value = tr(match[0])
+        value = tr(TEMPLATE_PHRASES[match[0]])
         if extension in (".py", ".cs"):
             return json.dumps(value, ensure_ascii=False)[1:-1]
         if extension == ".ui":
