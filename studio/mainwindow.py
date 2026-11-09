@@ -538,6 +538,11 @@ class MainWindow(QMainWindow):
         self.a_bookmark_prev = A("Edit.PreviousBookmark", "bookmarks.previous", lambda: K.step(False), "Ctrl+K, Ctrl+P")
         self.a_bookmark_clear = A("Edit.ClearBookmarks", "bookmarks.clear_all", K.clear, "Ctrl+K, Ctrl+L")
         self.a_bookmark_window = A("View.BookmarkWindow", "bookmarks.window", K.show_window, "Ctrl+K, Ctrl+W")
+        # с Shift точка приходит как «>», точка с запятой — как «:» — оба варианта, иначе клавиша не срабатывает
+        self.a_next_caret = A("Edit.InsertNextMatchingCaret", "multicursor.next_match", ed("add_next_occurrence"),
+                              ("Shift+Alt+.", "Alt+>"))
+        self.a_all_carets = A("Edit.InsertCaretsAtAllMatching", "multicursor.all_matches", ed("select_all_occurrences"),
+                              ("Shift+Alt+;", "Alt+:"))
         self.a_whitespace = A("Edit.ViewWhiteSpace", "mainwindow.view_whitespace",
                               lambda: self.options.set("editor/show_whitespace", self.a_whitespace.isChecked()),
                               "Ctrl+R, Ctrl+W", checkable=True)
@@ -676,6 +681,9 @@ class MainWindow(QMainWindow):
             sub.addSeparator() if a is None else sub.addAction(a)
         self.advanced_menu = sub = bind_text(m.addMenu(""), "mainwindow.advanced", "setTitle")
         sub.addAction(self.a_whitespace)
+        sub.addSeparator()
+        sub.addAction(self.a_next_caret)
+        sub.addAction(self.a_all_carets)
         sub = m.addMenu("IntelliSense")
         for a in (self.a_complete, self.a_params, self.a_definition, self.a_refs):
             sub.addAction(a)

@@ -1291,5 +1291,7 @@
   "tabs.pin": "Pin Tab",
   "tabs.unpin": "Unpin Tab",
   "tabs.pin_toggle": "Pin or Unpin Tab",
-  "tabs.close_all_but_pinned": "Close All But Pinned"
+  "tabs.close_all_but_pinned": "Close All But Pinned",
+  "multicursor.next_match": "Insert Next Matching Caret",
+  "multicursor.all_matches": "Insert Carets at All Matching"
 }

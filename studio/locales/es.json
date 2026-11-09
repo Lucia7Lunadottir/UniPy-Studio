@@ -1291,5 +1291,7 @@
   "tabs.pin": "Anclar pestaña",
   "tabs.unpin": "Desanclar pestaña",
   "tabs.pin_toggle": "Anclar o desanclar pestaña",
-  "tabs.close_all_but_pinned": "Cerrar todo excepto lo anclado"
+  "tabs.close_all_but_pinned": "Cerrar todo excepto lo anclado",
+  "multicursor.next_match": "Insertar siguiente símbolo de intercalación coincidente",
+  "multicursor.all_matches": "Insertar símbolos de intercalación en todas las coincidencias"
 }

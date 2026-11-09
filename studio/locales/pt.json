@@ -1291,5 +1291,7 @@
   "tabs.pin": "Fixar guia",
   "tabs.unpin": "Desafixar guia",
   "tabs.pin_toggle": "Fixar ou desafixar guia",
-  "tabs.close_all_but_pinned": "Fechar tudo, exceto fixados"
+  "tabs.close_all_but_pinned": "Fechar tudo, exceto fixados",
+  "multicursor.next_match": "Inserir próximo cursor correspondente",
+  "multicursor.all_matches": "Inserir cursores em todas as correspondências"
 }

@@ -1291,5 +1291,7 @@
   "tabs.pin": "タブのピン留め",
   "tabs.unpin": "タブのピン留めを外す",
   "tabs.pin_toggle": "タブのピン留め/解除",
-  "tabs.close_all_but_pinned": "ピン留め以外をすべて閉じる"
+  "tabs.close_all_but_pinned": "ピン留め以外をすべて閉じる",
+  "multicursor.next_match": "次に一致するキャレットを挿入",
+  "multicursor.all_matches": "一致するすべての位置にキャレットを挿入"
 }

@@ -1291,5 +1291,7 @@
   "tabs.pin": "Закрепить вкладку",
   "tabs.unpin": "Открепить вкладку",
   "tabs.pin_toggle": "Закрепить или открепить вкладку",
-  "tabs.close_all_but_pinned": "Закрыть все, кроме закреплённых"
+  "tabs.close_all_but_pinned": "Закрыть все, кроме закреплённых",
+  "multicursor.next_match": "Добавить курсор на следующее совпадение",
+  "multicursor.all_matches": "Курсоры на все совпадения"
 }

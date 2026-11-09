@@ -1291,5 +1291,7 @@
   "tabs.pin": "Registerkarte anheften",
   "tabs.unpin": "Registerkarte lösen",
   "tabs.pin_toggle": "Registerkarte anheften/lösen",
-  "tabs.close_all_but_pinned": "Alle außer angehefteten schließen"
+  "tabs.close_all_but_pinned": "Alle außer angehefteten schließen",
+  "multicursor.next_match": "Nächste übereinstimmende Einfügemarke einfügen",
+  "multicursor.all_matches": "Einfügemarken bei allen Übereinstimmungen einfügen"
 }

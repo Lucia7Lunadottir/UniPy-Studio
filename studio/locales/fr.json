@@ -1291,5 +1291,7 @@
   "tabs.pin": "Épingler l'onglet",
   "tabs.unpin": "Désépingler l'onglet",
   "tabs.pin_toggle": "Épingler ou désépingler l'onglet",
-  "tabs.close_all_but_pinned": "Fermer tout sauf les éléments épinglés"
+  "tabs.close_all_but_pinned": "Fermer tout sauf les éléments épinglés",
+  "multicursor.next_match": "Insérer le point d'insertion correspondant suivant",
+  "multicursor.all_matches": "Insérer des points d'insertion à toutes les correspondances"
 }

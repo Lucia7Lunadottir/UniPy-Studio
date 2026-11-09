@@ -1291,5 +1291,7 @@
   "tabs.pin": "Przypnij kartę",
   "tabs.unpin": "Odepnij kartę",
   "tabs.pin_toggle": "Przypnij lub odepnij kartę",
-  "tabs.close_all_but_pinned": "Zamknij wszystkie oprócz przypiętych"
+  "tabs.close_all_but_pinned": "Zamknij wszystkie oprócz przypiętych",
+  "multicursor.next_match": "Wstaw kursor przy następnym dopasowaniu",
+  "multicursor.all_matches": "Wstaw kursory przy wszystkich dopasowaniach"
 }

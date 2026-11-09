@@ -20,9 +20,10 @@ from .completion import CallTip, CompletionDelegate, CompletionFooter, Completio
 from .navigation import NavigationMixin
 from .hover import HoverMixin
 from .visual_aids import VisualAidsMixin
+from .multi_cursor import MultiCursorMixin
 
 
-class CodeEditor(DocumentMixin, GutterMixin, MarkersMixin, QuickActionsMixin, DiagnosticsMixin, AppearanceMixin, TypingMixin, CompletionMixin, NavigationMixin, VisualAidsMixin, HoverMixin, QPlainTextEdit):
+class CodeEditor(DocumentMixin, GutterMixin, MarkersMixin, QuickActionsMixin, DiagnosticsMixin, AppearanceMixin, MultiCursorMixin, TypingMixin, CompletionMixin, NavigationMixin, VisualAidsMixin, HoverMixin, QPlainTextEdit):
     cursor_moved = pyqtSignal(int, int)
     diagnostics_changed = pyqtSignal()
     goto_requested = pyqtSignal(str, int)

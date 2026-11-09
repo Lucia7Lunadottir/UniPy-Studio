@@ -1291,5 +1291,7 @@
   "tabs.pin": "固定选项卡",
   "tabs.unpin": "取消固定选项卡",
   "tabs.pin_toggle": "固定/取消固定选项卡",
-  "tabs.close_all_but_pinned": "关闭除固定项外的所有项"
+  "tabs.close_all_but_pinned": "关闭除固定项外的所有项",
+  "multicursor.next_match": "在下一个匹配项插入插入点",
+  "multicursor.all_matches": "在所有匹配项插入插入点"
 }

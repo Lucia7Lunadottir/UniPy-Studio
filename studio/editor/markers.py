@@ -95,6 +95,7 @@ class MarkersMixin:
         line.cursor.clearSelection()
         sels.append(line)
         sels.extend(self._faded_selections())
+        sels.extend(self.multi_caret_selections())
         if self.execution_line is not None:
             block = self.document().findBlockByNumber(self.execution_line - 1)
             if block.isValid():

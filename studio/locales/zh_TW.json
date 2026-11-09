@@ -1291,5 +1291,7 @@
   "tabs.pin": "釘選索引標籤",
   "tabs.unpin": "取消釘選索引標籤",
   "tabs.pin_toggle": "釘選/取消釘選索引標籤",
-  "tabs.close_all_but_pinned": "關閉釘選以外的全部項目"
+  "tabs.close_all_but_pinned": "關閉釘選以外的全部項目",
+  "multicursor.next_match": "在下一個相符項目插入插入點",
+  "multicursor.all_matches": "在所有相符項目插入插入點"
 }

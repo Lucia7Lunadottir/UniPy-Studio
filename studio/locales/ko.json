@@ -1291,5 +1291,7 @@
   "tabs.pin": "탭 고정",
   "tabs.unpin": "탭 고정 해제",
   "tabs.pin_toggle": "탭 고정/해제",
-  "tabs.close_all_but_pinned": "고정된 탭 외 모두 닫기"
+  "tabs.close_all_but_pinned": "고정된 탭 외 모두 닫기",
+  "multicursor.next_match": "다음 일치 항목에 캐럿 삽입",
+  "multicursor.all_matches": "일치하는 모든 위치에 캐럿 삽입"
 }
