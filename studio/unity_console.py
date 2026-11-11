@@ -73,6 +73,9 @@ class UnityConsole(QWidget):
         self.details = QTextBrowser()
         self.details.setOpenLinks(False)
         self.details.anchorClicked.connect(self._open_link)
+        # свои минимумы поменьше стандартных 70 px: иначе вкладка не даёт уменьшить нижнюю область дока
+        self.list.setMinimumHeight(40)
+        self.details.setMinimumHeight(24)
         split.addWidget(self.list)
         split.addWidget(self.details)
         split.setSizes([300, 110])

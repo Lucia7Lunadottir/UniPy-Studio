@@ -118,7 +118,9 @@ class FlowRow(QLayout):
         m = self.contentsMargins()
         width = max((i.minimumSize().width() for i in self._visible()), default=0)
         height = max((i.minimumSize().height() for i in self._visible()), default=0) + m.top() + m.bottom()
-        return QSize(width + m.left() + m.right(), max(height, self._height or 0))
+        # Минимум — одна строка. Перенесённые строки QVBoxLayout выдаёт по heightForWidth из растягиваемого
+        # соседа (списка); как жёсткий минимум они не давали уменьшить по высоте всю нижнюю область дока.
+        return QSize(width + m.left() + m.right(), height)
 
     def _lines(self, width):
         lines, used = [[]], 0
