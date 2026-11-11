@@ -549,8 +549,13 @@ class LanguageServer(QObject):
         self.diagnostics_now(path, done)
 
     # ---- лампочка: быстрые исправления и рефакторинги
-    def code_actions(self, path, line, col, callback):
-        """Что сервер предлагает в этом месте: callback([CodeAction, …]); line — с 0, col — в UTF-16."""
+    # True — сервер предлагает действия только к ошибкам/предупреждениям (pyright): на строке без них
+    # не спрашиваем, пока не нажали Ctrl+. — иначе каждая остановка курсора стоила ему ~0,5 с.
+    code_actions_only_for_diagnostics = False
+
+    def code_actions(self, path, line, col, callback, explicit=False):
+        """Что сервер предлагает в этом месте: callback([CodeAction, …]); line — с 0, col — в UTF-16.
+        explicit — человек сам открыл меню (Ctrl+.)."""
         if self.state != "ready":
             callback([])
             return
@@ -562,6 +567,9 @@ class LanguageServer(QObject):
         raw = [d for group in self._raw_diag.get(uri, {}).values() for d in group
                if (d.get("range") or {}).get("start", {}).get("line", -1) <= line
                <= (d.get("range") or {}).get("end", {}).get("line", -1)]
+        if not raw and not explicit and self.code_actions_only_for_diagnostics:
+            callback([])
+            return
         pos = {"line": line, "character": col}
         params = {"textDocument": {"uri": uri}, "range": {"start": pos, "end": pos},
                   "context": {"diagnostics": raw, "triggerKind": 2}}
@@ -609,7 +617,7 @@ class LanguageServer(QObject):
     # Фоновые запросы (insights) идут к серверу не больше BACKGROUND_IN_FLIGHT за раз. Сервер отвечает по
     # очереди, и пачка из десятков hover ставила подсказки (completion, F12) в хвост: в pyright на открытом
     # файле с PyQt6 подсказка ждала 2,6 с при собственных 0,14 с. Запросы редактора идут мимо этой очереди.
-    BACKGROUND_IN_FLIGHT = 2
+    BACKGROUND_IN_FLIGHT = 1       # Ctrl+клик / подсказка ждут не больше одного такого запроса
 
     def query(self, path, text, method, params, callback, group=None):
         """Фоновый разовый запрос по файлу (insights: hover, signatureHelp для подсказок Python). Текст сначала
@@ -720,9 +728,9 @@ class LanguageServer(QObject):
             self.conn.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
 
     # ---- запросы (формат как у JediWorker.submit)
-    # Запросы, которые человек ждёт прямо сейчас, пока печатает. Начатая проверка ошибок файла (у pyright
+    # Запросы, которые человек ждёт прямо сейчас (печатает, Ctrl+клик / F12). Начатая проверка ошибок файла (у pyright
     # с PyQt6 — до 0,6 с) на это время отменяется и повторяется после ответа — так делает и VS Code.
-    URGENT_KINDS = ("complete", "signatures")
+    URGENT_KINDS = ("complete", "signatures", "definition", "implementation")
 
     def _postpone_diagnostics(self, path):
         uri = path_to_uri(path)
@@ -1475,6 +1483,7 @@ class PyrightServer(LanguageServer):
     language_id = "python"
     show_diagnostic_code = False
     ready_after_initialize = True
+    code_actions_only_for_diagnostics = True
 
     SEVERITY = {
         "reportUndefinedVariable": "error",

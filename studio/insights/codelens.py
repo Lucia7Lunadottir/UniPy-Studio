@@ -62,6 +62,9 @@ class CodeLens(Insight):
     # Поиск ссылок — самый тяжёлый запрос анализатора (по всему решению). Пока печатают, его не шлём:
     # иначе подсказки (IntelliSense) стоят в очереди за ним — и у Roslyn, и у pyright.
     IDLE_MS = 3000
+    # После прокрутки (и прыжка по F12 / Ctrl+клику) — тоже пауза: поиск ссылок pyright прервать нельзя,
+    # и следующий переход ждал бы его (до 1,3 с на общих именах).
+    SCROLL_IDLE_MS = 1200
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -73,13 +76,21 @@ class CodeLens(Insight):
         self._recount = True            # после правки числа могли измениться — пересчитать видимые
         self._idle = QTimer(controller, singleShot=True, interval=self.IDLE_MS, timeout=self._after_idle)
 
+    def scrolled(self):
+        self._queue = []                # недоспрошенное спросим после паузы (у кого числа нет)
+        if not self._idle.isActive() or self._idle.remainingTime() < self.SCROLL_IDLE_MS:
+            self._idle.start(self.SCROLL_IDLE_MS)
+
     def edited(self):
+        self._idle.setInterval(self.IDLE_MS)
         self._queue = []                # начатое не отменяем (pyright падает на отмене ссылок), новое не шлём
         self._recount = True
         self._idle.start()
 
     def symbols_changed(self):
-        self.request()
+        # структура обновляется и после прыжков/правок: число ссылок — после паузы, как при прокрутке
+        self.lenses = lenses(self.ctl.editor.symbols, self.ctl.editor.toPlainText().split("\n"))
+        self.scrolled()
 
     def _after_idle(self):
         if self.ctl._shown():

@@ -86,6 +86,14 @@ class PyrightAssist:
     def __init__(self, controller):
         self.ctl = controller
         self.kinds = {}                 # (модуль, имя) → роль (или None — pyright не знает)
+        # текст вызываемого → параметры. signatureHelp у вызовов PyQt6 (десятки перегрузок) стоит ~0,25 с,
+        # а прокрутка и Ctrl+клик спрашивали одно и то же снова; сбрасывается при правке текста (edited)
+        self.signatures = {}
+        self.var_types = {}             # (строка, столбец, имя) → тип или None; тоже до правки
+
+    def edited(self):
+        self.signatures.clear()
+        self.var_types.clear()
 
     def _alive(self):
         return not sip.isdeleted(self.ctl)
@@ -151,8 +159,10 @@ class PyrightAssist:
                 if pending[0] == 0 and self._alive():
                     done({"hints": hints})
 
-            def signature(group, reply):
-                names = signature_params(reply)
+            def signature(group, reply, cached=None):
+                names = cached if cached is not None else signature_params(reply)
+                if reply is not None:
+                    self.signatures[group[0].callee] = names
                 for site in group:
                     for index, line0, col16, text in site.args:
                         if index >= len(names):
@@ -166,6 +176,8 @@ class PyrightAssist:
 
             def var_type(a, reply):
                 t = hover_type(reply, a.name)
+                if reply is not None:
+                    self.var_types[(a.line0, a.col, a.name)] = t
                 if t:
                     hints.append((a.line0, a.end16, ": " + t, "type"))
                 finish()
@@ -173,9 +185,19 @@ class PyrightAssist:
             srv.cancel_queries(batch)       # прошлая прокрутка/правка: её ответы уже не нужны
             for group in by_callee.values():
                 first_site = group[0]
+                if first_site.callee in self.signatures:
+                    signature(group, None, self.signatures[first_site.callee])
+                    continue
                 pos = self._position(first_site.line - 1, lines.utf16_from_chars(first_site.line - 1, first_site.col))
                 srv.query(path, code, "textDocument/signatureHelp", pos, lambda r, g=group: signature(g, r), batch)
             for a in assigns:
+                key = (a.line0, a.col, a.name)
+                if key in self.var_types:
+                    t = self.var_types[key]
+                    if t:
+                        hints.append((a.line0, a.end16, ": " + t, "type"))
+                    finish()
+                    continue
                 pos = self._position(a.line0, lines.utf16_from_chars(a.line0, a.col))
                 srv.query(path, code, "textDocument/hover", pos, lambda r, x=a: var_type(x, r), batch)
         worker().submit(("inlay", id(self)), _inlay_job, (code, first, last, params, types), found)

@@ -30,6 +30,10 @@ class InlayHints(Insight):
         s = self.ctl.settings
         return bool(s.get("inlay_parameters") or s.get("inlay_types"))
 
+    def edited(self):
+        if self.ctl._assist is not None:
+            self.ctl._assist.edited()          # кэш подписей Python (pyright) — к новому тексту
+
     def _wanted(self, kind):
         return self.ctl.settings.get("inlay_types" if kind == "type" else "inlay_parameters", False)
 

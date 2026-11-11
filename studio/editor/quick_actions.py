@@ -43,7 +43,8 @@ class QuickActionsMixin:
         srv = self._lsp_server()
         if srv is not None and hasattr(srv, "code_actions"):
             srv.code_actions(self.path, line, col,
-                             lambda items, req=req, line=line, own=own: self._bulb_result(req, line, own, items))
+                             lambda items, req=req, line=line, own=own: self._bulb_result(req, line, own, items),
+                             explicit=self._bulb_open_after)
         elif self._bulb_open_after:
             self._bulb_open_after = False
             self._open_bulb_menu()

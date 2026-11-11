@@ -27,6 +27,10 @@ class Insight:
     def edited(self):
         """Текст изменился (вызывается сразу, до отложенного refresh)."""
 
+    def scrolled(self):
+        """Окно прокрутили (follows_scroll): обновить данные для новых видимых строк."""
+        self.request()
+
     def on_result(self, res):
         """res — {"kind", "req" (ревизия документа), "data"}."""
 
@@ -179,7 +183,10 @@ class InsightController(QObject):
         self._dirty = False
         for ins in self.insights:
             if ins.enabled and (not scroll or ins.follows_scroll):
-                ins.request()
+                if scroll:
+                    ins.scrolled()
+                else:
+                    ins.request()
 
     def ensure_fresh(self):
         if self._dirty:
