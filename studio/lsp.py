@@ -13,6 +13,7 @@ import re
 import shutil
 import signal
 import time
+from collections import deque
 from urllib.parse import quote, unquote, urlparse
 
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
@@ -192,6 +193,9 @@ class LanguageServer(QObject):
         self._docs = {}                 # uri → (версия, текст)
         self._pending = {}              # (редактор, вид) → id запроса, чтобы отменять устаревшие
         self._query_groups = {}         # пачка запросов query() → id без ответа (cancel_queries)
+        self._diag_after = set()        # пути: проверку ошибок отменили ради подсказки — повторить после ответа
+        self._background = deque()      # query() ждущие отправки: [пачка, uri, версия, метод, параметры, callback]
+        self._background_running = 0
         self.server_capabilities = {}   # что сервер объявил в ответ на initialize
         self._progress = set()
         self.pull_diagnostics_ids = []  # группы ошибок, которые сервер отдаёт по запросу (textDocument/diagnostic)
@@ -298,6 +302,9 @@ class LanguageServer(QObject):
         self._pending.clear()
         self._diag_pending.clear()
         self._query_groups.clear()
+        self._background.clear()
+        self._background_running = 0
+        self._diag_after.clear()
         self._diag_parts.clear()
         self._progress.clear()
         # Release signal closures before deferred QObject deletion.
@@ -599,30 +606,52 @@ class LanguageServer(QObject):
         """Объявил ли сервер возможность (documentFormattingProvider, workspaceSymbolProvider…)."""
         return bool(getattr(self, "server_capabilities", {}).get(provider))
 
+    # Фоновые запросы (insights) идут к серверу не больше BACKGROUND_IN_FLIGHT за раз. Сервер отвечает по
+    # очереди, и пачка из десятков hover ставила подсказки (completion, F12) в хвост: в pyright на открытом
+    # файле с PyQt6 подсказка ждала 2,6 с при собственных 0,14 с. Запросы редактора идут мимо этой очереди.
+    BACKGROUND_IN_FLIGHT = 2
+
     def query(self, path, text, method, params, callback, group=None):
-        """Разовый запрос по файлу (insights: hover, signatureHelp для подсказок Python). Текст сначала отдаётся
-        серверу; callback(результат | None) — None, если сервер не готов или ответил ошибкой.
+        """Фоновый разовый запрос по файлу (insights: hover, signatureHelp для подсказок Python). Текст сначала
+        отдаётся серверу; callback(результат | None) — None, если сервер не готов, ответил ошибкой или текст
+        успел измениться, пока запрос ждал очереди.
         group — пачка запросов, которую следующая такая же отменяет целиком (cancel_queries)."""
         if self.state != "ready":
             callback(None)
             return
         self.sync(path, text)
         self.last_activity = time.monotonic()
-        ids = self._query_groups.setdefault(group, set()) if group is not None else None
+        uri = path_to_uri(path)
+        self._background.append([group, uri, self._docs.get(uri, (0, ""))[0], method, params, callback])
+        self._pump_background()
 
-        def reply(result, error):
+    def _pump_background(self):
+        while self._background_running < self.BACKGROUND_IN_FLIGHT and self._background and self.state == "ready":
+            group, uri, version, method, params, callback = self._background.popleft()
+            if self._docs.get(uri, (None, ""))[0] != version:
+                callback(None)          # позиция считалась для прежнего текста
+                continue
+            self._background_running += 1
+            ids = self._query_groups.setdefault(group, set()) if group is not None else None
+            box = []
+
+            def reply(result, error, ids=ids, box=box, callback=callback):
+                self._background_running -= 1
+                if ids is not None and box:
+                    ids.discard(box[0])
+                callback(None if error else result)
+                self._pump_background()
+            box.append(self.conn.request(method, params, reply))
             if ids is not None:
-                ids.discard(rid)
-            callback(None if error else result)
-        rid = self.conn.request(method, params, reply)
-        if ids is not None:
-            ids.add(rid)
+                ids.add(box[0])
 
     def cancel_queries(self, group):
-        """Отменить ещё не отвеченные запросы пачки: их ответы уже никому не нужны, а сервер (pyright —
-        однопоточный) иначе считал бы их раньше подсказок."""
+        """Отменить запросы пачки (ждущие очереди и уже отправленные): их ответы никому не нужны."""
+        self._background = deque(q for q in self._background if q[0] != group)
         for rid in self._query_groups.pop(group, ()):
             self.conn.cancel(rid)
+            self._background_running -= 1      # ответа (и reply) у отменённого уже не будет
+        self._pump_background()
 
     def _keyed_request(self, key, method, params, callback):
         """Запрос, который отменяет предыдущий такой же (новые буквы в Ctrl+T, новая правка для структуры)."""
@@ -691,6 +720,16 @@ class LanguageServer(QObject):
             self.conn.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
 
     # ---- запросы (формат как у JediWorker.submit)
+    # Запросы, которые человек ждёт прямо сейчас, пока печатает. Начатая проверка ошибок файла (у pyright
+    # с PyQt6 — до 0,6 с) на это время отменяется и повторяется после ответа — так делает и VS Code.
+    URGENT_KINDS = ("complete", "signatures")
+
+    def _postpone_diagnostics(self, path):
+        uri = path_to_uri(path)
+        for key in [k for k in self._diag_pending if k[0] == uri]:
+            self.conn.cancel(self._diag_pending.pop(key))
+            self._diag_after.add(path)
+
     def submit(self, kind, req, editor, code, line, col, path, extra=None):
         """Запрос редактора к серверу (подсказки, справка, F12…) — что и как, описано в lsp_features.FEATURES.
         Ответ — сигнал result {"kind", "req", "editor", "data"}; прошлый такой же запрос этого редактора отменяется."""
@@ -705,10 +744,16 @@ class LanguageServer(QObject):
             self.conn.cancel(old)
         position = {"textDocument": {"uri": path_to_uri(path)}, "position": {"line": line - 1, "character": col}}
         request = lsp_features.Request(code, line, col, path, extra)
+        urgent = kind in self.URGENT_KINDS
+        if urgent:
+            self._postpone_diagnostics(path)
 
         def reply(data):
             self._pending.pop(key, None)
             self.result.emit({"kind": kind, "req": req, "editor": editor, "data": data})
+            if urgent and path in self._diag_after:
+                self._diag_after.discard(path)
+                self.pull_diagnostics(path)
 
         def answered(result, error):
             if error:

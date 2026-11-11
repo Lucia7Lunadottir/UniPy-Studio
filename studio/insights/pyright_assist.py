@@ -111,14 +111,17 @@ class PyrightAssist:
             pending = [len(missing)]
 
             def got(key, reply):
-                self.kinds[key] = hover_role(reply)
+                if reply is not None:       # None — не дождались (текст изменился): спросим в следующий раз
+                    self.kinds[key] = hover_role(reply)
                 pending[0] -= 1
                 if pending[0] == 0 and self._alive() and any(self.kinds.get((m, n)) for m, n, _l, _c in missing):
                     worker().submit(("semantic", id(self)), _semantic_job, (code, self._known()),
                                     lambda r: analyzed(r, asked=True))
+            batch = ("semantic", id(self))
+            srv.cancel_queries(batch)       # прошлая пачка (до правки) ещё в очереди — она не нужна
             for module, name, ln, cl in missing:
                 params = self._position(ln - 1, lines.utf16_from_chars(ln - 1, cl))
-                srv.query(path, code, "textDocument/hover", params, lambda r, k=(module, name): got(k, r))
+                srv.query(path, code, "textDocument/hover", params, lambda r, k=(module, name): got(k, r), batch)
         worker().submit(("semantic", id(self)), _semantic_job, (code, self._known()), analyzed)
 
     def _known(self):
