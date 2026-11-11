@@ -60,8 +60,7 @@ class InlayHints(Insight):
         if "hints" not in data:
             return
         if res.get("req") != self.ctl.revision():
-            self.ctl.retry_later()
-            return
+            return                      # устарел; новый запрос пошлёт таймер правки (см. semantic.py)
         first, last = self._range or (0, self.ctl.editor.blockCount())
         by_line = {n: v for n, v in self.by_line.items() if not first <= n <= last}   # вне диапазона — как было
         for line, col, text, kind in data["hints"]:

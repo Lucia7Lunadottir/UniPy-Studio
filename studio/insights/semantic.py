@@ -38,7 +38,8 @@ class SemanticHighlighting(Insight):
         if tokens is None:
             return                      # недописанный код или ошибка — прошлая раскраска остаётся
         if res.get("req") != self.ctl.revision():
-            self.ctl.retry_later()      # текст успел измениться — позиции уже не те
+            # текст успел измениться — позиции уже не те; новый запрос пошлёт таймер правки
+            # (повтор отсюда дёргал все insights заново, и анализатор не успевал ответить на подсказки)
             return
         by_line = {}
         for line, col, length, role in tokens:

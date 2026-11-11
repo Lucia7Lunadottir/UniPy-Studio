@@ -24,6 +24,9 @@ class Insight:
     def request(self):
         """Спросить данные (ответ придёт в on_result)."""
 
+    def edited(self):
+        """Текст изменился (вызывается сразу, до отложенного refresh)."""
+
     def on_result(self, res):
         """res — {"kind", "req" (ревизия документа), "data"}."""
 
@@ -155,6 +158,9 @@ class InsightController(QObject):
     def _contents_change(self, _pos, removed, added):
         if removed or added:
             self._edit_timer.start()
+            for ins in self.insights:
+                if ins.enabled:
+                    ins.edited()
 
     def _shown(self):
         return any(v.isVisible() for v in self.views())
@@ -164,6 +170,11 @@ class InsightController(QObject):
         Скрытая вкладка ничего не спрашивает — запомнит и спросит, когда её откроют (ensure_fresh)."""
         if not self._shown():
             self._dirty = True
+            return
+        popup = getattr(self.editor, "completer", None)
+        if popup is not None and popup.popup().isVisible():
+            # открыт список подсказок: анализатор нужен ему, insights подождут конца набора
+            self._edit_timer.start()
             return
         self._dirty = False
         for ins in self.insights:

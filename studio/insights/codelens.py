@@ -9,7 +9,7 @@
 import re
 import time
 
-from PyQt6.QtCore import QRectF, Qt
+from PyQt6.QtCore import QRectF, Qt, QTimer
 from PyQt6.QtGui import QColor, QFont, QFontMetricsF
 
 from .. import symbols as symbols_mod
@@ -59,6 +59,9 @@ class CodeLens(Insight):
     id = "codelens"
     kinds = ("reference_count", "code_lens")
     follows_scroll = True
+    # Поиск ссылок — самый тяжёлый запрос анализатора (по всему решению). Пока печатают, его не шлём:
+    # иначе подсказки (IntelliSense) стоят в очереди за ним — и у Roslyn, и у pyright.
+    IDLE_MS = 3000
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -67,15 +70,32 @@ class CodeLens(Insight):
         self._rects = {}                # окно (id) → [(QRectF, Lens)]
         self._queue = []                # символы, о которых ещё не спросили сервер
         self._in_flight = 0.0           # когда ушёл запрос, ответа на который ещё нет (0 — нет такого)
+        self._recount = True            # после правки числа могли измениться — пересчитать видимые
+        self._idle = QTimer(controller, singleShot=True, interval=self.IDLE_MS, timeout=self._after_idle)
+
+    def edited(self):
+        self._queue = []                # начатое не отменяем (pyright падает на отмене ссылок), новое не шлём
+        self._recount = True
+        self._idle.start()
 
     def symbols_changed(self):
         self.request()
 
+    def _after_idle(self):
+        if self.ctl._shown():
+            self.request()
+
     def request(self):
         ed = self.ctl.editor
         self.lenses = lenses(ed.symbols, ed.toPlainText().split("\n"))
+        if self._idle.isActive() or not self.enabled:
+            self.ctl.update_views()     # печатают: подписи остаются прежними, пересчёт — после паузы
+            return
         first, last = self.ctl.visible_lines(margin=60)
         visible = [lens for lens in self.lenses if first <= lens.line <= last]
+        if not self._recount:           # прокрутка: спросить только о тех, у кого числа ещё нет
+            visible = [lens for lens in visible if lens.key not in self.counts]
+        self._recount = False
         if not visible:
             self.ctl.update_views()
             return
@@ -121,6 +141,8 @@ class CodeLens(Insight):
     def clear(self):
         self.lenses, self.counts, self._rects = [], {}, {}
         self._queue, self._in_flight = [], 0.0
+        self._recount = True
+        self._idle.stop()
         self.ctl.update_views()
 
     # --- вид

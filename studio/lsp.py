@@ -191,6 +191,7 @@ class LanguageServer(QObject):
         self.conn.exited.connect(self._on_exit)
         self._docs = {}                 # uri → (версия, текст)
         self._pending = {}              # (редактор, вид) → id запроса, чтобы отменять устаревшие
+        self._query_groups = {}         # пачка запросов query() → id без ответа (cancel_queries)
         self.server_capabilities = {}   # что сервер объявил в ответ на initialize
         self._progress = set()
         self.pull_diagnostics_ids = []  # группы ошибок, которые сервер отдаёт по запросу (textDocument/diagnostic)
@@ -296,6 +297,7 @@ class LanguageServer(QObject):
         self._docs.clear()
         self._pending.clear()
         self._diag_pending.clear()
+        self._query_groups.clear()
         self._diag_parts.clear()
         self._progress.clear()
         # Release signal closures before deferred QObject deletion.
@@ -597,15 +599,30 @@ class LanguageServer(QObject):
         """Объявил ли сервер возможность (documentFormattingProvider, workspaceSymbolProvider…)."""
         return bool(getattr(self, "server_capabilities", {}).get(provider))
 
-    def query(self, path, text, method, params, callback):
+    def query(self, path, text, method, params, callback, group=None):
         """Разовый запрос по файлу (insights: hover, signatureHelp для подсказок Python). Текст сначала отдаётся
-        серверу; callback(результат | None) — None, если сервер не готов или ответил ошибкой."""
+        серверу; callback(результат | None) — None, если сервер не готов или ответил ошибкой.
+        group — пачка запросов, которую следующая такая же отменяет целиком (cancel_queries)."""
         if self.state != "ready":
             callback(None)
             return
         self.sync(path, text)
         self.last_activity = time.monotonic()
-        self.conn.request(method, params, lambda result, error: callback(None if error else result))
+        ids = self._query_groups.setdefault(group, set()) if group is not None else None
+
+        def reply(result, error):
+            if ids is not None:
+                ids.discard(rid)
+            callback(None if error else result)
+        rid = self.conn.request(method, params, reply)
+        if ids is not None:
+            ids.add(rid)
+
+    def cancel_queries(self, group):
+        """Отменить ещё не отвеченные запросы пачки: их ответы уже никому не нужны, а сервер (pyright —
+        однопоточный) иначе считал бы их раньше подсказок."""
+        for rid in self._query_groups.pop(group, ()):
+            self.conn.cancel(rid)
 
     def _keyed_request(self, key, method, params, callback):
         """Запрос, который отменяет предыдущий такой же (новые буквы в Ctrl+T, новая правка для структуры)."""

@@ -166,13 +166,15 @@ class PyrightAssist:
                 if t:
                     hints.append((a.line0, a.end16, ": " + t, "type"))
                 finish()
+            batch = ("inlay", id(self))
+            srv.cancel_queries(batch)       # прошлая прокрутка/правка: её ответы уже не нужны
             for group in by_callee.values():
                 first_site = group[0]
                 pos = self._position(first_site.line - 1, lines.utf16_from_chars(first_site.line - 1, first_site.col))
-                srv.query(path, code, "textDocument/signatureHelp", pos, lambda r, g=group: signature(g, r))
+                srv.query(path, code, "textDocument/signatureHelp", pos, lambda r, g=group: signature(g, r), batch)
             for a in assigns:
                 pos = self._position(a.line0, lines.utf16_from_chars(a.line0, a.col))
-                srv.query(path, code, "textDocument/hover", pos, lambda r, x=a: var_type(x, r))
+                srv.query(path, code, "textDocument/hover", pos, lambda r, x=a: var_type(x, r), batch)
         worker().submit(("inlay", id(self)), _inlay_job, (code, first, last, params, types), found)
 
 
