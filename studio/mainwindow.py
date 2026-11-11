@@ -225,12 +225,15 @@ class MainWindow(QMainWindow):
             svc.status.connect(lambda text, state, k=key: self.analyzers.on_status(text, state, k))
             svc.restarted.connect(lambda reason, k=key: self.analyzers.on_restarted(k, reason))
             svc.restart_mb = self.options["analyzers/restart_mb"]
+            svc.insights_ready.connect(lambda k=key: self._insights_ready(k))
+        self.python_ls.set_separate_background(self.options["analyzers/python_background"])
 
         # подсказки: сортировка, раньше выбранные одинаковые имена, подсказки из неподключённых пространств имён
         self.completion_alpha = self.options["intellisense/alpha"]
         lsp.OPTIONS["unimported"] = self.options["intellisense/unimported"]
         lsp.OPTIONS["inlay_parameters"] = self.options["insights/inlay_parameters"]
         lsp.OPTIONS["inlay_types"] = self.options["insights/inlay_types"]
+        lsp.OPTIONS["python_memory_mb"] = self.options["analyzers/python_memory_mb"]
         try:
             saved = json.loads(self.settings.value("intellisense/choices", "{}", type=str))
         except ValueError:
@@ -285,6 +288,12 @@ class MainWindow(QMainWindow):
         elif key == "analyzers/restart_mb":
             for svc in self.language_services:
                 svc.restart_mb = value
+        elif key == "analyzers/python_memory_mb":
+            lsp.OPTIONS["python_memory_mb"] = value
+            self.python_ls.restart(reason=tr("options.python_memory"))     # предел действует с запуска
+        elif key == "analyzers/python_background":
+            self.python_ls.set_separate_background(value)
+            self._insights_ready("python")
         elif key.startswith(("documents/", "recovery/")):
             self.safety.option_changed(key)
         elif key == "editor/navigation_bar":
@@ -1380,6 +1389,12 @@ class MainWindow(QMainWindow):
                 self.close_tab(i)
 
     # ------------------------------------------------------------ события редактора
+    def _insights_ready(self, key):
+        """Фоновый анализатор загрузился (или его включили/выключили) — подсказки в коде спросить заново."""
+        for ed in self.editors():
+            if ed.language.service == key and ed.insights is not None:
+                ed.insights.refresh()
+
     def _worker_result(self, res):
         for ed in self.views():             # ответ мог запросить и второй вид разделённой вкладки
             if id(ed) == res["editor"]:

@@ -288,6 +288,10 @@ class FormView(PageView):
 RESTART_THRESHOLDS = ((0, "mainwindow.do_not_restart"), (800, "mainwindow.800_mb"), (1024, "mainwindow.1_gb"),
                       (1536, "mainwindow.1_5_gb"), (2048, "mainwindow.2_gb"))
 
+PYTHON_MEMORY = ((0, "options.memory_auto"), (512, "options.mb_512"), (768, "options.mb_768"),
+                 (1024, "mainwindow.1_gb"), (1536, "mainwindow.1_5_gb"), (2048, "mainwindow.2_gb"),
+                 (4096, "options.gb_4"))
+
 PAGES = (
     Page(("options.text_editor", "options.general"), (
         NumberOption("editor/font_size", 11, "mainwindow.code_font_size", 7, 32, suffix="options.pt"),
@@ -343,6 +347,10 @@ PAGES = (
     Page(("options.analyzers", "options.general"), (
         ChoiceOption("analyzers/restart_mb", 1024, "options.restart_mb",
                      RESTART_THRESHOLDS, hint="options.restart_hint"),
+        BoolOption("analyzers/python_background", True, "options.python_background",
+                   hint="options.python_background_hint"),
+        ChoiceOption("analyzers/python_memory_mb", 0, "options.python_memory", PYTHON_MEMORY,
+                     hint="options.python_memory_hint"),
     )),
 )
 

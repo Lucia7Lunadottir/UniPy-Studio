@@ -93,7 +93,7 @@ class InsightController(QObject):
         """Языковой сервер файла, если он готов и умеет capability (ключ ServerCapabilities)."""
         ed = self.editor
         svc = ed.services.service_for(ed.language)
-        srv = svc.ready_for(ed.path) if svc is not None else None
+        srv = svc.insights_server_for(ed.path) if svc is not None else None
         return srv if srv is not None and srv.supports(capability) else None
 
     def python_source(self):
@@ -103,7 +103,7 @@ class InsightController(QObject):
         ed = self.editor
         svc = ed.services.service_for(ed.language)
         if svc is not None and getattr(svc, "available", False):
-            srv = svc.ready_for(ed.path)
+            srv = svc.insights_server_for(ed.path)
             if srv is not None and srv.supports("hoverProvider"):
                 return "pyright", srv
             if svc.server_for(ed.path, start=False) is not None:

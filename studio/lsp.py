@@ -29,7 +29,8 @@ from .i18n import tr
 
 # Настройки, которые меняются из меню без перезапуска (читаются при workspace/configuration)
 OPTIONS = {"unimported": True,      # подсказки из ещё не подключённых пространств имён (Roslyn)
-           "inlay_parameters": True, "inlay_types": False}     # подсказки в строке (Roslyn; insights/inlay.py)
+           "inlay_parameters": True, "inlay_types": False,     # подсказки в строке (Roslyn; insights/inlay.py)
+           "python_memory_mb": 0}       # предел памяти pyright (куча Node), 0 — как решит Node; при запуске
 
 METADATA_DIR = os.path.join(os.path.expanduser("~"), ".cache", "unipy-studio", "metadata")
 
@@ -1186,14 +1187,21 @@ class LanguageService(QObject):
     status = pyqtSignal(str, str)     # текст, состояние: loading / warming / ready / failed
     log = pyqtSignal(str)
     restarted = pyqtSignal(str)     # анализатор перезапущен (причина) — открытые файлы надо отдать новому
+    insights_ready = pyqtSignal()   # фоновый сервер подсказок в коде загрузился — их пора спросить
 
     language_name = ""
+    # Может ли язык держать второй сервер только для подсказок в коде (раскраска, подписи, CodeLens).
+    # Сервер отвечает по очереди и начатое не прерывает (pyright): с отдельным сервером подсказки (Ctrl+Space)
+    # и переходы (F12) никогда не ждут фоновых запросов. Цена — ещё один процесс анализатора в памяти.
+    supports_background = False
     CHECK_EVERY_MS = 30_000
     IDLE_BEFORE_RESTART = 120       # секунд без правок и запросов в этом проекте
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.servers = {}           # корень проекта → сервер
+        self.background = {}        # корень проекта → фоновый сервер для insights (separate_background)
+        self.separate_background = False
         self._metadata_owner = {}   # исходник класса из сборки → сервер, который его выдал
         self.restart_mb = 0         # 0 — не перезапускать сам
         self.choices = {}           # что пользователь выбирал из одинаковых имён (общий словарь окна)
@@ -1213,6 +1221,10 @@ class LanguageService(QObject):
             mb = self.memory_mb(srv)
             if mb > self.restart_mb:
                 self.restart(root, tr("lsp.mb_at_threshold_mb") % (mb, self.restart_mb))
+        for root, srv in list(self.background.items()):
+            if srv.ready and time.monotonic() - srv.last_activity >= self.IDLE_BEFORE_RESTART \
+                    and self.memory_mb(srv) > self.restart_mb:
+                self._stop_background(root)     # снова запустится при следующем запросе подсказок в коде
 
     def restart(self, root=None, reason=None):
         """Остановить сервер(ы); новый запустится сам при следующей синхронизации открытого файла."""
@@ -1228,6 +1240,7 @@ class LanguageService(QObject):
                     del self._metadata_owner[path]
             srv.stop()
             srv.deleteLater()
+            self._stop_background(r)
             getattr(self, "_project_files", {}).pop(r, None)
         if roots:
             self.restarted.emit(reason)
@@ -1302,6 +1315,38 @@ class LanguageService(QObject):
         srv = self.server_for(path)
         return srv if srv is not None and srv.ready else None
 
+    # ---- фоновый сервер для insights
+    def insights_server_for(self, path):
+        """Сервер, которого спрашивают подсказки в коде. С отдельным фоновым — только он (пока грузится —
+        None: подождать, а не грузить основной); иначе — основной."""
+        if not (self.separate_background and self.supports_background):
+            return self.ready_for(path)
+        main = self.server_for(path)
+        if main is None or getattr(self, "closed", False):
+            return None
+        bg = self.background.get(main.root)
+        if bg is None:
+            bg = self.make_server(main.root)
+            bg.choices = self.choices
+            bg.result.connect(lambda res, s=bg: self._on_result(s, res))
+            bg.log.connect(lambda t, s=bg: t and self.log.emit("[%s, %s] %s" % (os.path.basename(s.root), tr("lsp.background_log"), t)))
+            bg.state_changed.connect(lambda st: st == "ready" and self.insights_ready.emit())
+            self.background[main.root] = bg
+            bg.start()
+        return bg if bg.ready else None
+
+    def _stop_background(self, root):
+        bg = self.background.pop(root, None)
+        if bg is not None:
+            bg.stop()
+            bg.deleteLater()
+
+    def set_separate_background(self, on):
+        self.separate_background = bool(on)
+        if not on:
+            for root in list(self.background):
+                self._stop_background(root)
+
     def sync(self, path, text):
         srv = self.server_for(path)
         if srv is not None and srv.state in ("starting", "loading", "ready"):
@@ -1312,6 +1357,9 @@ class LanguageService(QObject):
         srv = self.server_for(path, start=False)
         if srv is not None:
             srv.close(path)
+            bg = self.background.get(srv.root)
+            if bg is not None:
+                bg.close(path)
 
     def stop(self):
         """Остановить серверы (смена решения): следующий запрос запустит новые."""
@@ -1319,6 +1367,8 @@ class LanguageService(QObject):
             srv.stop()
             srv.deleteLater()
         self.servers.clear()
+        for root in list(self.background):
+            self._stop_background(root)
         self._metadata_owner.clear()
 
     def shutdown(self):
@@ -1330,7 +1380,7 @@ class LanguageService(QObject):
 
     def configuration_changed(self):
         """Настройки (например, выбранный интерпретатор) изменились — серверы перечитают их сами."""
-        for srv in self.servers.values():
+        for srv in list(self.servers.values()) + list(self.background.values()):
             if srv.state in ("loading", "ready"):
                 srv.conn.notify("workspace/didChangeConfiguration", {"settings": None})
 
@@ -1520,7 +1570,12 @@ class PyrightServer(LanguageServer):
         return self.exe, ["--stdio"]
 
     def environment(self):
-        return {"VSCODE_NLS_CONFIG": json.dumps({"locale": "ru"})}     # сообщения pyright по-русски
+        env = {"VSCODE_NLS_CONFIG": json.dumps({"locale": "ru"})}      # сообщения pyright по-русски
+        mb = OPTIONS.get("python_memory_mb") or 0
+        if mb:
+            # pyright сам следит за кучей: у предела сбрасывает кэш типов (не падает), потом считает заново
+            env["NODE_OPTIONS"] = (os.environ.get("NODE_OPTIONS", "") + " --max-old-space-size=%d" % mb).strip()
+        return env
 
     def configuration(self, section):
         analysis = {"typeCheckingMode": "off", "diagnosticMode": "openFilesOnly",
@@ -1581,6 +1636,7 @@ class PyrightServer(LanguageServer):
 class PythonService(LanguageService):
     """Python: pyright на каждый проект (папку с pyproject.toml / requirements.txt / .git)."""
     language_name = "Python"
+    supports_background = True      # pyright однопоточный: тяжёлые запросы PyQt6 (0,3–1,4 с) не прерываются
 
     def __init__(self, python_path, parent=None):
         super().__init__(parent)
