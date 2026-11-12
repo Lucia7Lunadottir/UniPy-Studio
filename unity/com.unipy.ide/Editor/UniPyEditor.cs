@@ -16,7 +16,19 @@ namespace UniPy.UnityIntegration
     {
         private string executable;
         private ProjectGeneration generator;
-        private ProjectGeneration Generator => generator ?? (generator = new ProjectGeneration());
+        private ProjectGeneration Generator => generator ?? (generator = CreateGenerator());
+
+        private static ProjectGeneration CreateGenerator()
+        {
+            // Recent VS Editor packages retain the public base class for compatibility,
+            // but its header/footer methods are empty. The working implementations are
+            // internal. Keep the legacy format used by UniPy's solution reader.
+            var legacy = typeof(ProjectGeneration).Assembly.GetType(
+                "Microsoft.Unity.VisualStudio.Editor.LegacyStyleProjectGeneration");
+            return legacy != null
+                ? (ProjectGeneration)Activator.CreateInstance(legacy, nonPublic: true)
+                : new ProjectGeneration(); // Older packages implement generation in the base class.
+        }
 
         static UniPyEditor()
         {
@@ -32,7 +44,7 @@ namespace UniPy.UnityIntegration
         private string GenerationState()
         {
             var root = Directory.GetParent(Application.dataPath).FullName;
-            var state = new StringBuilder("unipy-project-generation-v1\n");
+            var state = new StringBuilder("unipy-project-generation-v2\n");
             state.AppendLine(Application.unityVersion).AppendLine(EditorApplication.applicationPath);
             foreach (var name in new[] { "manifest.json", "packages-lock.json" })
             {

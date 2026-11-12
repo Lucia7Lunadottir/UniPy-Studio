@@ -18,8 +18,11 @@ each project (or included in your Unity project template); installing a Linux
 Double-clicking a script opens the Unity project root and the script. Console
 locations also pass line/column. Subsequent opens reuse the project's window;
 separate projects have separate windows. Solution and C# project files are
-maintained by the official `com.unity.ide.visualstudio` project's public
-`ProjectGeneration` API; installing Visual Studio itself is unnecessary.
+maintained by the official `com.unity.ide.visualstudio` project's generator;
+installing Visual Studio itself is unnecessary. With newer VS Editor packages
+(verified with 2.0.27), UniPy instantiates the internal legacy generator through
+a compatibility adapter: the public `ProjectGeneration` base class no longer
+implements project headers. Older packages use the original public generator.
 
 Solution files refresh automatically when the Unity version/editor location or
 resolved packages change (including manifest, lock file and package cache paths).

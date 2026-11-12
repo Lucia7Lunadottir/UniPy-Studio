@@ -140,10 +140,13 @@ namespace Microsoft.Unity.VisualStudio.Editor
         public bool IsSupportedFile(string path) => true;
         public void Sync()
         {
+            if (GetType() == typeof(ProjectGeneration))
+                throw new NullReferenceException("VS 2.0.27 base generator returns a null project header");
             Count++;
             if (Fail) throw new IOException("Simulated write failure");
             File.WriteAllText(Solution, "generated");
         }
         public void SyncIfNeeded(System.Collections.Generic.IEnumerable<string> paths, string[] imported) { }
     }
+    internal class LegacyStyleProjectGeneration : ProjectGeneration { }
 }
