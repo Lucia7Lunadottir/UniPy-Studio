@@ -532,6 +532,10 @@ class MainWindow(QMainWindow):
         self.a_find_prev = A("Edit.FindPrevious", "mainwindow.find_previous", lambda: self.findbar.step(False), "Shift+F3")
         self.a_goto = A("Edit.GoTo", "mainwindow.go_line_2", self.goto_line_dialog, "Ctrl+G")
         self.a_comment = A("Edit.ToggleLineComment", "mainwindow.toggle_comment", ed("toggle_comment"), "Ctrl+/")
+        self.a_comment_sel = A("Edit.CommentSelection", "mainwindow.comment_selection", ed("comment_selection"),
+                               "Ctrl+K, Ctrl+C")
+        self.a_uncomment_sel = A("Edit.UncommentSelection", "mainwindow.uncomment_selection", ed("uncomment_selection"),
+                                 "Ctrl+K, Ctrl+U")
         self.a_format = A("Edit.FormatDocument", "mainwindow.format_document",
                           lambda: self.formatter.format(self.editor()), "Ctrl+K, Ctrl+D")
         self.a_format_sel = A("Edit.FormatSelection", "mainwindow.format_selection",
@@ -698,7 +702,8 @@ class MainWindow(QMainWindow):
         m.addAction(self.a_quit)
         m = bind_text(mb.addMenu(""), "mainwindow.edit", "setTitle")
         for a in (self.a_undo, self.a_redo, None, self.a_cut, self.a_copy, self.a_paste, None,
-                  self.a_find, self.a_replace, self.a_project_find, self.a_project_replace, self.a_goto, None, self.a_comment, self.a_dup,
+                  self.a_find, self.a_replace, self.a_project_find, self.a_project_replace, self.a_goto, None,
+                  self.a_comment_sel, self.a_uncomment_sel, self.a_comment, self.a_dup,
                   self.a_format, self.a_format_sel):
             m.addSeparator() if a is None else m.addAction(a)
         sub = bind_text(m.addMenu(""), "mainwindow.outlining", "setTitle")

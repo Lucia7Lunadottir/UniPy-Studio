@@ -25,6 +25,7 @@ class Language:
     name: str
     extensions: tuple = ()
     line_comment: str = ""
+    block_comment: tuple = ()       # («<!--», «-->») — для языков без строчного комментария
     braces: bool = False            # блоки в { }: отступ после «{», «}» выравнивается по открывающей
     colon_blocks: bool = False      # блоки после «:» (Python)
     builtin_highlighter: bool = False
@@ -49,19 +50,19 @@ LANGUAGES = (
              builtin_highlighter=True, service="python"),
     Language("csharp", "C#", (".cs",), "//", braces=True, builtin_highlighter=True, service="csharp"),
     Language("xml", "XML", (".ui", ".xml", ".uxml", ".qrc", ".csproj", ".props", ".targets"),
-             builtin_highlighter=True),
+             block_comment=("<!--", "-->"), builtin_highlighter=True),
     Language("json", "JSON", (".json", ".asmdef", ".asmref", ".inputactions"), "//", braces=True,
              builtin_highlighter=True),
-    Language("markdown", "Markdown", (".md",), builtin_highlighter=True),
+    Language("markdown", "Markdown", (".md",), block_comment=("<!--", "-->"), builtin_highlighter=True),
     # шейдеры Unity: .shader — ShaderLab с HLSL внутри; Pygments красит его как HLSL
     Language("hlsl", "HLSL", (".hlsl", ".hlsli", ".cginc", ".compute", ".shader", ".fx"), "//", braces=True,
              pygments_lexer="hlsl"),
     Language("glsl", "GLSL", (".glsl", ".vert", ".frag", ".geom"), "//", braces=True, pygments_lexer="glsl"),
-    Language("css", "USS / CSS", (".uss", ".css", ".qss"), braces=True, pygments_lexer="css"),
+    Language("css", "USS / CSS", (".uss", ".css", ".qss"), block_comment=("/*", "*/"), braces=True, pygments_lexer="css"),
     Language("cpp", "C++", (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".h", ".c"), "//", braces=True),
     Language("javascript", "JavaScript", (".js", ".mjs", ".cjs"), "//", braces=True),
     Language("typescript", "TypeScript", (".ts", ".tsx"), "//", braces=True),
-    Language("html", "HTML", (".html", ".htm")),
+    Language("html", "HTML", (".html", ".htm"), block_comment=("<!--", "-->")),
     Language("rust", "Rust", (".rs",), "//", braces=True),
     Language("shell", "Shell", (".sh", ".bash"), "#"),
     Language("toml", "TOML", (".toml",), "#"),

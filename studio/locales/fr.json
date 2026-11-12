@@ -197,6 +197,8 @@
   "unity.Material.SetFloat": "Faire le nombre de propriétés",
   "unity.Input.anyKey": "Presser n'importe quel bouton",
   "mainwindow.toggle_comment": "Faites le commentaire",
+  "mainwindow.comment_selection": "Commenter la sélection",
+  "mainwindow.uncomment_selection": "Décommenter la sélection",
   "unity.EditorWindow.Close": "Fermer",
   "mainwindow.close_tab": "Fermez l' onglet",
   "mainwindow.replaced": "Il a été remplacé par: %d",

@@ -102,7 +102,7 @@ class DocumentMixin:
             if not block.isValid():
                 return doc.characterCount() - 1
             return block.position() + min(col, block.length() - 1)
-        c = QTextCursor(doc)
+        c = self.textCursor()           # не QTextCursor(doc): Ctrl+Z ставит курсор туда, где был этот, — иначе в начало файла
         if join_undo:
             c.joinPreviousEditBlock()   # тот же шаг отмены, что и предыдущая правка
         else:

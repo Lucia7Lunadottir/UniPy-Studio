@@ -197,6 +197,8 @@
   "unity.Material.SetFloat": "Gibt die Eigenschaftszahl ein",
   "unity.Input.anyKey": "Jede Taste drückt",
   "mainwindow.toggle_comment": "Ändern Sie den Kommentar",
+  "mainwindow.comment_selection": "Auswahl kommentieren",
+  "mainwindow.uncomment_selection": "Kommentierung der Auswahl aufheben",
   "unity.EditorWindow.Close": "Schließen",
   "mainwindow.close_tab": "Schließen von Tab",
   "mainwindow.replaced": "Ersetzt: %d",

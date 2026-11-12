@@ -13,6 +13,7 @@ from PyQt6.QtGui import QColor, QGuiApplication, QPainter, QTextCursor, QTextDoc
 from PyQt6.QtWidgets import QTextEdit
 
 from ..theme import C
+from .text_input import SLASH_KEY_SCANCODE
 
 _ALT = Qt.KeyboardModifier.AltModifier
 _SHIFT = Qt.KeyboardModifier.ShiftModifier
@@ -173,20 +174,23 @@ class MultiCursorMixin:
         if key in _MOVES and not mods & _ALT:
             self._move_all(key, mods)
             return
-        if key == Qt.Key.Key_Backspace:
-            self._delete_all(False)
+        if key == Qt.Key.Key_Backspace:            # пары скобок и отступ — как у одного курсора (text_input)
+            self._edit_all(lambda c, _n: self.backspace_at(c))
             return
         if key == Qt.Key.Key_Delete:
             self._delete_all(True)
             return
-        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            self._insert_all("\n")
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):    # отступ и раскрытие «{}» в каждом курсоре
+            self._edit_all(lambda c, _n: self.newline_at(c))
             return
         if key == Qt.Key.Key_Tab:
             self._insert_all("\t" if self.indent.use_tabs else " " * self.indent.size)
             return
         if text and text.isprintable() and not mods & (_CTRL | _ALT):
-            self._insert_all(text)
+            self._edit_all(lambda c, _n: self.type_char_at(c, text))
+            return
+        if mods & _CTRL and (key == Qt.Key.Key_Slash or e.nativeScanCode() == SLASH_KEY_SCANCODE):
+            self.toggle_comment()                   # строки всех курсоров; курсоры остаются
             return
         if key in (Qt.Key.Key_Shift, Qt.Key.Key_Alt, Qt.Key.Key_Control, Qt.Key.Key_Meta):
             return

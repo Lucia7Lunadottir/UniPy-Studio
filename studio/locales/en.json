@@ -205,6 +205,8 @@
   "unity.Material.SetFloat": "Sets the number of properties",
   "unity.Input.anyKey": "Any key pressed",
   "mainwindow.toggle_comment": "Toggle Comment",
+  "mainwindow.comment_selection": "Comment Selection",
+  "mainwindow.uncomment_selection": "Uncomment Selection",
   "unity.EditorWindow.Close": "Close",
   "mainwindow.close_tab": "Close Tab",
   "mainwindow.close_all": "Close all",

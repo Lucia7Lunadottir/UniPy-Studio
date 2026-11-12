@@ -197,6 +197,8 @@
   "unity.Material.SetFloat": "Wprowadza liczbę właściwości",
   "unity.Input.anyKey": "Wciśnij dowolne klawisze",
   "mainwindow.toggle_comment": "Przełącz komentarz",
+  "mainwindow.comment_selection": "Zakomentuj zaznaczenie",
+  "mainwindow.uncomment_selection": "Odkomentuj zaznaczenie",
   "unity.EditorWindow.Close": "Zamknij",
   "mainwindow.close_tab": "Zamknij tabę",
   "mainwindow.replaced": "Zastąpiono: %d",

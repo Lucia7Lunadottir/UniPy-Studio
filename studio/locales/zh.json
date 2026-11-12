@@ -197,6 +197,8 @@
   "unity.Material.SetFloat": "输入属性数",
   "unity.Input.anyKey": "按任何键",
   "mainwindow.toggle_comment": "转换评论",
+  "mainwindow.comment_selection": "注释选定内容",
+  "mainwindow.uncomment_selection": "取消注释选定内容",
   "unity.EditorWindow.Close": "关闭",
   "mainwindow.close_tab": "关闭标签",
   "mainwindow.replaced": "已更换为: %d",

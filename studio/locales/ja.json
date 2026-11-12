@@ -197,6 +197,8 @@
   "unity.Material.SetFloat": "属性番号を入力します",
   "unity.Input.anyKey": "鍵を押す",
   "mainwindow.toggle_comment": "コメントを切り替える",
+  "mainwindow.comment_selection": "選択範囲をコメントにする",
+  "mainwindow.uncomment_selection": "選択範囲のコメントを解除",
   "unity.EditorWindow.Close": "閉じる",
   "mainwindow.close_tab": "タブを閉じる",
   "mainwindow.replaced": "%d に変更されました",

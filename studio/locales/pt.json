@@ -197,6 +197,8 @@
   "unity.Material.SetFloat": "Entrei o número de propriedades",
   "unity.Input.anyKey": "Apertar qualquer tecla",
   "mainwindow.toggle_comment": "Descargar comentário",
+  "mainwindow.comment_selection": "Comentar seleção",
+  "mainwindow.uncomment_selection": "Remover comentários da seleção",
   "unity.EditorWindow.Close": "Fechar",
   "mainwindow.close_tab": "Fechar Tab",
   "mainwindow.replaced": "Substituiu: %d",

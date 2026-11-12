@@ -1,7 +1,12 @@
 """Набор текста как в Visual Studio: отступы, парные скобки, умный Backspace, комментарии, дублирование строки."""
 import re
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCursor, QTextCursor
+from PyQt6.QtGui import QCursor, QKeySequence, QTextCursor
+from . import comments, smart_indent
+
+_SMART_CHARS = "([{)]}\"'"   # скобки и кавычки: пара, перескок через закрывающую, «{» под if
+
+SLASH_KEY_SCANCODE = 61     # клавиша «/» (xkb); в русской раскладке она даёт «.», и Ctrl+/ приходил бы как Ctrl+.
 
 
 class TypingMixin:
@@ -21,6 +26,9 @@ class TypingMixin:
         if ctrl and key == Qt.Key.Key_Space:
             self.request_completion(force=True)
             return
+        if ctrl and (key == Qt.Key.Key_Slash or e.nativeScanCode() == SLASH_KEY_SCANCODE):
+            self.toggle_comment()
+            return
         if ctrl and key == Qt.Key.Key_Period:           # быстрые действия, как Ctrl+. в Visual Studio
             self.show_bulb_menu()
             return
@@ -30,8 +38,11 @@ class TypingMixin:
             self.doc_tip.hide()
             super().keyPressEvent(e)
             return
-        if ctrl and key == Qt.Key.Key_Slash:
-            self.toggle_comment()
+        if e.matches(QKeySequence.StandardKey.Undo):    # Qt отменил бы сам, мимо undo() (выделение на место)
+            self.undo()
+            return
+        if e.matches(QKeySequence.StandardKey.Redo):
+            self.redo()
             return
         if ctrl and key == Qt.Key.Key_D:
             self.duplicate_line()
@@ -40,7 +51,7 @@ class TypingMixin:
             self.go_to_definition()
             return
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not ctrl:
-            self._newline()
+            self._at_caret(self.newline_at)
             return
         if key == Qt.Key.Key_Tab:
             self._indent(+1)
@@ -48,16 +59,14 @@ class TypingMixin:
         if key == Qt.Key.Key_Backtab:
             self._indent(-1)
             return
-        if key == Qt.Key.Key_Backspace and self._smart_backspace():
+        if key == Qt.Key.Key_Backspace and self._at_caret(self._smart_backspace_at):
             return
-        if text and text in "([{\"'" and self._auto_pair(text):
-            pass
-        elif text and text in ")]}\"'" and self._skip_closing(text):
+        if text and text in _SMART_CHARS and self._at_caret(self._smart_char_at, text):
             pass
         else:
             super().keyPressEvent(e)
             if text == "}" and self.language.braces:
-                self._dedent_brace()
+                self._at_caret(self._dedent_brace_at)
 
         # что делать с подсказками после нажатия
         if text and (text.isalnum() or text == "_"):
@@ -87,27 +96,77 @@ class TypingMixin:
         m = re.search(r"[A-Za-z_][\w]*$", line) or re.search(r"\w*$", line)
         return m.group(0)
 
-    def _newline(self):
+    def _previous_code_line(self, block):
+        """Ближайшая строка выше block, где что-то написано ("" — таких нет)."""
+        b = block.previous()
+        while b.isValid() and not b.text().strip():
+            b = b.previous()
+        return b.text() if b.isValid() else ""
+
+    def _at_caret(self, action, *args):
+        """action(курсор, …) для основного курсора; курсор потом ставится в редактор."""
         c = self.textCursor()
+        result = action(c, *args)
+        self.setTextCursor(c)
+        return result
+
+    # Правки «в курсоре c» — одни и те же для одного курсора и для каждого из нескольких (multi_cursor).
+    def newline_at(self, c):
+        """Enter: отступ по правилам языка (smart_indent); между «{» и «}» — блок из трёх строк, как в VS."""
+        if c.hasSelection():
+            c.removeSelectedText()
         line = c.block().text()
         before = line[:c.positionInBlock()]
         after = line[c.positionInBlock():]
-        indent = re.match(r"[ \t]*", line).group(0)
-        stripped = before.rstrip()
-        extra = ""
-        if self.language.colon_blocks and stripped.endswith(":"):
-            extra = self.indent.unit()
-        elif stripped.endswith(("{", "[", "(")):
-            extra = self.indent.unit()
+        rules = smart_indent.rules_for(self.language)
+        unit = self.indent.unit()
+        indent = rules.newline_indent(before, self._previous_code_line(c.block()), unit)
         c.beginEditBlock()
-        if extra and after.strip()[:1] in ("}", "]", ")") and not self.language.colon_blocks:
-            c.insertText("\n" + indent + extra + "\n" + indent)
+        moved = after.lstrip(" \t")
+        if len(moved) != len(after):        # пробелы перед переносимым текстом не тянем на новую строку
+            c.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor, len(after) - len(moved))
+            c.removeSelectedText()
+        own = smart_indent.leading(before)
+        pair = before.rstrip()[-1:] + moved[:1]
+        if rules.expands_pairs and pair in ("{}", "[]", "()") and indent != own:
+            c.insertText("\n" + indent + "\n" + own)
             c.movePosition(QTextCursor.MoveOperation.Up)
             c.movePosition(QTextCursor.MoveOperation.EndOfLine)
         else:
-            c.insertText("\n" + indent + extra)
+            c.insertText("\n" + indent)
         c.endEditBlock()
-        self.setTextCursor(c)
+
+    def type_char_at(self, c, ch):
+        """Набор символа в курсоре c со всеми удобствами (для нескольких курсоров)."""
+        if not (ch in _SMART_CHARS and self._smart_char_at(c, ch)):
+            c.insertText(ch)
+            if ch == "}" and self.language.braces:
+                self._dedent_brace_at(c)
+
+    def backspace_at(self, c):
+        if c.hasSelection():
+            c.removeSelectedText()
+        elif not self._smart_backspace_at(c):
+            c.deletePreviousChar()
+
+    def _smart_char_at(self, c, ch):
+        """Скобка/кавычка: True — уже обработана (пара или перескок), False — вставить как обычный символ."""
+        if ch == "{":
+            self._place_open_brace_at(c)
+        if ch in "([{\"'" and self._auto_pair_at(c, ch):
+            return True
+        return ch in ")]}\"'" and self._skip_closing_at(c, ch)
+
+    def _place_open_brace_at(self, c):
+        """«{» в пустой строке под `if (…)` встаёт вровень с if, а не на уровень тела."""
+        if c.hasSelection():
+            return
+        before = c.block().text()[:c.positionInBlock()]
+        target = smart_indent.rules_for(self.language).open_brace_indent(before, self._previous_code_line(c.block()))
+        if target is None or target == before:
+            return
+        c.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.KeepAnchor)
+        c.insertText(target)
 
     def _indent(self, direction):
         c = self.textCursor()
@@ -120,31 +179,52 @@ class TypingMixin:
         start = self.document().findBlock(c.selectionStart()).blockNumber()
         end = self.document().findBlock(c.selectionEnd() - 1 if c.selectionEnd() > c.selectionStart() else c.selectionEnd()).blockNumber()
         if direction > 0:
-            cur = QTextCursor(self.document())
-            cur.beginEditBlock()
-            for n in range(start, end + 1):
-                b = self.document().findBlockByNumber(n)
-                cur.setPosition(b.position())
-                cur.insertText(self.indent.unit())
-            cur.endEditBlock()
+            def indent(cur):
+                for n in range(start, end + 1):
+                    cur.setPosition(self.document().findBlockByNumber(n).position())
+                    cur.insertText(self.indent.unit())
+            self.edit_lines(indent)
         else:
             self._dedent_lines(start, end)
 
     def _dedent_lines(self, start, end):
-        cur = QTextCursor(self.document())
-        cur.beginEditBlock()
-        for n in range(start, end + 1):
-            b = self.document().findBlockByNumber(n)
-            leading = b.text()[:len(b.text()) - len(b.text().lstrip(" \t"))]
-            k = self.indent.dedent(leading)
-            if leading and k:
-                cur.setPosition(b.position())
-                cur.setPosition(b.position() + k, QTextCursor.MoveMode.KeepAnchor)
-                cur.removeSelectedText()
-        cur.endEditBlock()
+        def dedent(cur):
+            for n in range(start, end + 1):
+                b = self.document().findBlockByNumber(n)
+                leading = b.text()[:len(b.text()) - len(b.text().lstrip(" \t"))]
+                k = self.indent.dedent(leading)
+                if leading and k:
+                    cur.setPosition(b.position())
+                    cur.setPosition(b.position() + k, QTextCursor.MoveMode.KeepAnchor)
+                    cur.removeSelectedText()
+        self.edit_lines(dedent)
 
-    def _smart_backspace(self):
-        c = self.textCursor()
+    def edit_lines(self, action):
+        """action(курсор) правит строки одним шагом отмены; Ctrl+Z потом возвращает курсор и выделение
+        на место, как в VS. Курсор правки — копия курсора редактора: Qt запоминает, где стоял курсор
+        в начале шага, и ставит туда курсор после отмены (с курсором в начале файла улетал бы в начало)."""
+        doc = self.document()
+        main = self.textCursor()
+        before = (main.anchor(), main.position())   # числа: сам курсор уехал бы вместе с правкой
+        key = (doc.availableUndoSteps(), doc.characterCount())   # каким документ станет после отмены
+        cur = self.textCursor()
+        cur.beginEditBlock()
+        action(cur)
+        cur.endEditBlock()
+        if (doc.availableUndoSteps(), doc.characterCount()) != key:
+            self._selection_before_edit = (key, *before)
+
+    def undo(self):
+        super().undo()
+        saved = getattr(self, "_selection_before_edit", None)
+        doc = self.document()
+        if saved and saved[0] == (doc.availableUndoSteps(), doc.characterCount()):
+            c = self.textCursor()
+            c.setPosition(saved[1])
+            c.setPosition(saved[2], QTextCursor.MoveMode.KeepAnchor)
+            self.setTextCursor(c)
+
+    def _smart_backspace_at(self, c):
         if c.hasSelection():
             return False
         before = c.block().text()[:c.positionInBlock()]
@@ -162,9 +242,8 @@ class TypingMixin:
             return True
         return False
 
-    def _auto_pair(self, ch):
+    def _auto_pair_at(self, c, ch):
         pairs = {"(": ")", "[": "]", "{": "}", '"': '"', "'": "'"}
-        c = self.textCursor()
         after = c.block().text()[c.positionInBlock():]
         before = c.block().text()[:c.positionInBlock()]
         if ch in "\"'":
@@ -180,20 +259,16 @@ class TypingMixin:
             return True
         c.insertText(ch + pairs[ch])
         c.movePosition(QTextCursor.MoveOperation.Left)
-        self.setTextCursor(c)
         return True
 
-    def _skip_closing(self, ch):
-        c = self.textCursor()
+    def _skip_closing_at(self, c, ch):
         after = c.block().text()[c.positionInBlock():]
         if after[:1] == ch:
             c.movePosition(QTextCursor.MoveOperation.Right)
-            self.setTextCursor(c)
             return True
         return False
 
-    def _dedent_brace(self):
-        c = self.textCursor()
+    def _dedent_brace_at(self, c):
         line = c.block().text()
         if line.strip() == "}" and line[:1] in (" ", "\t"):
             # выравниваем по открывающей скобке
@@ -209,30 +284,39 @@ class TypingMixin:
             if target is not None:
                 c.select(QTextCursor.SelectionType.LineUnderCursor)
                 c.insertText(target + "}")
-                self.setTextCursor(c)
 
     def toggle_comment(self):
-        mark = self.language.line_comment or "#"
-        c = self.textCursor()
-        start = self.document().findBlock(c.selectionStart()).blockNumber()
-        end = self.document().findBlock(max(c.selectionStart(), c.selectionEnd() - (1 if c.hasSelection() else 0))).blockNumber()
-        blocks = [self.document().findBlockByNumber(n) for n in range(start, end + 1)]
-        all_commented = all(b.text().strip().startswith(mark) for b in blocks if b.text().strip())
-        cur = QTextCursor(self.document())
-        cur.beginEditBlock()
-        for b in blocks:
-            t = b.text()
-            if not t.strip():
-                continue
-            ind = len(t) - len(t.lstrip())
-            cur.setPosition(b.position() + ind)
-            if all_commented:
-                n = len(mark) + (1 if t[ind + len(mark):ind + len(mark) + 1] == " " else 0)
-                cur.setPosition(b.position() + ind + n, QTextCursor.MoveMode.KeepAnchor)
-                cur.removeSelectedText()
-            else:
-                cur.insertText(mark + " ")
-        cur.endEditBlock()
+        self._comment_lines(comments.TOGGLE)
+
+    def comment_selection(self):
+        """Ctrl+K, Ctrl+C — закомментировать строки выделения (уже закомментированные — ещё раз, как в VS)."""
+        self._comment_lines(comments.COMMENT)
+
+    def uncomment_selection(self):
+        """Ctrl+K, Ctrl+U — снять по одному комментарию со строк выделения."""
+        self._comment_lines(comments.UNCOMMENT)
+
+    def _comment_lines(self, mode):
+        style = comments.style_for(self.language)
+        if style is None or self.isReadOnly():
+            return
+        doc = self.document()
+        numbers = set()         # строки всех курсоров (несколько курсоров — каждая строка один раз)
+        for c in self.all_carets():
+            start = doc.findBlock(c.selectionStart()).blockNumber()
+            end = doc.findBlock(max(c.selectionStart(), c.selectionEnd() - (1 if c.hasSelection() else 0))).blockNumber()
+            numbers.update(range(start, end + 1))
+        blocks = [doc.findBlockByNumber(n) for n in sorted(numbers)]
+        edits = style.edits([b.text() for b in blocks], mode)
+        if not edits:
+            return
+        def apply(cur):
+            for edit in edits:
+                pos = blocks[edit.line].position() + edit.col
+                cur.setPosition(pos)
+                cur.setPosition(pos + edit.remove, QTextCursor.MoveMode.KeepAnchor)
+                cur.insertText(edit.insert)
+        self.edit_lines(apply)
 
     def contextMenuEvent(self, e):
         menu = self.createStandardContextMenu()

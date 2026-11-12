@@ -197,6 +197,8 @@
   "unity.Material.SetFloat": "Вводить число властивостей",
   "unity.Input.anyKey": "Натиснута будь-яка клавіша",
   "mainwindow.toggle_comment": "Переміщення коментарів",
+  "mainwindow.comment_selection": "Закоментувати виділений фрагмент",
+  "mainwindow.uncomment_selection": "Розкоментувати виділений фрагмент",
   "unity.EditorWindow.Close": "Закрити",
   "mainwindow.close_tab": "Закройте табло",
   "mainwindow.replaced": "Замінено: %d",

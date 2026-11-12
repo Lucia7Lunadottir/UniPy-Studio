@@ -197,6 +197,8 @@
   "unity.Material.SetFloat": "輸入屬性數",
   "unity.Input.anyKey": "按任何鍵",
   "mainwindow.toggle_comment": "關閉評論",
+  "mainwindow.comment_selection": "註解選取範圍",
+  "mainwindow.uncomment_selection": "取消註解選取範圍",
   "unity.EditorWindow.Close": "關閉",
   "mainwindow.close_tab": "關閉表格",
   "mainwindow.replaced": "已更換為: %d",

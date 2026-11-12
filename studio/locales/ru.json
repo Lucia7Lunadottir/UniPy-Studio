@@ -197,6 +197,8 @@
   "unity.Material.SetFloat": "Задаёт число свойства",
   "unity.Input.anyKey": "Зажата любая клавиша",
   "mainwindow.toggle_comment": "Закомментировать / раскомментировать",
+  "mainwindow.comment_selection": "Закомментировать выделенный фрагмент",
+  "mainwindow.uncomment_selection": "Раскомментировать выделенный фрагмент",
   "unity.EditorWindow.Close": "Закрыть",
   "mainwindow.close_tab": "Закрыть вкладку",
   "mainwindow.replaced": "Заменено: %d",
