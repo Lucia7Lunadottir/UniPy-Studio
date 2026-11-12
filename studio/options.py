@@ -292,6 +292,12 @@ PYTHON_MEMORY = ((0, "options.memory_auto"), (512, "options.mb_512"), (768, "opt
                  (1024, "mainwindow.1_gb"), (1536, "mainwindow.1_5_gb"), (2048, "mainwindow.2_gb"),
                  (4096, "options.gb_4"))
 
+CSHARP_THREADS = ((0, "options.threads_auto"), (2, "options.threads_2"), (4, "options.threads_4"),
+                  (8, "options.threads_8"))
+
+CSHARP_MEMORY_SAVING = ((0, "options.saving_off"), (5, "options.saving_medium"), (7, "options.saving_strong"),
+                        (9, "options.saving_max"))
+
 PAGES = (
     Page(("options.text_editor", "options.general"), (
         NumberOption("editor/font_size", 11, "mainwindow.code_font_size", 7, 32, suffix="options.pt"),
@@ -351,6 +357,10 @@ PAGES = (
                    hint="options.python_background_hint"),
         ChoiceOption("analyzers/python_memory_mb", 0, "options.python_memory", PYTHON_MEMORY,
                      hint="options.python_memory_hint"),
+        ChoiceOption("analyzers/csharp_threads", 2, "options.csharp_threads", CSHARP_THREADS,
+                     hint="options.csharp_threads_hint"),
+        ChoiceOption("analyzers/csharp_memory_saving", 7, "options.csharp_memory_saving", CSHARP_MEMORY_SAVING,
+                     hint="options.csharp_memory_saving_hint"),
     )),
 )
 

@@ -234,6 +234,8 @@ class MainWindow(QMainWindow):
         lsp.OPTIONS["inlay_parameters"] = self.options["insights/inlay_parameters"]
         lsp.OPTIONS["inlay_types"] = self.options["insights/inlay_types"]
         lsp.OPTIONS["python_memory_mb"] = self.options["analyzers/python_memory_mb"]
+        lsp.OPTIONS["csharp_threads"] = self.options["analyzers/csharp_threads"]
+        lsp.OPTIONS["csharp_memory_saving"] = self.options["analyzers/csharp_memory_saving"]
         try:
             saved = json.loads(self.settings.value("intellisense/choices", "{}", type=str))
         except ValueError:
@@ -288,6 +290,9 @@ class MainWindow(QMainWindow):
         elif key == "analyzers/restart_mb":
             for svc in self.language_services:
                 svc.restart_mb = value
+        elif key in ("analyzers/csharp_threads", "analyzers/csharp_memory_saving"):
+            lsp.OPTIONS[key.split("/", 1)[1]] = value
+            self.csharp.restart(reason=tr(self.options.option(key).label))     # действует с запуска
         elif key == "analyzers/python_memory_mb":
             lsp.OPTIONS["python_memory_mb"] = value
             self.python_ls.restart(reason=tr("options.python_memory"))     # предел действует с запуска

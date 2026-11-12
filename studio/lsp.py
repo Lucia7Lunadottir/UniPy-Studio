@@ -30,7 +30,9 @@ from .i18n import tr
 # Настройки, которые меняются из меню без перезапуска (читаются при workspace/configuration)
 OPTIONS = {"unimported": True,      # подсказки из ещё не подключённых пространств имён (Roslyn)
            "inlay_parameters": True, "inlay_types": False,     # подсказки в строке (Roslyn; insights/inlay.py)
-           "python_memory_mb": 0}       # предел памяти pyright (куча Node), 0 — как решит Node; при запуске
+           "python_memory_mb": 0,       # предел памяти pyright (куча Node), 0 — как решит Node; при запуске
+           "csharp_threads": 2,         # потоки Roslyn (DOTNET_PROCESSOR_COUNT), 0 — все ядра; при запуске
+           "csharp_memory_saving": 7}   # DOTNET_GCConserveMemory 0–9: насколько сборщик мусора ужимает память
 
 METADATA_DIR = os.path.join(os.path.expanduser("~"), ".cache", "unipy-studio", "metadata")
 
@@ -1133,8 +1135,8 @@ class RoslynServer(CSharpServer):
             # Замер на The Mirror (9 проектов): без этих двух — 10 процессов при загрузке
             # (MSBuild по процессу на ядро, ~1,2 ГБ в пике) и память, растущая за 600 МБ;
             # с ними — 3 процесса, рост останавливается на ~560 МБ, подсказки так же быстрые.
-            "DOTNET_PROCESSOR_COUNT": os.environ.get("DOTNET_PROCESSOR_COUNT", "2"),
-            "DOTNET_GCConserveMemory": os.environ.get("DOTNET_GCConserveMemory", "7"),
+            **({"DOTNET_PROCESSOR_COUNT": str(OPTIONS["csharp_threads"])} if OPTIONS.get("csharp_threads") else {}),
+            "DOTNET_GCConserveMemory": str(OPTIONS.get("csharp_memory_saving", 7)),
         }
 
     def configuration(self, section):
