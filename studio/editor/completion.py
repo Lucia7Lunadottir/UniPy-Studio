@@ -208,7 +208,7 @@ class CompletionMixin:
         if not word or self._word_anchor() != self._completion_anchor \
                 or not word.lower().startswith(self._completion_base):
             return False
-        self._completion_location = (self.document().revision(), self.textCursor().position())
+        self._completion_location = self._completion_spot()
         self._render_completions()
         return True
 
@@ -221,9 +221,10 @@ class CompletionMixin:
         if not force and self._refine_completion():
             return
         self._req += 1
+        self._roslyn_items = None
         self._notice_req = self._req
         self._notice_timer.start()
-        self._completion_location = (self.document().revision(), self.textCursor().position())
+        self._completion_location = self._completion_spot()
         srv = self._lsp_server()
         if srv:
             line, col = self._line_col()
@@ -239,6 +240,12 @@ class CompletionMixin:
             prefix = self.word_before_cursor()
             if prefix or force:
                 self.show_completions(word_items(self.toPlainText(), prefix))
+
+    def _completion_spot(self):
+        """Где запрошены подсказки: позиция курсора и текст строки. Не ревизия документа — она растёт и без правок
+        текста (на World without Time — на 90 за 3 с), и готовый список выбрасывался как устаревший."""
+        c = self.textCursor()
+        return c.position(), c.block().text()
 
     def _source_offset(self):
         cursor = self.textCursor()
@@ -257,11 +264,18 @@ class CompletionMixin:
             self.insights.on_result(res)
             return
         if kind == "complete" and res["req"] == self._req:
-            if self._completion_location != (self.document().revision(), self.textCursor().position()):
+            if self._completion_location != self._completion_spot():
                 return
             if self.lang == "csharp" and not res.get("indexed"):
+                # Список анализатора — сразу; свой поиск по исходникам пакетов Unity (до 3 с) только дополняет его
+                self._roslyn_items = data or []
+                if self._roslyn_items:
+                    self.show_completions(self._roslyn_items)
                 self._request_index(data)
                 return
+            if self.lang == "csharp" and res.get("indexed") and getattr(self, "_roslyn_items", None):
+                if len(data or []) <= len(self._roslyn_items) or not self.completer.popup().isVisible():
+                    return          # нового нет, или список уже закрыли — не открывать его заново
             self.show_completions(data or [])
         elif kind == "signatures" and res["req"] == self._sig_req:
             self.show_calltip(data or [])
