@@ -1038,17 +1038,40 @@ class CSharpServer(LanguageServer):
         self.solution = pick_solution(root)
         self.light_solution = None          # облегчённое решение Unity (unity_light_solution) — его и открывает Roslyn
         self.plugin_files = set()           # скрипты, встроенные .asmref в пакет: их ложные CS0122/CS0436 скрыты
+        self.sources = set()                # скрипты, которые входят в проекты открытого решения
+        self._not_in_assembly = set()       # скрипты, которым сборку не определить — не пересобирать ради них снова
         if self.solution and getattr(self, "is_unity_project", False):
-            from .unity_light_solution import build
+            from .unity_light_solution import build, sources
             self.light_solution, _, self.plugin_files = build(root, self.solution)
+            self.sources = sources(self.light_solution or self.solution)
 
     def refresh_light_solution(self):
-        """Unity пересоздал .sln/.csproj: пересобрать облегчённое решение; [изменённые его файлы] — для Roslyn."""
-        if not self.light_solution:
+        """Unity пересоздал .sln/.csproj (или появился скрипт, которого в них нет): пересобрать облегчённое решение;
+        [изменённые его файлы] — для Roslyn."""
+        if not (self.solution and self.is_unity_project):
             return []
-        from .unity_light_solution import build
+        from .unity_light_solution import build, sources
+        before = self.light_solution
         light, changed, self.plugin_files = build(self.root, self.solution)
+        self.light_solution = light
+        self.sources = sources(light or self.solution)
+        if light != before and self.state in ("loading", "ready"):
+            # маленький проект открыт исходным решением, а теперь нужно облегчённое (новые скрипты) — или наоборот
+            self.conn.notify("solution/open", {"solution": path_to_uri(light or self.solution)})
         return changed if light else []
+
+    def _did_open(self, uri, text, ver):
+        path = os.path.normpath(uri_to_path(uri) or "")
+        if self.solution and self.is_unity_project and path.endswith(".cs") and path not in self.sources \
+                and path not in self._not_in_assembly \
+                and path.startswith(os.path.join(os.path.normpath(self.root), "Assets") + os.sep):
+            # скрипт новее, чем .csproj от Unity: без проекта Roslyn не видит ни Unity, ни ошибок
+            changed = self.refresh_light_solution()
+            if path not in self.sources:
+                self._not_in_assembly.add(path)
+            elif changed and self.state in ("loading", "ready"):
+                self.files_changed([(p, 2) for p in changed])
+        super()._did_open(uri, text, ver)
 
     def filter_diagnostics(self, path, items):
         if os.path.normpath(path or "") in self.plugin_files:
