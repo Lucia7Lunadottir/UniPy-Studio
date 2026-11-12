@@ -21,6 +21,16 @@ separate projects have separate windows. Solution and C# project files are
 maintained by the official `com.unity.ide.visualstudio` project's public
 `ProjectGeneration` API; installing Visual Studio itself is unnecessary.
 
+Solution files refresh automatically when the Unity version/editor location or
+resolved packages change (including manifest, lock file and package cache paths).
+Checks run on editor startup, when selecting UniPy, after package registration and
+before opening a script. Background checks wait for compilation/import to finish
+and only run while UniPy is the selected editor. A successful generation stamp in
+`Library/UniPy` avoids regenerating unchanged projects on every script open or
+domain reload. Installing this update refreshes existing unstamped solutions once.
+For a Git installation, update the integration package in Unity's Package Manager
+to receive this behavior; updating the standalone UniPy app alone is insufficient.
+
 Without this integration, select `/usr/bin/unipy-studio` using Browse and set
 External Script Editor Args to:
 
