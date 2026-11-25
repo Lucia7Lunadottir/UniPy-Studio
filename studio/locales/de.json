@@ -1348,5 +1348,7 @@
   "editor.fix_all_type": "im Typ",
   "editor.fix_all_project": "im Projekt",
   "editor.fix_all_solution": "in der Projektmappe",
-  "editor.completion_no_edit": "Der Analyzer hat keinen Text zum Einfügen für „%s“ geliefert"
+  "editor.completion_no_edit": "Der Analyzer hat keinen Text zum Einfügen für „%s“ geliefert",
+  "lsp.request_failed": "%s: Der Analyzer meldete einen Fehler: %s",
+  "lsp.server_request_unsupported": "Der Analyzer hat „%s“ angefordert – UniPy Studio unterstützt das noch nicht"
 }

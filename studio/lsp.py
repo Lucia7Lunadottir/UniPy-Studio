@@ -69,7 +69,12 @@ class JsonRpcConnection(QObject):
     """JSON-RPC поверх stdin/stdout процесса. Чтение — по сигналу Qt, без потоков и без ожиданий."""
     notification = pyqtSignal(str, object)          # метод, params
     server_request = pyqtSignal(int, str, object)   # id, метод, params — сервер спрашивает клиента
+    request_failed = pyqtSignal(str, object)        # метод, error — сервер ответил ошибкой (кроме штатных отмен)
     stderr = pyqtSignal(str)
+
+    # Штатные ответы-отмены (не поломка): мы отменили сами, текст изменился, сервер просит повторить.
+    REQUEST_CANCELLED, CONTENT_MODIFIED, SERVER_CANCELLED = -32800, -32801, -32802
+    QUIET_ERRORS = (REQUEST_CANCELLED, CONTENT_MODIFIED, SERVER_CANCELLED)
     exited = pyqtSignal(int)
 
     def __init__(self, parent=None):
@@ -88,6 +93,7 @@ class JsonRpcConnection(QObject):
         self._buf = b""
         self._next_id = 1
         self._callbacks = {}
+        self._methods = {}          # id запроса → метод: в журнал пишется, ЧТО не удалось
 
     def start(self, program, args, cwd, extra_env=None):
         env = QProcessEnvironment.systemEnvironment()
@@ -115,12 +121,14 @@ class JsonRpcConnection(QObject):
         self._next_id += 1
         if callback is not None:
             self._callbacks[rid] = callback
+            self._methods[rid] = method
         self._send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
         return rid
 
     def cancel(self, rid):
         if rid in self._callbacks:
             self._callbacks.pop(rid, None)  # Late replies are ignored by _dispatch.
+            self._methods.pop(rid, None)
             self.notify("$/cancelRequest", {"id": rid})
 
     def notify(self, method, params):
@@ -148,8 +156,14 @@ class JsonRpcConnection(QObject):
                 self.notification.emit(msg["method"], msg.get("params"))
             return
         cb = self._callbacks.pop(msg.get("id"), None)
+        method = self._methods.pop(msg.get("id"), "")
+        error = msg.get("error")
+        if cb is not None and error and error.get("code") not in self.QUIET_ERRORS:
+            # Раньше ошибка доходила только до обработчика, а он часто молча возвращал «ничего» —
+            # человек видел «нажала — ничего не произошло». Теперь она хотя бы в «Выводе».
+            self.request_failed.emit(method, error)
         if cb is not None:
-            cb(msg.get("result"), msg.get("error"))
+            cb(msg.get("result"), error)
 
     def stop(self):
         if self.running():
@@ -193,6 +207,7 @@ class LanguageServer(QObject):
         self.conn.notification.connect(self._on_notification)
         self.conn.server_request.connect(self._on_server_request)
         self.conn.stderr.connect(lambda t: self.log.emit(t.rstrip()))
+        self.conn.request_failed.connect(self._on_request_failed)
         self.conn.exited.connect(self._on_exit)
         self._docs = {}                 # uri → (версия, текст)
         self._pending = {}              # (редактор, вид) → id запроса, чтобы отменять устаревшие
@@ -207,6 +222,10 @@ class LanguageServer(QObject):
         self._diag_parts = {}           # uri → {группа: [ошибки]}
         self._raw_diag = {}             # uri → {группа: сырые диагностики сервера} — контекст для лампочки
         self._diag_pending = {}         # (uri, группа) → id запроса
+        self._diag_retries = {}         # (uri, группа) → сколько раз сервер подряд просил повторить
+        self._diag_retry_paths = set()  # файлы, ошибки которых спросить ещё раз (таймер — метод, не lambda:
+        self._diag_retry_timer = QTimer(self, singleShot=True, interval=self.DIAG_RETRY_MS,  # lambda на QObject
+                                        timeout=self._run_diagnostic_retries)             # давала SIGSEGV при gc
         self._warmed = False
         self.last_activity = time.monotonic()     # последняя правка или запрос — для перезапуска в простое
 
@@ -310,6 +329,9 @@ class LanguageServer(QObject):
         self._background_running = 0
         self._diag_after.clear()
         self._diag_parts.clear()
+        self._diag_retry_timer.stop()
+        self._diag_retry_paths.clear()
+        self._diag_retries.clear()
         self._progress.clear()
         # Release signal closures before deferred QObject deletion.
         for obj in (self.conn.proc, self.conn, self):
@@ -317,6 +339,9 @@ class LanguageServer(QObject):
                 obj.disconnect()
             except TypeError:
                 pass
+
+    def _on_request_failed(self, method, error):
+        self.log.emit(tr("lsp.request_failed") % (method, error.get("message") or error.get("code")))
 
     def _on_exit(self, code):
         if self.state != "failed":
@@ -349,6 +374,12 @@ class LanguageServer(QObject):
         return self.state == "ready"
 
     # ---- сообщения от сервера
+    # Запросы сервера, на которые «пусто» — правильный ответ (подтверждение), а не отказ.
+    ACKNOWLEDGED_SERVER_REQUESTS = {"window/workDoneProgress/create", "client/registerCapability",
+                                    "client/unregisterCapability", "workspace/codeLens/refresh",
+                                    "workspace/semanticTokens/refresh", "workspace/inlayHint/refresh",
+                                    "window/showMessageRequest"}
+
     def _on_server_request(self, rid, method, params):
         if method == "workspace/configuration":
             self.conn.respond(rid, [self.configuration(it.get("section"))
@@ -373,6 +404,10 @@ class LanguageServer(QObject):
                         self.pull_diagnostics_ids.append(ident)
             self.conn.respond(rid, None)
         else:   # window/workDoneProgress/create, client/registerCapability и т.п.
+            if method not in self.ACKNOWLEDGED_SERVER_REQUESTS:
+                # Ответ «пусто» на неизвестное — для сервера отказ (на workspace/applyEdit — «правка не применена»):
+                # пусть хотя бы видно, чего он просил.
+                self.log.emit(tr("lsp.server_request_unsupported") % method)
             self.conn.respond(rid, None)
 
     def _on_notification(self, method, params):
@@ -492,6 +527,9 @@ class LanguageServer(QObject):
 
             def got(result, error, key=key, ident=ident):
                 self._diag_pending.pop(key, None)
+                if error and self._retry_diagnostics(key, path, error):
+                    return
+                self._diag_retries.pop(key, None)
                 if error or not result or result.get("kind") != "full" or uri not in self._docs:
                     return
                 parts = self._diag_parts.setdefault(uri, {})
@@ -507,6 +545,30 @@ class LanguageServer(QObject):
                 self.diagnostics.emit(path, merged)
                 self._emit_faded(path, uri)
             self._diag_pending[key] = self.conn.request("textDocument/diagnostic", params, got)
+
+    DIAG_RETRY_MS = 400
+    DIAG_MAX_RETRIES = 5
+
+    def _retry_diagnostics(self, key, path, error):
+        """Сервер ответил «отменено, повторите» (ServerCancelled с retriggerRequest — Roslyn так делает, пока
+        пересобирает проект): повторить через паузу. Иначе список ошибок оставался старым до следующей правки."""
+        data = error.get("data") if isinstance(error.get("data"), dict) else {}
+        if error.get("code") != JsonRpcConnection.SERVER_CANCELLED or not data.get("retriggerRequest", True):
+            return False
+        tries = self._diag_retries.get(key, 0)
+        if tries >= self.DIAG_MAX_RETRIES:
+            self._diag_retries.pop(key, None)
+            return False
+        self._diag_retries[key] = tries + 1
+        self._diag_retry_paths.add(path)
+        self._diag_retry_timer.start()
+        return True
+
+    def _run_diagnostic_retries(self):
+        paths, self._diag_retry_paths = self._diag_retry_paths, set()
+        for path in paths:
+            if path_to_uri(path) in self._docs:
+                self.pull_diagnostics(path)
 
     # ---- разовый запрос всех диагностик (в том числе «лишних using» уровня Hint)
     def diagnostics_now(self, path, callback):

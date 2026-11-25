@@ -1348,5 +1348,7 @@
   "editor.fix_all_type": "型内",
   "editor.fix_all_project": "プロジェクト内",
   "editor.fix_all_solution": "ソリューション内",
-  "editor.completion_no_edit": "アナライザーが「%s」の挿入テキストを返しませんでした"
+  "editor.completion_no_edit": "アナライザーが「%s」の挿入テキストを返しませんでした",
+  "lsp.request_failed": "%s: アナライザーがエラーを返しました: %s",
+  "lsp.server_request_unsupported": "アナライザーが「%s」を要求しましたが、UniPy Studio はまだ対応していません"
 }

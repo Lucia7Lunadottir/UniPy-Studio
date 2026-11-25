@@ -1348,5 +1348,7 @@
   "editor.fix_all_type": "dans le type",
   "editor.fix_all_project": "dans le projet",
   "editor.fix_all_solution": "dans la solution",
-  "editor.completion_no_edit": "L’analyseur n’a pas renvoyé de texte à insérer pour « %s »"
+  "editor.completion_no_edit": "L’analyseur n’a pas renvoyé de texte à insérer pour « %s »",
+  "lsp.request_failed": "%s : l’analyseur a renvoyé une erreur : %s",
+  "lsp.server_request_unsupported": "L’analyseur a demandé « %s », que UniPy Studio ne prend pas encore en charge"
 }

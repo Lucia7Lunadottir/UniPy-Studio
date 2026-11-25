@@ -22,6 +22,12 @@ class LiveCSharp(unittest.TestCase):
     def tearDown(self):
         crashes, self.live.crashes[:] = list(self.live.crashes), []
         self.assertEqual(crashes, [], "исключения в обработчиках редактора")
+        # анализатор не должен отвечать ошибками и просить того, чего мы не умеем (раньше это было молча)
+        from studio.i18n import tr
+        marks = [tr("lsp.request_failed").split("%s")[1].strip(": "), tr("lsp.server_request_unsupported").split("%s")[0]]
+        problems = [l for l in self.live.log if any(m and m in l for m in marks)]
+        self.live.log[:] = []
+        self.assertEqual(problems, [], "ошибки анализатора во время сценария")
 
     @classmethod
     def tearDownClass(cls):
@@ -104,6 +110,124 @@ class LiveCSharp(unittest.TestCase):
         self.live.wait(lambda: False, 1.5)
         shown = set(ed._completion_items) if ed.completer.popup().isVisible() else set()
         self.assertFalse({"ToString()", "Equals(object other)", "GetHashCode()"} & shown)
+
+    # ---------------------------------------------------------------- запросы к анализатору (как их шлёт редактор)
+    def ask(self, kind, rel, anchor, inside=0, text=None, extra=None):
+        """kind в позиции «anchor + inside» файла rel; ответ — как его получает редактор (data)."""
+        text = self.live.read(rel) if text is None else text
+        at = text.index(anchor) + inside
+        line = text[:at].count("\n") + 1
+        col = len(text[text.rfind("\n", 0, at) + 1:at].encode("utf-16-le")) // 2
+        box = []
+        handler = lambda res: res.get("editor") == 4242 and box.append(res["data"])     # noqa: E731
+        self.live.server.result.connect(handler)
+        try:
+            self.live.server.submit(kind, req=1, editor=4242, code=text, line=line, col=col,
+                                    path=self.live.path(rel), extra=extra)
+            self.live.wait(lambda: box, 30)
+        finally:
+            self.live.server.result.disconnect(handler)
+        return box[0] if box else None
+
+    def test_go_to_definition_own_code(self):
+        got = self.ask("definition", "Assets/Scripts/Enemy.cs", "player.Damage", inside=len("player.D"))
+        self.assertIsNotNone(got)
+        self.assertTrue(got["path"].endswith("Player.cs"))
+        lines = self.live.read("Assets/Scripts/Player.cs").splitlines()
+        self.assertIn("public void Damage", lines[got["line"] - 1])
+
+    def test_go_to_definition_unity_class(self):
+        got = self.ask("definition", "Assets/Scripts/Player.cs", "Rigidbody _body", inside=2)
+        self.assertIsNotNone(got, "F12 в класс Unity должен открыть его исходник (из UnityEngine.dll)")
+        with open(got["path"], encoding="utf-8") as f:
+            self.assertIn("class Rigidbody", f.read())
+
+    def test_no_definition_on_keyword_space(self):
+        got = self.ask("definition", "Assets/Scripts/Player.cs", "    public int Health", inside=1)
+        self.assertIsNone(got, "на пустом месте переходить некуда")
+
+    def test_hover_shows_unity_doc(self):
+        got = self.ask("hover", "Assets/Scripts/Player.cs", "transform.Translate", inside=len("transform.Tr"))
+        self.assertTrue(got and "Translate" in str(got))
+
+    def test_references_find_declaration_and_call(self):
+        got = self.ask("references", "Assets/Scripts/Player.cs", "public void Damage", inside=len("public void D"))
+        files = sorted(os_path_name(r) for r in got or [])
+        self.assertEqual(files, ["Enemy.cs", "Player.cs"], "объявление + вызов; Boss.cs не должен попасть")
+
+    def test_rename_changes_declaration_and_callers_only(self):
+        got = self.ask("rename", "Assets/Scripts/Player.cs", "public void Damage", inside=len("public void D"),
+                       extra={"new_name": "TakeDamage"})
+        self.assertTrue(got and not got.get("error"), got)
+        files = sorted(os_path_name(path) for path in got.get("edits", {}))
+        self.assertEqual(files, ["Enemy.cs", "Player.cs"], "объявление + вызов; Boss.cs не трогать")
+
+    def test_signature_help_while_typing_arguments(self):
+        ed = self.type_in("Assets/Scripts/Player.cs", "private void Update()\n    {\n", "Mathf.Clamp(1, ",
+                          insert="        ")
+        self.live.wait(lambda: ed.calltip.isVisible() and "Clamp" in ed.calltip.text(), 10)
+        tip = ed.calltip.text()
+        self.assertIn("Clamp", tip)
+        self.assertRegex(tip, r"<b>[^<]*<span[^>]*>min</span></b>", "второй аргумент — min, он выделен")
+        from PyQt6.QtTest import QTest
+        QTest.keyClicks(ed, "5)")
+        self.live.wait(lambda: not ed.calltip.isVisible(), 5)
+        self.assertFalse(ed.calltip.isVisible(), "после закрывающей скобки подсказка параметров должна уйти")
+
+    # ---------------------------------------------------------------- лампочка
+    def actions_at(self, rel, text, anchor, inside=0):
+        at = text.index(anchor) + inside
+        line = text[:at].count("\n")
+        col = at - text.rfind("\n", 0, at) - 1
+        self.live.diagnostics_for(rel, text)            # лампочке нужны ошибки строки
+        box = []
+        self.live.server.code_actions(self.live.path(rel), line, col, box.append, explicit=True)
+        self.live.wait(lambda: box, 20)
+        return box[0] if box else []
+
+    def resolve(self, item, scope=None):
+        box = []
+        self.live.server.resolve_code_action(item, box.append, scope=scope)
+        self.live.wait(lambda: box, 30)
+        return box[0] if box else None
+
+    def apply(self, rel, text, edit):
+        from studio.lsp import LanguageServer, apply_text_edits
+        files = LanguageServer.workspace_edit_files(edit)
+        edits = files["edits"].get(self.live.path(rel)) or []
+        return apply_text_edits(text, edits)
+
+    def test_quick_fix_generates_missing_method(self):
+        rel = "Assets/Scripts/Broken.cs"
+        text = self.live.read(rel).replace("int count = \"text\";", "int count = 1;")
+        actions = self.actions_at(rel, text, "NoSuchMethod();", inside=3)
+        fix = [a for a in actions if "NoSuchMethod" in a["title"] and not self.live.server.code_action_children(a)]
+        self.assertTrue(fix, [a["title"] for a in actions])
+        fixed = self.apply(rel, text, self.resolve(fix[0]))
+        codes = {c for codes in self.live.by_line(self.live.diagnostics_for(rel, fixed)).values() for c in codes}
+        self.assertNotIn("CS0103", codes, "после «Создать метод» ошибки «имя не существует» быть не должно")
+
+    def test_nested_and_fix_all_actions_apply(self):
+        rel = "Assets/Scripts/Player.cs"
+        text = self.live.read(rel)
+        actions = self.actions_at(rel, text, "Mathf.Clamp(Health", inside=len("Mathf.Clamp(H"))
+        nested = [a for a in actions if self.live.server.code_action_children(a)]
+        self.assertTrue(nested, "ожидался вложенный пункт (подменю) — " + str([a["title"] for a in actions]))
+        child = self.live.server.code_action_children(nested[0])[0]
+        self.assertTrue(self.resolve(child), "вариант подменю должен давать правку")
+        fix_all = [a for a in actions if self.live.server.fix_all_scopes(a)]
+        for a in fix_all[:1]:
+            self.assertTrue(self.resolve(a, scope="Document"), "«Исправить все» в документе должно давать правку")
+
+
+def os_path_name(location):
+    """Имя файла из ответа: путь, (путь, …) или {"path": …}."""
+    import os
+    if isinstance(location, dict):
+        location = location.get("path", "")
+    elif isinstance(location, (tuple, list)):
+        location = location[0]
+    return os.path.basename(location)
 
 
 if __name__ == "__main__":

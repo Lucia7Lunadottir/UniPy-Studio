@@ -1348,5 +1348,7 @@
   "editor.fix_all_type": "在类型中",
   "editor.fix_all_project": "在项目中",
   "editor.fix_all_solution": "在解决方案中",
-  "editor.completion_no_edit": "分析器没有返回“%s”要插入的文本"
+  "editor.completion_no_edit": "分析器没有返回“%s”要插入的文本",
+  "lsp.request_failed": "%s：分析器返回错误：%s",
+  "lsp.server_request_unsupported": "分析器请求了“%s”，UniPy Studio 暂不支持"
 }

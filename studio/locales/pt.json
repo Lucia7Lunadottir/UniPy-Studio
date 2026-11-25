@@ -1348,5 +1348,7 @@
   "editor.fix_all_type": "no tipo",
   "editor.fix_all_project": "no projeto",
   "editor.fix_all_solution": "na solução",
-  "editor.completion_no_edit": "O analisador não retornou texto para inserir “%s”"
+  "editor.completion_no_edit": "O analisador não retornou texto para inserir “%s”",
+  "lsp.request_failed": "%s: o analisador retornou um erro: %s",
+  "lsp.server_request_unsupported": "O analisador pediu “%s”, que o UniPy Studio ainda não suporta"
 }

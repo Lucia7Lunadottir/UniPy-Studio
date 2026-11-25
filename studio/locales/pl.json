@@ -1348,5 +1348,7 @@
   "editor.fix_all_type": "w typie",
   "editor.fix_all_project": "w projekcie",
   "editor.fix_all_solution": "w rozwiązaniu",
-  "editor.completion_no_edit": "Analizator nie zwrócił tekstu do wstawienia „%s”"
+  "editor.completion_no_edit": "Analizator nie zwrócił tekstu do wstawienia „%s”",
+  "lsp.request_failed": "%s: analizator zwrócił błąd: %s",
+  "lsp.server_request_unsupported": "Analizator zażądał „%s” — UniPy Studio jeszcze tego nie obsługuje"
 }

@@ -1348,5 +1348,7 @@
   "editor.fix_all_type": "у типі",
   "editor.fix_all_project": "у проєкті",
   "editor.fix_all_solution": "у рішенні",
-  "editor.completion_no_edit": "Аналізатор не повернув текст для вставлення «%s»"
+  "editor.completion_no_edit": "Аналізатор не повернув текст для вставлення «%s»",
+  "lsp.request_failed": "%s: аналізатор відповів помилкою: %s",
+  "lsp.server_request_unsupported": "Аналізатор запитав «%s» — UniPy Studio цього поки не вміє"
 }
