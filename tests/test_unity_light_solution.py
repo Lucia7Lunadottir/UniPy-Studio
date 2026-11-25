@@ -139,3 +139,20 @@ class NewScripts(unittest.TestCase):
         (self.root / "Assembly-CSharp-Editor.csproj").write_text(csproj(["Assets/Tools/Editor/Tool.cs"]))
         (self.root / "Game.AI.csproj").write_text(csproj(["Assets/AI/Wolf.cs", "Assets/AI/Sub/Bear.cs"]))
         self.assertEqual(light_mod.build(str(self.root), str(self.root / "Game.sln")), (None, [], set()))
+
+
+class UnityAnalyzersTest(unittest.TestCase):
+    """Анализаторы Unity дописываются в копию проекта, только если в .csproj их ещё нет (без дублей)."""
+
+    def test_added_once(self):
+        dll = "/opt/analyzers/Microsoft.Unity.Analyzers.dll"
+        text = csproj(["Assets/A.cs"])
+        once = light_mod._add_analyzers(text, [dll])
+        self.assertIn('<Analyzer Include="%s" />' % dll, once)
+        self.assertIs(light_mod._add_analyzers(once, [dll]), once)
+
+    def test_project_already_has_it(self):
+        # Unity с Visual Studio уже записал свой экземпляр (другой путь, то же имя) — второй не нужен
+        text = csproj(["Assets/A.cs"]).replace(
+            "</Project>", '<ItemGroup><Analyzer Include="C:\\VS\\Microsoft.Unity.Analyzers.dll" /></ItemGroup></Project>')
+        self.assertIs(light_mod._add_analyzers(text, ["/x/Microsoft.Unity.Analyzers.dll"]), text)

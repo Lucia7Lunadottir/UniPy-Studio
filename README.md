@@ -122,6 +122,9 @@ unipy-studio --project "/path/to/Unity project" --file "/path/to/Unity project/A
 
 Подробности и запасной вариант без Unity-пакета: `unity/com.unipy.ide/README.md`.
 
+Что установить, откуда брать пакеты и почему ошибки бывают неверными — `docs/UNITY-SETUP.md`.
+Чего не хватает по сравнению с Rider и в каком порядке это делать — `docs/RIDER-GAP.md`.
+
 ## Память и журналы
 
 Панели вывода и терминала хранят до 4000 блоков и примерно миллиона символов

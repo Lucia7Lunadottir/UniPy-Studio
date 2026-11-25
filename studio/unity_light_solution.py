@@ -32,6 +32,7 @@ _ITEM_PATH = re.compile(r'(<(?:Compile|None|Content|AdditionalFiles|EditorConfig
 _PROJECT_REF = re.compile(r'<ProjectReference\s+Include="([^"]+)"\s*(?:/>|>.*?</ProjectReference>)', re.S)
 _COMPILE = re.compile(r'<Compile\s+Include="([^"]+)"')
 _ASSEMBLY_NAME = re.compile(r'<AssemblyName>([^<]+)</AssemblyName>')
+_ANALYZER = re.compile(r'<Analyzer\s+Include="([^"]+)"')
 _COMPILE_ITEM = re.compile(r'[ \t]*<Compile\s+Include="([^"]+)"\s*/>[ \t]*\r?\n?')
 
 
@@ -135,6 +136,10 @@ class UnityAssemblies:
         return None
 
 
+def _needs_analyzers(text, analyzers):
+    return _add_analyzers(text, analyzers) is not text
+
+
 def _append_item_group(text, items):
     """ItemGroup в конец проекта. Именно перед последним </Project>: внутри ссылок на проекты Unity пишет
     <Project>{GUID}</Project>, и вставка перед первым закрыла бы проект посередине (битый .csproj)."""
@@ -176,9 +181,20 @@ def cache_dir(root):
 PLUGIN_HIDDEN_CODES = {"CS0122", "CS0436"}         # ложные для скриптов, встроенных .asmref в пакет
 
 
-def build(root, solution):
+def _add_analyzers(text, analyzers):
+    """Анализаторы Unity (Microsoft.Unity.Analyzers), которых нет в .csproj: Unity дописывает их, только если стоит
+    Visual Studio, — без них Roslyn советует `?.` на объектах Unity, readonly для [SerializeField] и т. п."""
+    have = {os.path.basename(html.unescape(p).replace("\\", "/")).lower() for p in _ANALYZER.findall(text)}
+    missing = [a for a in analyzers if os.path.basename(a).lower() not in have]
+    if not missing:
+        return text
+    return _append_item_group(text, "".join('<Analyzer Include="%s" />' % html.escape(a) for a in missing))
+
+
+def build(root, solution, analyzers=()):
     """Облегчённое решение для solution (.sln проекта Unity): (путь к нему, [изменённые файлы], {скрипты плагинов})
-    или (None, [], set()) — облегчать нечего (тогда анализатор открывает исходное решение)."""
+    или (None, [], set()) — облегчать нечего (тогда анализатор открывает исходное решение).
+    analyzers — DLL анализаторов, которые нужно подключить ко всем проектам (если в проекте их нет)."""
     if not solution or not solution.endswith(".sln"):
         return None, [], set()
     try:
@@ -206,7 +222,9 @@ def build(root, solution):
         rel = assemblies.project_for(path)
         if rel is not None:
             added.setdefault(rel, []).append(path)
-    if not packages and not added:
+    if analyzers and not any(_needs_analyzers(t, analyzers) for t in texts.values()):
+        analyzers = ()
+    if not packages and not added and not analyzers:
         return None, [], set()
     out = cache_dir(root)
     os.makedirs(out, exist_ok=True)
@@ -228,6 +246,8 @@ def build(root, solution):
     for rel, text in texts.items():
         if added.get(rel):
             text = _add_compile(text, added[rel])
+        if analyzers:
+            text = _add_analyzers(text, analyzers)
         if rel in packages:
             own = [f for f in _COMPILE.findall(text) if not f.replace("\\", "/").startswith("Library/PackageCache/")]
             if not own:
