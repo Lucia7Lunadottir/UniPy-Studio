@@ -1342,5 +1342,10 @@
   "explorer.startup_set": "Projeto de inicialização: %s",
   "lsp.warming": "%s: %s — preparando o IntelliSense (na primeira vez, em uma solução grande, pode levar alguns minutos)",
   "mainwindow.status_warming": "preparando o IntelliSense…",
-  "lsp.unity_missing_references": "Projeto Unity “%s”: faltam %d bibliotecas dos arquivos .csproj (por exemplo, %s). Enquanto faltarem, o analisador de C# não mostra erros do compilador. Abra o projeto no Unity e clique em Preferences → External Tools → Regenerate project files."
+  "lsp.unity_missing_references": "Projeto Unity “%s”: faltam %d bibliotecas dos arquivos .csproj (por exemplo, %s). Enquanto faltarem, o analisador de C# não mostra erros do compilador. Abra o projeto no Unity e clique em Preferences → External Tools → Regenerate project files.",
+  "editor.fix_all_document": "no documento",
+  "editor.fix_all_member": "no membro",
+  "editor.fix_all_type": "no tipo",
+  "editor.fix_all_project": "no projeto",
+  "editor.fix_all_solution": "na solução"
 }

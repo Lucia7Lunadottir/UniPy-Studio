@@ -1342,5 +1342,10 @@
   "explorer.startup_set": "시작 프로젝트: %s",
   "lsp.warming": "%s: %s — IntelliSense 준비 중(큰 솔루션에서는 처음에 몇 분 걸릴 수 있음)",
   "mainwindow.status_warming": "IntelliSense 준비 중…",
-  "lsp.unity_missing_references": "Unity 프로젝트 “%s”: .csproj의 라이브러리 %d개를 찾을 수 없습니다(예: %s). 찾을 때까지 C# 분석기는 컴파일러 오류를 표시하지 않습니다. Unity에서 프로젝트를 열고 Preferences → External Tools → Regenerate project files를 누르세요."
+  "lsp.unity_missing_references": "Unity 프로젝트 “%s”: .csproj의 라이브러리 %d개를 찾을 수 없습니다(예: %s). 찾을 때까지 C# 분석기는 컴파일러 오류를 표시하지 않습니다. Unity에서 프로젝트를 열고 Preferences → External Tools → Regenerate project files를 누르세요.",
+  "editor.fix_all_document": "문서에서",
+  "editor.fix_all_member": "멤버에서",
+  "editor.fix_all_type": "형식에서",
+  "editor.fix_all_project": "프로젝트에서",
+  "editor.fix_all_solution": "솔루션에서"
 }

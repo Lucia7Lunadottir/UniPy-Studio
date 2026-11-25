@@ -1342,5 +1342,10 @@
   "explorer.startup_set": "Проєкт запуску: %s",
   "lsp.warming": "%s: %s — підготовка підказок (у великому рішенні вперше — до кількох хвилин)",
   "mainwindow.status_warming": "підготовка підказок…",
-  "lsp.unity_missing_references": "Unity-проєкт «%s»: не знайдено бібліотек із .csproj — %d (наприклад, %s). Поки їх немає, аналізатор C# не показує помилки компілятора. Відкрийте проєкт у Unity і натисніть Preferences → External Tools → Regenerate project files."
+  "lsp.unity_missing_references": "Unity-проєкт «%s»: не знайдено бібліотек із .csproj — %d (наприклад, %s). Поки їх немає, аналізатор C# не показує помилки компілятора. Відкрийте проєкт у Unity і натисніть Preferences → External Tools → Regenerate project files.",
+  "editor.fix_all_document": "у документі",
+  "editor.fix_all_member": "у члені",
+  "editor.fix_all_type": "у типі",
+  "editor.fix_all_project": "у проєкті",
+  "editor.fix_all_solution": "у рішенні"
 }

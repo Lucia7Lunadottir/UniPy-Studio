@@ -583,10 +583,41 @@ class LanguageServer(QObject):
             callback([] if error else self._code_actions(result))
         self._pending[key] = self.conn.request("textDocument/codeAction", params, reply)
 
+    # Roslyn отдаёт часть действий не правкой, а командой для клиента (как в VS Code):
+    # «Ввести параметр для …» — подменю вариантов (nestedCodeAction), «Исправить все: …» — выбор области
+    # (fixAllCodeAction → запрос codeAction/resolveFixAll). Без их разбора пункт меню молча ничего не делал.
+    NESTED_COMMAND = "roslyn.client.nestedCodeAction"
+    FIX_ALL_COMMAND = "roslyn.client.fixAllCodeAction"
+    FIX_ALL_ORDER = ("Document", "ContainingMember", "ContainingType", "Project", "Solution")
+
     @staticmethod
-    def _code_actions(result):
-        """Оставить то, что умеем применить: действия с правками текста и созданием файлов
-        (команды сервера, переименование и удаление файлов — нет)."""
+    def _client_command(item):
+        command = item.get("command")
+        return command if isinstance(command, dict) else {}
+
+    @classmethod
+    def code_action_children(cls, item):
+        """Варианты вложенного действия (подменю) — или []."""
+        command = cls._client_command(item)
+        if command.get("command") != cls.NESTED_COMMAND:
+            return []
+        args = command.get("arguments") or [{}]
+        return cls._code_actions((args[0] or {}).get("NestedCodeActions") or [], limit=None)
+
+    @classmethod
+    def fix_all_scopes(cls, item):
+        """Области «Исправить все» (Document, Project, Solution…) в порядке Visual Studio — или []."""
+        command = cls._client_command(item)
+        if command.get("command") != cls.FIX_ALL_COMMAND:
+            return []
+        args = command.get("arguments") or [{}]
+        offered = (args[0] or {}).get("FixAllFlavors") or []
+        return [f for f in cls.FIX_ALL_ORDER if f in offered] + [f for f in offered if f not in cls.FIX_ALL_ORDER]
+
+    @classmethod
+    def _code_actions(cls, result, limit=15):
+        """Оставить то, что умеем применить: действия с правками текста и созданием файлов, подменю вариантов
+        и «Исправить все» (прочие команды сервера, переименование и удаление файлов — нет)."""
         out = []
         for it in result or []:
             if not isinstance(it, dict) or not it.get("title") or isinstance(it.get("command"), str):
@@ -594,22 +625,33 @@ class LanguageServer(QObject):
             if it.get("disabled"):
                 continue
             edit = it.get("edit")
+            if cls._client_command(it).get("command") == cls.NESTED_COMMAND:
+                if cls.code_action_children(it):
+                    out.append(it)
+                continue
             if edit is None and it.get("data") is None:
                 continue
             ops = [dc.get("kind") for dc in (edit or {}).get("documentChanges") or [] if "kind" in dc]
             if any(op in ("rename", "delete") for op in ops):
                 continue
             out.append(it)
+        if limit is None:
+            return out          # варианты подменю — в порядке сервера
         out.sort(key=lambda a: (0 if a.get("isPreferred") else 1, 0 if a.get("kind", "").startswith("quickfix") else 1))
-        return out[:15]
+        return out[:limit]
 
-    def resolve_code_action(self, item, done):
-        """Правки выбранного действия: done(WorkspaceEdit | None)."""
-        if item.get("edit"):
+    def resolve_code_action(self, item, done, scope=None):
+        """Правки выбранного действия: done(WorkspaceEdit | None). scope — область «Исправить все»."""
+        if item.get("edit") and scope is None:
             done(item["edit"])
             return
         if self.state != "ready":
             done(None)
+            return
+        if scope is not None:
+            params = {"title": item.get("title"), "data": item.get("data"), "scope": scope}
+            self.conn.request("codeAction/resolveFixAll", params,
+                              lambda r, e: done(None if e or not r else r.get("edit")))
             return
         self.conn.request("codeAction/resolve", item, lambda r, e: done(None if e or not r else r.get("edit")))
 

@@ -1342,5 +1342,10 @@
   "explorer.startup_set": "スタートアップ プロジェクト: %s",
   "lsp.warming": "%s: %s — IntelliSense を準備中 (大きなソリューションでは初回に数分かかることがあります)",
   "mainwindow.status_warming": "IntelliSense を準備中…",
-  "lsp.unity_missing_references": "Unity プロジェクト「%s」: .csproj のライブラリが %d 個見つかりません（例: %s）。見つかるまで C# アナライザーはコンパイラ エラーを表示しません。Unity でプロジェクトを開き、Preferences → External Tools → Regenerate project files を押してください。"
+  "lsp.unity_missing_references": "Unity プロジェクト「%s」: .csproj のライブラリが %d 個見つかりません（例: %s）。見つかるまで C# アナライザーはコンパイラ エラーを表示しません。Unity でプロジェクトを開き、Preferences → External Tools → Regenerate project files を押してください。",
+  "editor.fix_all_document": "ドキュメント内",
+  "editor.fix_all_member": "メンバー内",
+  "editor.fix_all_type": "型内",
+  "editor.fix_all_project": "プロジェクト内",
+  "editor.fix_all_solution": "ソリューション内"
 }
