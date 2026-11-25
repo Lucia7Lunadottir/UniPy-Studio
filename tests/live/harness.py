@@ -27,7 +27,7 @@ from studio.lsp import RoslynServer, find_csharp_server, path_to_uri     # noqa:
 from studio.unity_references import installed_editors     # noqa: E402
 
 FIXTURE = Path(__file__).with_name("fixture")
-EXPECT = re.compile(r"//\s*expect:\s*([A-Z]+\d+(?:\s*,\s*[A-Z]+\d+)*)")
+EXPECT = re.compile(r"(?://|#)\s*expect:\s*([A-Za-z]+\d*(?:\s*,\s*[A-Za-z]+\d*)*)")   # C#: коды, Python: вид
 CODE = re.compile(r"^([A-Z]+\d+):")
 
 CSPROJ = """<?xml version="1.0" encoding="utf-8"?>
@@ -115,8 +115,10 @@ class _Services(SimpleNamespace):
         return lambda *a, **k: calls.append((name, a))
 
 
-class LiveUnityProject:
-    """Временный Unity-проект + Roslyn + редакторы. Один на класс тестов (запуск Roslyn — секунды)."""
+class LiveProject:
+    """Временный проект + настоящий анализатор + редакторы. Один на класс тестов (запуск — секунды).
+    Подкласс пишет проект (_write_project) и создаёт сервер (_make_server)."""
+    language = "csharp"
 
     def __init__(self):
         self.app = QApplication.instance() or QApplication([])
@@ -128,13 +130,12 @@ class LiveUnityProject:
         self._old_hook = sys.excepthook
         sys.excepthook = lambda *exc: (self.crashes.append("".join(traceback.format_exception(*exc))),
                                        print(self.crashes[-1], file=sys.stderr))
-        self.version, self.editor_dir = unity_editor()
         self.tmp = tempfile.TemporaryDirectory(prefix="unipy-live-")
-        self.root = Path(self.tmp.name) / "LiveGame"
+        self.root = Path(self.tmp.name) / "LiveProject"
         self._cache_before = unity_light_solution.CACHE
         unity_light_solution.CACHE = str(Path(self.tmp.name) / "cache")    # кэш IDE не трогаем
         self._write_project()
-        self.server = RoslynServer(str(self.root), find_csharp_server()[1])
+        self.server = self._make_server()
         self.log = []
         self.server.log.connect(self.log.append)
         self.diagnostics = {}               # путь → [(строка, столбец, текст, вид)] — как видит редактор
@@ -142,8 +143,13 @@ class LiveUnityProject:
         self.editors = []
         self.server.result.connect(self._route_result)
 
-    # ---- проект
     def _write_project(self):
+        raise NotImplementedError
+
+    def _make_server(self):
+        raise NotImplementedError
+
+    def _write_unity_project(self):
         shutil.copytree(FIXTURE, self.root)
         (self.root / "ProjectSettings").mkdir(exist_ok=True)
         (self.root / "ProjectSettings" / "ProjectVersion.txt").write_text("m_EditorVersion: %s\n" % self.version)
@@ -207,11 +213,11 @@ class LiveUnityProject:
 
     @staticmethod
     def by_line(items):
-        """{строка: {коды}} из списка ошибок редактора."""
+        """{строка: {коды}} из списка ошибок редактора (C#: «CS0029: …»; без кода — вид: error/warning)."""
         out = {}
-        for line, _col, message, _kind in items:
+        for line, _col, message, kind in items:
             m = CODE.match(message)
-            out.setdefault(line, set()).add(m.group(1) if m else message)
+            out.setdefault(line, set()).add(m.group(1) if m else kind)
         return out
 
     # ---- редактор
@@ -228,6 +234,7 @@ class LiveUnityProject:
             # свой поиск по исходникам пакетов Unity (дополняет список Roslyn) — здесь не проверяется
             csharp_index=SimpleNamespace(submit=lambda **k: None))
         ed = CodeEditor(path, services, QFont("monospace", 11))
+        self.app.processEvents()
         ed.setPlainText(self.read(rel) if text is None else text)
         ed.resize(900, 600)
         ed.show()
@@ -239,3 +246,38 @@ class LiveUnityProject:
         for ed in self.editors:
             if id(ed) == res.get("editor"):
                 ed.on_worker_result(res)
+
+
+class LiveUnityProject(LiveProject):
+    """Unity-проект (fixture/) со ссылками на установленный редактор Unity + Roslyn."""
+
+    def __init__(self):
+        self.version, self.editor_dir = unity_editor()
+        super().__init__()
+
+    def _write_project(self):
+        self._write_unity_project()
+
+    def _make_server(self):
+        return RoslynServer(str(self.root), find_csharp_server()[1])
+
+
+PY_FIXTURE = Path(__file__).with_name("pyfixture")
+
+
+def python_skip_reason():
+    from studio.lsp import find_pyright
+    return None if find_pyright() else "pyright не установлен"
+
+
+class LivePythonProject(LiveProject):
+    """Python-проект (pyfixture/) + pyright с настройками UniPy (профиль под PyQt6)."""
+    language = "python"
+
+    def _write_project(self):
+        shutil.copytree(PY_FIXTURE, self.root)
+
+    def _make_server(self):
+        import sys
+        from studio.lsp import PyrightServer, find_pyright
+        return PyrightServer(str(self.root), find_pyright(), lambda: sys.executable)

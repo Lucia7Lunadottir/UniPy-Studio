@@ -1673,6 +1673,41 @@ def creates_globals_dynamically(text):
     return "sys.modules[__name__]" in text or "globals()" in text
 
 
+class QtCallFalsePositives:
+    """Ложные «неверный вызов» (reportCallIssue) pyright на правильном коде PyQt6/PySide6 — без Qt, по тексту.
+
+    - QLabel("0", alignment=…), QPushButton("+1", clicked=…): Qt принимает свойства и сигналы как
+      именованные аргументы конструктора, а описания типов PyQt6 этого не знают («нет подходящей перегрузки»);
+    - pyqtSignal(int): описания типов PyQt6 требуют параметр arguments, которого на деле можно не задавать.
+    Найдено живыми тестами (tests/test_live_python.py): три жёлтые волны на чистом окне PyQt6."""
+    QT_FACTORIES = {"pyqtSignal", "pyqtProperty", "pyqtSlot", "Signal", "Property", "Slot"}
+    _CALLEE = re.compile(r"[A-Za-z_][\w.]*")
+    _KEYWORD = re.compile(r"[(,]\s*\w+\s*=(?!=)")
+
+    @classmethod
+    def applies(cls, text):
+        return "PyQt6" in text or "PySide6" in text or "PyQt5" in text
+
+    @classmethod
+    def is_false(cls, lines, diagnostic):
+        rng = diagnostic.get("range") or {}
+        start, end = rng.get("start", {}), rng.get("end", {})
+        ln, ch = start.get("line", 0), start.get("character", 0)
+        if ln >= len(lines):
+            return False
+        m = cls._CALLEE.match(lines[ln], ch)
+        if not m:
+            return False
+        name = m.group(0).rsplit(".", 1)[-1]
+        if name in cls.QT_FACTORIES:
+            return True
+        if not re.fullmatch(r"Q[A-Z]\w*", name):
+            return False
+        last = end.get("line", ln)
+        call = "\n".join(lines[ln:last + 1])[ch:]
+        return bool(cls._KEYWORD.search(call))
+
+
 class PyrightServer(LanguageServer):
     """pyright от Microsoft (ядро Pylance — проверки Python в Visual Studio).
 
@@ -1756,7 +1791,10 @@ class PyrightServer(LanguageServer):
         text = self._docs.get(uri, (0, ""))[1]
         lines = text.split("\n")
         out = []
+        qt = QtCallFalsePositives.applies(text)
         for d in items:
+            if qt and d.get("code") == "reportCallIssue" and QtCallFalsePositives.is_false(lines, d):
+                continue
             if d.get("code") == "reportUndefinedVariable" and creates_globals_dynamically(text):
                 d = dict(d, severity=2)         # имена модуля создаются на ходу — pyright их не видит
             elif d.get("code") == "reportAttributeAccessIssue":
