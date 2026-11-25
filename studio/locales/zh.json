@@ -1341,5 +1341,6 @@
   "explorer.check_dependencies": "检查已安装项",
   "explorer.startup_set": "启动项目: %s",
   "lsp.warming": "%s: %s — 正在准备 IntelliSense（大型解决方案首次可能需要几分钟）",
-  "mainwindow.status_warming": "正在准备 IntelliSense…"
+  "mainwindow.status_warming": "正在准备 IntelliSense…",
+  "lsp.unity_missing_references": "Unity 项目“%s”：缺少 .csproj 中的 %d 个库（例如 %s）。在找到它们之前，C# 分析器不会显示编译器错误。请在 Unity 中打开项目，然后点击 Preferences → External Tools → Regenerate project files。"
 }

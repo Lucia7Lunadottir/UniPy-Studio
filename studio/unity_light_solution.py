@@ -26,12 +26,15 @@ import json
 import os
 import re
 
+from .unity_references import ReferenceRetarget
+
 CACHE = os.path.join(os.path.expanduser("~"), ".cache", "unipy-studio", "roslyn")
 _PROJECT_LINE = re.compile(r'^Project\("\{[^}]+\}"\)\s*=\s*"[^"]*",\s*"([^"]+\.csproj)"', re.M)
 _ITEM_PATH = re.compile(r'(<(?:Compile|None|Content|AdditionalFiles|EditorConfig|Analyzer)\s+Include)="([^"]+)"')
 _PROJECT_REF = re.compile(r'<ProjectReference\s+Include="([^"]+)"\s*(?:/>|>.*?</ProjectReference>)', re.S)
 _COMPILE = re.compile(r'<Compile\s+Include="([^"]+)"')
 _ASSEMBLY_NAME = re.compile(r'<AssemblyName>([^<]+)</AssemblyName>')
+_HINT_PATH = re.compile(r'(<HintPath>)([^<]+)(</HintPath>)')
 _ANALYZER = re.compile(r'<Analyzer\s+Include="([^"]+)"')
 _COMPILE_ITEM = re.compile(r'[ \t]*<Compile\s+Include="([^"]+)"\s*/>[ \t]*\r?\n?')
 
@@ -191,10 +194,15 @@ def _add_analyzers(text, analyzers):
     return _append_item_group(text, "".join('<Analyzer Include="%s" />' % html.escape(a) for a in missing))
 
 
-def build(root, solution, analyzers=()):
+def build(root, solution, analyzers=(), report=None):
     """Облегчённое решение для solution (.sln проекта Unity): (путь к нему, [изменённые файлы], {скрипты плагинов})
     или (None, [], set()) — облегчать нечего (тогда анализатор открывает исходное решение).
-    analyzers — DLL анализаторов, которые нужно подключить ко всем проектам (если в проекте их нет)."""
+    analyzers — DLL анализаторов, которые нужно подключить ко всем проектам (если в проекте их нет).
+    report — словарь: сюда кладётся "missing" — DLL, которых нет на диске даже после замены путей
+    (без них Roslyn молча не показывает ошибки компилятора — человеку надо сказать).
+
+    Ссылки в копии всегда абсолютные (копия лежит в кэше, относительный HintPath оттуда — в никуда), а пути
+    к удалённой версии Unity и к пакетам со сменившимся хэшем заменяются живыми (unity_references)."""
     if not solution or not solution.endswith(".sln"):
         return None, [], set()
     try:
@@ -216,6 +224,10 @@ def build(root, solution, analyzers=()):
             dll = os.path.join(dlls, name + ".dll")
             if os.path.isfile(dll):                 # Unity ещё не собрал — оставить исходники
                 packages[rel] = (name, dll)
+    retarget = ReferenceRetarget(root)
+    stale = [rel for rel, t in texts.items() if retarget.needs_fix(t, base)]
+    if report is not None:
+        report["missing"] = sorted(retarget.missing)
     assemblies = UnityAssemblies(base, texts)
     added = {}                                      # проект → скрипты, которых Unity в него ещё не записал
     for path in assemblies.orphans():
@@ -224,7 +236,7 @@ def build(root, solution, analyzers=()):
             added.setdefault(rel, []).append(path)
     if analyzers and not any(_needs_analyzers(t, analyzers) for t in texts.values()):
         analyzers = ()
-    if not packages and not added and not analyzers:
+    if not packages and not added and not analyzers and not stale:
         return None, [], set()
     out = cache_dir(root)
     os.makedirs(out, exist_ok=True)
@@ -233,6 +245,12 @@ def build(root, solution, analyzers=()):
     def absolute(m):
         p = m.group(2)
         return m.group(0) if os.path.isabs(p) else '%s="%s"' % (m.group(1), os.path.join(base, p.replace("\\", os.sep)))
+
+    def absolute_hint(m):
+        p = html.unescape(m.group(2)).replace("\\", "/")
+        if os.path.isabs(p):
+            return m.group(0)
+        return m.group(1) + html.escape(os.path.normpath(os.path.join(base, p)), quote=True) + m.group(3)
 
     def reference(m):
         rel = m.group(1)
@@ -264,6 +282,7 @@ def build(root, solution, analyzers=()):
         else:
             rel_out = rel
         text = _PROJECT_REF.sub(reference, _ITEM_PATH.sub(absolute, text))
+        text = retarget.fix_project(_HINT_PATH.sub(absolute_hint, text), base)
         target = os.path.join(out, rel_out.replace("\\", os.sep))
         os.makedirs(os.path.dirname(target), exist_ok=True)
         if _write_if_changed(target, text):

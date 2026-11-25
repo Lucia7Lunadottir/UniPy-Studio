@@ -1341,5 +1341,6 @@
   "explorer.check_dependencies": "Verificar o que está instalado",
   "explorer.startup_set": "Projeto de inicialização: %s",
   "lsp.warming": "%s: %s — preparando o IntelliSense (na primeira vez, em uma solução grande, pode levar alguns minutos)",
-  "mainwindow.status_warming": "preparando o IntelliSense…"
+  "mainwindow.status_warming": "preparando o IntelliSense…",
+  "lsp.unity_missing_references": "Projeto Unity “%s”: faltam %d bibliotecas dos arquivos .csproj (por exemplo, %s). Enquanto faltarem, o analisador de C# não mostra erros do compilador. Abra o projeto no Unity e clique em Preferences → External Tools → Regenerate project files."
 }

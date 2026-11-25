@@ -1341,5 +1341,6 @@
   "explorer.check_dependencies": "Проверить, что установлено",
   "explorer.startup_set": "Запускаемый проект: %s",
   "lsp.warming": "%s: %s — подготовка подсказок (в большом решении первый раз — до нескольких минут)",
-  "mainwindow.status_warming": "подготовка подсказок…"
+  "mainwindow.status_warming": "подготовка подсказок…",
+  "lsp.unity_missing_references": "Unity-проект «%s»: не найдено библиотек из .csproj — %d (например, %s). Пока их нет, анализатор C# не показывает ошибки компилятора. Откройте проект в Unity и нажмите Preferences → External Tools → Regenerate project files."
 }

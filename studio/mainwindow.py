@@ -224,6 +224,7 @@ class MainWindow(QMainWindow):
             svc.faded.connect(lambda path, ranges: [ed.set_faded(ranges) for ed in self.editors() if ed.path == path])
             svc.status.connect(lambda text, state, k=key: self.analyzers.on_status(text, state, k))
             svc.restarted.connect(lambda reason, k=key: self.analyzers.on_restarted(k, reason))
+            svc.problem.connect(self.analyzers.on_problem)
             svc.restart_mb = self.options["analyzers/restart_mb"]
             svc.insights_ready.connect(lambda k=key: self._insights_ready(k))
         self.python_ls.set_separate_background(self.options["analyzers/python_background"])

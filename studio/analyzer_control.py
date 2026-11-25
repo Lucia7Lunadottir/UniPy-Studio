@@ -29,6 +29,11 @@ class AnalyzerControl:
         self.win.status(tr("mainwindow.restarting_analyzer") + tr(dict(RESTART_THRESHOLDS)[mb]) +
                     (tr("mainwindow.idle_2_minutes") if mb else ""))
 
+    def on_problem(self, text):
+        """Анализатор работает, но неполноценно (например, проекты Unity ссылаются на удалённые DLL) — сказать."""
+        self.win.status(text, 30000)
+        self.win.output.write(text, "common.build", C["warning"])
+
     def on_restarted(self, key, reason):
         name = {"csharp": "C#", "python": "Python"}.get(key, key)
         self.win.status(tr("mainwindow.analyzer_restarted") % (name, reason), 10000)

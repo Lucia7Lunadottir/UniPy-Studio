@@ -178,6 +178,7 @@ class LanguageServer(QObject):
     state_changed = pyqtSignal(str)             # "starting" / "loading" / "ready" / "failed"
     warming_changed = pyqtSignal(bool)          # первые подсказки ещё готовятся (решение загружено, но сервер занят)
     log = pyqtSignal(str)
+    problem = pyqtSignal(str)                   # то, что человек должен узнать (не просто строка журнала)
 
     language_id = "plaintext"
     choices = {}                    # имя → пространство имён, которое пользователь выбирал раньше (общий словарь окна)
@@ -1042,10 +1043,20 @@ class CSharpServer(LanguageServer):
         self.plugin_files = set()           # скрипты, встроенные .asmref в пакет: их ложные CS0122/CS0436 скрыты
         self.sources = set()                # скрипты, которые входят в проекты открытого решения
         self._not_in_assembly = set()       # скрипты, которым сборку не определить — не пересобирать ради них снова
+        self.missing_references = []        # DLL из .csproj, которых нет на диске даже после замены путей
         if self.solution and getattr(self, "is_unity_project", False):
             from .unity_light_solution import build, sources
-            self.light_solution, _, self.plugin_files = build(root, self.solution)
+            report = {}
+            self.light_solution, _, self.plugin_files = build(root, self.solution, report=report)
+            self.missing_references = report.get("missing", [])
             self.sources = sources(self.light_solution or self.solution)
+
+    def missing_references_text(self):
+        """Предупреждение о ненайденных DLL — или "" (без них Roslyn молча не показывает ошибки компилятора)."""
+        if not self.missing_references:
+            return ""
+        return tr("lsp.unity_missing_references") % (
+            os.path.basename(self.root), len(self.missing_references), self.missing_references[0])
 
     def refresh_light_solution(self):
         """Unity пересоздал .sln/.csproj (или появился скрипт, которого в них нет): пересобрать облегчённое решение;
@@ -1053,8 +1064,12 @@ class CSharpServer(LanguageServer):
         if not (self.solution and self.is_unity_project):
             return []
         from .unity_light_solution import build, sources
-        before = self.light_solution
-        light, changed, self.plugin_files = build(self.root, self.solution)
+        before, missing_before = self.light_solution, self.missing_references
+        report = {}
+        light, changed, self.plugin_files = build(self.root, self.solution, report=report)
+        self.missing_references = report.get("missing", [])
+        if self.missing_references and self.missing_references != missing_before:
+            self.problem.emit(self.missing_references_text())
         self.light_solution = light
         self.sources = sources(light or self.solution)
         if light != before and self.state in ("loading", "ready"):
@@ -1211,6 +1226,7 @@ class LanguageService(QObject):
     faded = pyqtSignal(str, object)
     status = pyqtSignal(str, str)     # текст, состояние: loading / warming / ready / failed
     log = pyqtSignal(str)
+    problem = pyqtSignal(str)       # предупреждение для человека (устаревшие проекты и т. п.)
     restarted = pyqtSignal(str)     # анализатор перезапущен (причина) — открытые файлы надо отдать новому
     insights_ready = pyqtSignal()   # фоновый сервер подсказок в коде загрузился — их пора спросить
 
@@ -1311,8 +1327,12 @@ class LanguageService(QObject):
             srv.log.connect(lambda t, s=srv: t and self.log.emit("[%s] %s" % (os.path.basename(s.root), t)))
             srv.state_changed.connect(lambda st, s=srv: self._state(s, st))
             srv.warming_changed.connect(lambda on, s=srv: self._warming(s, on))
+            srv.problem.connect(self.problem)
             self.servers[root] = srv
             srv.start()
+            text = getattr(srv, "missing_references_text", lambda: "")()
+            if text:
+                self.problem.emit(text)
         return srv
 
     def _on_result(self, srv, res):
