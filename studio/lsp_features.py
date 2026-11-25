@@ -43,6 +43,13 @@ class Completion(Feature):
                                                     "documentationFormat": ["markdown", "plaintext"]},
                                  "contextSupport": True}}
 
+    def params(self, server, position, request):
+        # Что вызвало подсказку. Roslyn предлагает методы для переопределения после «override » только
+        # при вызове пробелом (triggerCharacter " "); без контекста он считает вызов ручным.
+        trigger = request.extra.get("trigger")
+        context = {"triggerKind": 2, "triggerCharacter": trigger} if trigger else {"triggerKind": 1}
+        return dict(position, context=context)
+
     def convert(self, server, result, request, reply):
         prefix = re.search(r"\w*$", request.line_text).group(0)
         reply(server._completions(result, request.line_text, prefix, file_imports(request.code)))

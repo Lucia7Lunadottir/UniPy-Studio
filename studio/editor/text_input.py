@@ -6,6 +6,9 @@ from . import comments, smart_indent
 
 _SMART_CHARS = "([{)]}\"'"   # скобки и кавычки: пара, перескок через закрывающую, «{» под if
 
+# «override », «public override », «partial »: после пробела Roslyn предлагает методы для переопределения
+_OVERRIDE_CONTEXT = re.compile(r"\b(?:override|partial)\s$")
+
 SLASH_KEY_SCANCODE = 61     # клавиша «/» (xkb); в русской раскладке она даёт «.», и Ctrl+/ приходил бы как Ctrl+.
 
 
@@ -74,6 +77,8 @@ class TypingMixin:
                 self.request_completion()
         elif text == ".":
             self.request_completion(force=True)
+        elif text == " " and self.lang == "csharp" and _OVERRIDE_CONTEXT.search(self._text_before_cursor(self.textCursor())):
+            self.request_completion(force=True, trigger=" ")     # список методов для переопределения, как в VS
         elif key == Qt.Key.Key_Backspace:
             if popup.isVisible():
                 if self.word_before_cursor():

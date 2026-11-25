@@ -217,7 +217,8 @@ class CompletionMixin:
         if self._notice_req == self._req and not self.completer.popup().isVisible():
             self._completion_notice(tr("editor.searching_completions"))
 
-    def request_completion(self, force=False):
+    def request_completion(self, force=False, trigger=None):
+        """trigger — символ, который вызвал подсказку (передаётся серверу: « » после override и т. п.)."""
         if not force and self._refine_completion():
             return
         self._req += 1
@@ -229,7 +230,7 @@ class CompletionMixin:
         if srv:
             line, col = self._line_col()
             srv.submit("complete", req=self._req, editor=id(self), code=self.toPlainText(),
-                       line=line, col=col, path=self.path)
+                       line=line, col=col, path=self.path, extra={"trigger": trigger} if trigger else None)
         elif self.lang == "python" and self.services.jedi.available:
             line, col = self._line_col()
             self.services.jedi.submit("complete", req=self._req, editor=id(self),
@@ -434,6 +435,8 @@ class CompletionMixin:
                       QTextCursor.MoveMode.KeepAnchor)
         if item is None:
             item = self._completion_items.get(name)
+        if self._needs_server_edit(item) and self._insert_server_edit(item):
+            return
         insertion = name
         move_back = 0
         if item and item.kind in ("method", "function") and not after[len(suffix):].lstrip().startswith("("):
@@ -458,6 +461,59 @@ class CompletionMixin:
         self._add_completion_imports(item)
         if item and item.kind in ("method", "function"):
             self.request_signatures(True)
+
+    # Roslyn: часть подсказок вставляет не имя, а свою правку (override — метод с телом, partial-метод).
+    # У такой подсказки textEdit с пустым текстом, а правка приходит после completionItem/resolve командой
+    # клиента completionComplexEdit: [uri, textEdit, это сниппет, где поставить курсор (смещение в документе)].
+    # Без этого выбор «Equals(object other)» вставлял «Equals()» — неработающий код.
+    COMPLEX_EDIT_COMMAND = "roslyn.client.completionComplexEdit"
+
+    @staticmethod
+    def _needs_server_edit(item):
+        raw = item.data if item is not None and isinstance(item.data, dict) else None
+        edit = (raw or {}).get("textEdit")
+        return isinstance(edit, dict) and edit.get("newText") == "" and bool(raw.get("label"))
+
+    def _insert_server_edit(self, item):
+        """Вставить правку сервера для подсказки item. False — сервера нет (тогда вставляется имя)."""
+        srv = self._lsp_server()
+        if srv is None:
+            return False
+        before_text = self.toPlainText()
+        c = self.textCursor()
+        suffix = re.match(r"\w*", c.block().text()[c.positionInBlock():]).group()
+        end = c.position() + len(suffix.encode("utf-16-le")) // 2
+
+        def apply(raw):
+            if self.toPlainText() != before_text:
+                return              # пока сервер отвечал, текст изменили — не портим его
+            command = raw.get("command") if isinstance(raw.get("command"), dict) else {}
+            args = command.get("arguments") or []
+            if command.get("command") == self.COMPLEX_EDIT_COMMAND and len(args) >= 2:
+                edit, caret = args[1], (args[3] if len(args) > 3 and isinstance(args[3], int) else -1)
+            else:
+                edit, caret = raw.get("textEdit"), -1
+            if not isinstance(edit, dict) or not edit.get("newText"):
+                self.services.status(tr("editor.completion_no_edit") % item.name)
+                return
+            start = edit["range"]["start"]
+            block = self.document().findBlockByNumber(start["line"])
+            if not block.isValid():
+                return
+            begin = block.position() + min(start["character"], block.length() - 1)
+            cur = self.textCursor()
+            cur.beginEditBlock()
+            cur.setPosition(begin)
+            cur.setPosition(max(end, begin), QTextCursor.MoveMode.KeepAnchor)   # вместе с набранным началом имени
+            cur.insertText(edit["newText"])
+            cur.endEditBlock()
+            # Смещение курсора — в документе сервера; текст до начала правки у нас тот же, значит и смещение то же
+            if 0 <= caret <= self.document().characterCount() - 1:
+                cur.setPosition(caret)
+            self.setTextCursor(cur)
+            self.doc_tip.hide()
+        srv.resolve_completion(item.data, apply)
+        return True
 
     def _remember_choice(self, item):
         """Выбрали одно из одинаковых имён (Debug из UnityEngine или из System.Diagnostics) —

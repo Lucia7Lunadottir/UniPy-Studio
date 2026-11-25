@@ -2,10 +2,11 @@
 
 Unity пишет в .csproj абсолютные пути к своим DLL (…/Hub/Editor/<версия>/Editor/Data/…) и к пакетам
 (Library/PackageCache/<пакет>@<хэш>/…). После обновления Unity или пакетов эти пути исчезают, а .csproj
-перепишет только Unity, и то лишь по просьбе IDE. Roslyn, не найдя UnityEngine.dll, помечает проект
-«неразрешённые зависимости» и МОЛЧА перестаёт сообщать ошибки компилятора (чтобы не сыпать ложными):
-в редакторе нет ни одной красной ошибки, даже на `int x = "text";` (так было на The Mirror: .csproj
-от 6000.6.4f1, Unity уже 6000.6.7f1, все 367 ссылок мимо).
+перепишет только Unity, и то лишь по просьбе IDE. Что видит человек (проверено, tests/live):
+- пропали ВСЕ ссылки (The Mirror: .csproj от 6000.6.4f1, Unity уже 6000.6.7f1, 367 ссылок мимо) — Roslyn
+  молча оставляет только синтаксические ошибки: на `int x = "text";` в редакторе пусто;
+- пропала часть (DLL пакетов/плагинов) — ложные «тип не найден» (CS0246, CS0012) на рабочем коде.
+Строка журнала Roslyn «имеются неразрешённые зависимости» с этим НЕ связана — она бывает и при всех ссылках.
 
 Rider в таком случае просит Unity перегенерировать проекты. Мы чиним копию решения для анализатора
 (unity_light_solution): старая версия редактора → версия из ProjectSettings/ProjectVersion.txt, если она
@@ -14,6 +15,7 @@ Rider в таком случае просит Unity перегенерирова
 """
 import glob
 import html
+import json
 import os
 import re
 
@@ -38,13 +40,29 @@ def editor_folders():
     """Папки, где Unity Hub держит редакторы (кроме тех, что видны по путям в самих .csproj)."""
     home = os.path.expanduser("~")
     out = [os.path.join(home, "Unity", "Hub", "Editor")]
-    try:        # «Installs location» из настроек Unity Hub — строка JSON с путём
-        with open(os.path.join(home, ".config", "UnityHub", "secondaryInstallPath.json"), encoding="utf-8") as f:
-            extra = f.read().strip().strip('"')
-        if extra:
-            out.insert(0, extra)
-    except OSError:
-        pass
+    # «Installs location» из настроек Unity Hub — строка JSON с путём (папка у Hub на Linux — строчными)
+    for hub in ("unityhub", "UnityHub"):
+        try:
+            with open(os.path.join(home, ".config", hub, "secondaryInstallPath.json"), encoding="utf-8") as f:
+                extra = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(extra, str) and extra.strip():
+            out.insert(0, os.path.normpath(extra.strip()))
+    return out
+
+
+def installed_editors():
+    """{версия: папка редактора} — что установлено в папках Unity Hub."""
+    out = {}
+    for folder in editor_folders():
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            continue
+        for name in names:
+            if re.fullmatch(r"\d+\.\d+\.\d+[abfpx]\d+", name) and os.path.isdir(os.path.join(folder, name, "Editor", "Data")):
+                out.setdefault(name, os.path.join(folder, name))
     return out
 
 

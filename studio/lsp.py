@@ -1094,7 +1094,7 @@ class CSharpServer(LanguageServer):
             self.sources = sources(self.light_solution or self.solution)
 
     def missing_references_text(self):
-        """Предупреждение о ненайденных DLL — или "" (без них Roslyn молча не показывает ошибки компилятора)."""
+        """Предупреждение о ненайденных DLL — или "" (без них ошибки компилятора неверные или их нет)."""
         if not self.missing_references:
             return ""
         return tr("lsp.unity_missing_references") % (

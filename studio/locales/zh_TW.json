@@ -1342,10 +1342,11 @@
   "explorer.startup_set": "啟始專案: %s",
   "lsp.warming": "%s: %s — 正在準備 IntelliSense（大型方案首次可能需要幾分鐘）",
   "mainwindow.status_warming": "正在準備 IntelliSense…",
-  "lsp.unity_missing_references": "Unity 專案「%s」：缺少 .csproj 中的 %d 個程式庫（例如 %s）。在找到它們之前，C# 分析器不會顯示編譯器錯誤。請在 Unity 中開啟專案，然後點擊 Preferences → External Tools → Regenerate project files。",
+  "lsp.unity_missing_references": "Unity 專案「%s」：缺少 .csproj 中的 %d 個程式庫（例如 %s）。在找到它們之前，C# 錯誤可能不準確：誤報或漏報。請在 Unity 中開啟專案，然後點擊 Preferences → External Tools → Regenerate project files。",
   "editor.fix_all_document": "在文件中",
   "editor.fix_all_member": "在成員中",
   "editor.fix_all_type": "在型別中",
   "editor.fix_all_project": "在專案中",
-  "editor.fix_all_solution": "在方案中"
+  "editor.fix_all_solution": "在方案中",
+  "editor.completion_no_edit": "分析器沒有傳回「%s」要插入的文字"
 }

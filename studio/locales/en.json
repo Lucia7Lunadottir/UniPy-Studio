@@ -1342,10 +1342,11 @@
   "explorer.startup_set": "Startup project: %s",
   "lsp.warming": "%s: %s — preparing IntelliSense (the first time in a large solution can take a few minutes)",
   "mainwindow.status_warming": "preparing IntelliSense…",
-  "lsp.unity_missing_references": "Unity project “%s”: %d libraries from the .csproj files are missing (for example %s). Until they are found the C# analyzer shows no compiler errors. Open the project in Unity and press Preferences → External Tools → Regenerate project files.",
+  "lsp.unity_missing_references": "Unity project “%s”: %d libraries from the .csproj files are missing (for example %s). Until they are found, C# errors may be wrong: false ones or missing ones. Open the project in Unity and press Preferences → External Tools → Regenerate project files.",
   "editor.fix_all_document": "in document",
   "editor.fix_all_member": "in member",
   "editor.fix_all_type": "in type",
   "editor.fix_all_project": "in project",
-  "editor.fix_all_solution": "in solution"
+  "editor.fix_all_solution": "in solution",
+  "editor.completion_no_edit": "The analyzer did not return the text to insert for “%s”"
 }

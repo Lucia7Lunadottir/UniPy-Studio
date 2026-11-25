@@ -1342,10 +1342,11 @@
   "explorer.startup_set": "Startprojekt: %s",
   "lsp.warming": "%s: %s — IntelliSense wird vorbereitet (in einer großen Projektmappe kann das erste Mal einige Minuten dauern)",
   "mainwindow.status_warming": "IntelliSense wird vorbereitet…",
-  "lsp.unity_missing_references": "Unity-Projekt „%s“: %d Bibliotheken aus den .csproj-Dateien fehlen (zum Beispiel %s). Solange sie fehlen, zeigt der C#-Analyzer keine Compilerfehler. Öffnen Sie das Projekt in Unity und klicken Sie auf Preferences → External Tools → Regenerate project files.",
+  "lsp.unity_missing_references": "Unity-Projekt „%s“: %d Bibliotheken aus den .csproj-Dateien fehlen (zum Beispiel %s). Solange sie fehlen, können C#-Fehler falsch sein: unzutreffend oder fehlend. Öffnen Sie das Projekt in Unity und klicken Sie auf Preferences → External Tools → Regenerate project files.",
   "editor.fix_all_document": "im Dokument",
   "editor.fix_all_member": "im Member",
   "editor.fix_all_type": "im Typ",
   "editor.fix_all_project": "im Projekt",
-  "editor.fix_all_solution": "in der Projektmappe"
+  "editor.fix_all_solution": "in der Projektmappe",
+  "editor.completion_no_edit": "Der Analyzer hat keinen Text zum Einfügen für „%s“ geliefert"
 }
