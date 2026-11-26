@@ -27,8 +27,10 @@ class LivePython(unittest.TestCase):
         self.assertEqual(crashes, [], "исключения в обработчиках")
 
     def test_clean_pyqt_code_has_no_errors_or_warnings(self):
-        items = self.live.diagnostics_for("app/window.py")
-        self.assertEqual([d for d in items if d[3] in ("error", "warning")], [])
+        for rel in ("app/window.py", "app/pages.py", "app/settings_page.py"):
+            with self.subTest(rel):
+                items = self.live.diagnostics_for(rel)
+                self.assertEqual([d for d in items if d[3] in ("error", "warning")], [])
 
     def test_planted_problems_have_expected_kind(self):
         rel = "app/broken.py"

@@ -1682,9 +1682,12 @@ class QtCallFalsePositives:
 
     - QLabel("0", alignment=…), QPushButton("+1", clicked=…): Qt принимает свойства и сигналы как
       именованные аргументы конструктора, а описания типов PyQt6 этого не знают («нет подходящей перегрузки»);
-    - pyqtSignal(int): описания типов PyQt6 требуют параметр arguments, которого на деле можно не задавать.
+    - pyqtSignal(int): описания типов PyQt6 требуют параметр arguments, которого на деле можно не задавать;
+    - QTest.qWait(10), QTest.mouseClick(…): в описаниях типов методы QTest объявлены не статическими
+      («ожидается ещё 1 позиционный аргумент»), а при запуске это статические методы (equestria-unity, тесты).
     Найдено живыми тестами (tests/test_live_python.py): три жёлтые волны на чистом окне PyQt6."""
     QT_FACTORIES = {"pyqtSignal", "pyqtProperty", "pyqtSlot", "Signal", "Property", "Slot"}
+    STATIC_QT_CLASSES = {"QTest"}
     _CALLEE = re.compile(r"[A-Za-z_][\w.]*")
     _KEYWORD = re.compile(r"[(,]\s*\w+\s*=(?!=)")
 
@@ -1702,14 +1705,45 @@ class QtCallFalsePositives:
         m = cls._CALLEE.match(lines[ln], ch)
         if not m:
             return False
-        name = m.group(0).rsplit(".", 1)[-1]
-        if name in cls.QT_FACTORIES:
+        parts = m.group(0).split(".")
+        name = parts[-1]
+        if name in cls.QT_FACTORIES or (len(parts) >= 2 and parts[-2] in cls.STATIC_QT_CLASSES):
             return True
         if not re.fullmatch(r"Q[A-Z]\w*", name):
             return False
         last = end.get("line", ln)
         call = "\n".join(lines[ln:last + 1])[ch:]
         return bool(cls._KEYWORD.search(call))
+
+
+class ShadowedQtMethods:
+    """`self.depth = QSpinBox()`, `self.window = main_window` в виджете: у QWidget уже есть методы depth() и
+    window(), атрибут их заменяет — при запуске всё работает. pyright же считает присваивание ошибкой (КРАСНОЙ),
+    а дальше видит в self.depth метод: на каждое self.depth.setRange(…) — «нет атрибута у MethodType».
+    На equestria-unity: 1 красная + ~30 жёлтых на рабочем коде. Опечатки не прячутся: обращение молчит,
+    только если pyright принял имя за метод (MethodType — имя класса, не переводится) и в файле есть self.имя = …"""
+    _ASSIGN = re.compile(r"^\s*self\.(\w+)\s*(?::[^=\n]+)?=(?!=)")
+    _ACCESS = re.compile(r"\bself\.(\w+)\s*\.\s*$")
+
+    @classmethod
+    def is_false(cls, text, lines, diagnostic, assigned_elsewhere=lambda name: False):
+        """assigned_elsewhere(имя) — задаётся ли obj.имя = … в других файлах проекта (базовый класс страницы
+        в controls.py: self.window = window, а self.window.go() — в наследниках)."""
+        rng = diagnostic.get("range") or {}
+        start = rng.get("start", {})
+        ln, ch = start.get("line", 0), start.get("character", 0)
+        if ln >= len(lines):
+            return False
+        line = lines[ln]
+        assign = cls._ASSIGN.match(line)
+        if assign and ch >= assign.end():
+            return True                         # жалоба на значение в `self.имя = значение`
+        access = cls._ACCESS.search(line[:ch])
+        if access and '"MethodType"' in diagnostic.get("message", ""):
+            name = access.group(1)
+            return bool(re.search(r"^\s*self\.%s\s*(?::[^=\n]+)?=(?!=)" % re.escape(name), text, re.M)) \
+                or assigned_elsewhere(name)
+        return False
 
 
 class PyrightServer(LanguageServer):
@@ -1798,6 +1832,10 @@ class PyrightServer(LanguageServer):
         qt = QtCallFalsePositives.applies(text)
         for d in items:
             if qt and d.get("code") == "reportCallIssue" and QtCallFalsePositives.is_false(lines, d):
+                continue
+            # без проверки «файл с Qt»: наследник страницы может не импортировать PyQt6 сам
+            if d.get("code") == "reportAttributeAccessIssue" and ShadowedQtMethods.is_false(
+                    text, lines, d, lambda name: self.assigned.contains(name, [t for _v, t in self._docs.values()])):
                 continue
             if d.get("code") == "reportUndefinedVariable" and creates_globals_dynamically(text):
                 d = dict(d, severity=2)         # имена модуля создаются на ходу — pyright их не видит
