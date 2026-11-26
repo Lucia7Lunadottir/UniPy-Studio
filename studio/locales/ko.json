@@ -1350,5 +1350,6 @@
   "editor.fix_all_solution": "솔루션에서",
   "editor.completion_no_edit": "분석기가 “%s”에 삽입할 텍스트를 반환하지 않았습니다",
   "lsp.request_failed": "%s: 분석기가 오류를 반환했습니다: %s",
-  "lsp.server_request_unsupported": "분석기가 “%s”을(를) 요청했지만 UniPy Studio는 아직 지원하지 않습니다"
+  "lsp.server_request_unsupported": "분석기가 “%s”을(를) 요청했지만 UniPy Studio는 아직 지원하지 않습니다",
+  "lsp.unity_no_library": "Unity 프로젝트 “%s”에 아직 Library 폴더가 없습니다. 이 컴퓨터에서 Unity가 열지 않아 패키지 라이브러리 %d개(TextMeshPro, Input System…)가 없고 C# 오류가 잘못 표시됩니다. Unity에서 프로젝트를 한 번 여세요."
 }

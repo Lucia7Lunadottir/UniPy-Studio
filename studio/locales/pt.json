@@ -1350,5 +1350,6 @@
   "editor.fix_all_solution": "na solução",
   "editor.completion_no_edit": "O analisador não retornou texto para inserir “%s”",
   "lsp.request_failed": "%s: o analisador retornou um erro: %s",
-  "lsp.server_request_unsupported": "O analisador pediu “%s”, que o UniPy Studio ainda não suporta"
+  "lsp.server_request_unsupported": "O analisador pediu “%s”, que o UniPy Studio ainda não suporta",
+  "lsp.unity_no_library": "O projeto Unity “%s” ainda não tem a pasta Library: o Unity não o abriu neste computador, então faltam %d bibliotecas de pacotes (TextMeshPro, Input System…) e os erros de C# serão falsos. Abra o projeto uma vez no Unity."
 }

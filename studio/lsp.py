@@ -1159,6 +1159,10 @@ class CSharpServer(LanguageServer):
         """Предупреждение о ненайденных DLL — или "" (без них ошибки компилятора неверные или их нет)."""
         if not self.missing_references:
             return ""
+        if not os.path.isdir(os.path.join(self.root, "Library")):
+            # Unity ещё не открывал проект здесь (клон из git, удалённая Library): собранных DLL пакетов нет —
+            # TMPro, InputSystem и т. п. «не найдены» (на The Mirror — 268 ложных ошибок). Причина одна и понятная.
+            return tr("lsp.unity_no_library") % (os.path.basename(self.root), len(self.missing_references))
         return tr("lsp.unity_missing_references") % (
             os.path.basename(self.root), len(self.missing_references), self.missing_references[0])
 

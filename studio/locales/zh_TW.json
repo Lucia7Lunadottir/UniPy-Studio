@@ -1350,5 +1350,6 @@
   "editor.fix_all_solution": "在方案中",
   "editor.completion_no_edit": "分析器沒有傳回「%s」要插入的文字",
   "lsp.request_failed": "%s：分析器傳回錯誤：%s",
-  "lsp.server_request_unsupported": "分析器要求了「%s」，UniPy Studio 暫不支援"
+  "lsp.server_request_unsupported": "分析器要求了「%s」，UniPy Studio 暫不支援",
+  "lsp.unity_no_library": "Unity 專案「%s」還沒有 Library 資料夾：Unity 尚未在這台電腦上開啟過它，因此缺少 %d 個套件程式庫（TextMeshPro、Input System…），C# 錯誤將是誤報。請在 Unity 中開啟一次該專案。"
 }

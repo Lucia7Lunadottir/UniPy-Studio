@@ -80,3 +80,19 @@ class LightSolutionReferencesTest(unittest.TestCase):
             text = (Path(light).parent / "Assembly-CSharp.csproj").read_text()
             self.assertIn("<HintPath>%s</HintPath>" % (root / "Assets" / "Plugins" / "Lib.dll"), text)
             self.assertEqual(report["missing"], [str(root / "Library" / "PackageCache" / "gone@1" / "Old.dll")])
+
+
+class MissingLibraryMessageTest(unittest.TestCase):
+    """Нет папки Library (Unity не открывал проект здесь) — своё понятное сообщение, а не пример «collab-proxy»."""
+
+    def test_message_names_library(self):
+        from studio.i18n import tr
+        from studio.lsp import CSharpServer
+        with tempfile.TemporaryDirectory() as tmp:
+            srv = CSharpServer.__new__(CSharpServer)
+            srv.root, srv.missing_references = tmp, ["/x/Library/ScriptAssemblies/Unity.TextMeshPro.dll"]
+            self.assertEqual(srv.missing_references_text(), tr("lsp.unity_no_library") % (os.path.basename(tmp), 1))
+            os.mkdir(os.path.join(tmp, "Library"))
+            self.assertIn("Unity.TextMeshPro.dll", srv.missing_references_text())
+            srv.missing_references = []
+            self.assertEqual(srv.missing_references_text(), "")

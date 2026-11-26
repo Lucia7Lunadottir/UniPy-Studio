@@ -1350,5 +1350,6 @@
   "editor.fix_all_solution": "in solution",
   "editor.completion_no_edit": "The analyzer did not return the text to insert for “%s”",
   "lsp.request_failed": "%s: the analyzer returned an error: %s",
-  "lsp.server_request_unsupported": "The analyzer asked for “%s”, which UniPy Studio does not support yet"
+  "lsp.server_request_unsupported": "The analyzer asked for “%s”, which UniPy Studio does not support yet",
+  "lsp.unity_no_library": "Unity project “%s” has no Library folder yet: Unity has not opened it on this computer, so %d package libraries (TextMeshPro, Input System…) are missing and C# errors will be false. Open the project in Unity once."
 }

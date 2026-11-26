@@ -1350,5 +1350,6 @@
   "editor.fix_all_solution": "у рішенні",
   "editor.completion_no_edit": "Аналізатор не повернув текст для вставлення «%s»",
   "lsp.request_failed": "%s: аналізатор відповів помилкою: %s",
-  "lsp.server_request_unsupported": "Аналізатор запитав «%s» — UniPy Studio цього поки не вміє"
+  "lsp.server_request_unsupported": "Аналізатор запитав «%s» — UniPy Studio цього поки не вміє",
+  "lsp.unity_no_library": "В Unity-проєкті «%s» ще немає теки Library: Unity не відкривав його на цьому комп’ютері, тому бракує %d бібліотек пакетів (TextMeshPro, Input System…) і помилки C# будуть хибними. Відкрийте проєкт у Unity один раз."
 }

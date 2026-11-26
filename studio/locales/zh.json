@@ -1350,5 +1350,6 @@
   "editor.fix_all_solution": "在解决方案中",
   "editor.completion_no_edit": "分析器没有返回“%s”要插入的文本",
   "lsp.request_failed": "%s：分析器返回错误：%s",
-  "lsp.server_request_unsupported": "分析器请求了“%s”，UniPy Studio 暂不支持"
+  "lsp.server_request_unsupported": "分析器请求了“%s”，UniPy Studio 暂不支持",
+  "lsp.unity_no_library": "Unity 项目“%s”还没有 Library 文件夹：Unity 尚未在这台电脑上打开过它，因此缺少 %d 个包库（TextMeshPro、Input System…），C# 错误将是误报。请在 Unity 中打开一次该项目。"
 }

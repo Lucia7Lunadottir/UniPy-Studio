@@ -1350,5 +1350,6 @@
   "editor.fix_all_solution": "ソリューション内",
   "editor.completion_no_edit": "アナライザーが「%s」の挿入テキストを返しませんでした",
   "lsp.request_failed": "%s: アナライザーがエラーを返しました: %s",
-  "lsp.server_request_unsupported": "アナライザーが「%s」を要求しましたが、UniPy Studio はまだ対応していません"
+  "lsp.server_request_unsupported": "アナライザーが「%s」を要求しましたが、UniPy Studio はまだ対応していません",
+  "lsp.unity_no_library": "Unity プロジェクト「%s」にはまだ Library フォルダーがありません。このコンピューターで Unity が開いていないため、パッケージのライブラリ %d 個（TextMeshPro、Input System など）がなく、C# のエラーは誤りになります。Unity でプロジェクトを一度開いてください。"
 }

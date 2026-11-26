@@ -1350,5 +1350,6 @@
   "editor.fix_all_solution": "dans la solution",
   "editor.completion_no_edit": "L’analyseur n’a pas renvoyé de texte à insérer pour « %s »",
   "lsp.request_failed": "%s : l’analyseur a renvoyé une erreur : %s",
-  "lsp.server_request_unsupported": "L’analyseur a demandé « %s », que UniPy Studio ne prend pas encore en charge"
+  "lsp.server_request_unsupported": "L’analyseur a demandé « %s », que UniPy Studio ne prend pas encore en charge",
+  "lsp.unity_no_library": "Le projet Unity « %s » n’a pas encore de dossier Library : Unity ne l’a pas ouvert sur cet ordinateur, il manque donc %d bibliothèques de paquets (TextMeshPro, Input System…) et les erreurs C# seront fausses. Ouvrez le projet une fois dans Unity."
 }
