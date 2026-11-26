@@ -72,8 +72,12 @@ EndProject
 
 
 def unity_editor():
-    """(версия, папка) самого нового установленного Unity — или (None, None)."""
-    found = installed_editors()
+    """(версия, папка) самого нового установленного Unity — или (None, None). Настройки Unity Hub и
+    equestria-unity читаются из настоящей папки (тесты живут в песочнице — conftest.py), только чтение."""
+    from unittest import mock
+    real = os.environ.get("UNIPY_REAL_CONFIG_HOME")
+    with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": real} if real else {}):
+        found = installed_editors()
     if os.environ.get("UNIPY_UNITY_EDITOR"):
         folder = os.environ["UNIPY_UNITY_EDITOR"].rstrip("/")
         return os.path.basename(folder), folder

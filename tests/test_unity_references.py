@@ -96,3 +96,23 @@ class MissingLibraryMessageTest(unittest.TestCase):
             self.assertIn("Unity.TextMeshPro.dll", srv.missing_references_text())
             srv.missing_references = []
             self.assertEqual(srv.missing_references_text(), "")
+
+
+class LauncherEditorsTest(unittest.TestCase):
+    """Unity Hub закрыт или не установлен: редакторы находятся по настройкам equestria-unity."""
+
+    def test_editor_root_and_hand_located(self):
+        from unittest import mock
+        from studio import unity_references as refs
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config"
+            root = Path(tmp) / "Editors"
+            touch(root / "6000.6.7f1" / "Editor" / "Data" / "x")
+            elsewhere = Path(tmp) / "custom" / "6000.3.4f1"
+            touch(elsewhere / "Editor" / "Data" / "x")
+            (config / "equestria-unity").mkdir(parents=True)
+            (config / "equestria-unity" / "settings.json").write_text(
+                '{"editor_root": "%s", "editors": {"6000.3.4f1": "%s"}}' % (root, elsewhere / "Editor" / "Unity"))
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(config), "HOME": str(Path(tmp) / "home")}):
+                found = refs.installed_editors()
+            self.assertEqual(found, {"6000.6.7f1": str(root / "6000.6.7f1"), "6000.3.4f1": str(elsewhere)})

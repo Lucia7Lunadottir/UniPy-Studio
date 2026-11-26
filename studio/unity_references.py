@@ -36,14 +36,40 @@ def project_editor_version(root):
     return m.group(1) if m else None
 
 
+def _config_home():
+    return os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+
+
+def launcher_settings():
+    """Настройки equestria-unity (лаунчер вместо Unity Hub): {} — если его нет. Unity Hub может быть не
+    запущен и вовсе не установлен — редакторы, которые видит лаунчер, должны находиться и здесь."""
+    try:
+        with open(os.path.join(_config_home(), "equestria-unity", "settings.json"), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _editor_dir_of(executable):
+    """…/<версия>/Editor/Unity → (версия, …/<версия>) или None."""
+    folder = os.path.dirname(os.path.dirname(os.path.normpath(str(executable))))
+    version = os.path.basename(folder)
+    return (version, folder) if os.path.isdir(os.path.join(folder, "Editor", "Data")) else None
+
+
 def editor_folders():
-    """Папки, где Unity Hub держит редакторы (кроме тех, что видны по путям в самих .csproj)."""
+    """Папки установки редакторов: Unity Hub («Installs location»), equestria-unity (editor_root),
+    стандартная ~/Unity/Hub/Editor (кроме тех, что видны по путям в самих .csproj)."""
     home = os.path.expanduser("~")
     out = [os.path.join(home, "Unity", "Hub", "Editor")]
+    root = launcher_settings().get("editor_root")
+    if isinstance(root, str) and root.strip():
+        out.insert(0, os.path.normpath(root.strip()))
     # «Installs location» из настроек Unity Hub — строка JSON с путём (папка у Hub на Linux — строчными)
     for hub in ("unityhub", "UnityHub"):
         try:
-            with open(os.path.join(home, ".config", hub, "secondaryInstallPath.json"), encoding="utf-8") as f:
+            with open(os.path.join(_config_home(), hub, "secondaryInstallPath.json"), encoding="utf-8") as f:
                 extra = json.load(f)
         except (OSError, ValueError):
             continue
@@ -53,8 +79,16 @@ def editor_folders():
 
 
 def installed_editors():
-    """{версия: папка редактора} — что установлено в папках Unity Hub."""
+    """{версия: папка редактора}: папки установки + редакторы, добавленные в equestria-unity вручную
+    (editors: версия → путь к Editor/Unity) и известные по его профилям (editor_profiles)."""
     out = {}
+    settings = launcher_settings()
+    by_hand = settings.get("editors") if isinstance(settings.get("editors"), dict) else {}
+    profiles = settings.get("editor_profiles") if isinstance(settings.get("editor_profiles"), dict) else {}
+    for exe in list(by_hand.values()) + list(profiles):
+        found = _editor_dir_of(exe) if isinstance(exe, str) else None
+        if found:
+            out.setdefault(*found)
     for folder in editor_folders():
         try:
             names = os.listdir(folder)
@@ -73,6 +107,7 @@ class ReferenceRetarget:
         self.root = os.path.normpath(root)
         self.version = project_editor_version(root)
         self.editor_dirs = list(editor_dirs if editor_dirs is not None else editor_folders())
+        self.known = installed_editors() if editor_dirs is None else {}     # версия → папка (лаунчер, вручную)
         self._editor_cache = {}             # папка редакторов из пути → папка нужной версии (или None)
         self._package_cache = {}            # (папка кэша, пакет) → папка пакета с текущим хэшем (или None)
         self.retargeted = 0                 # сколько путей заменено
@@ -101,6 +136,8 @@ class ReferenceRetarget:
                     found = os.path.join(folder, self.version)
                     break
             self._editor_cache[hub] = found
+        if self._editor_cache[hub] is None:
+            self._editor_cache[hub] = self.known.get(self.version)     # редактор вне папок установки
         base = self._editor_cache[hub]
         if base is None:
             return None
